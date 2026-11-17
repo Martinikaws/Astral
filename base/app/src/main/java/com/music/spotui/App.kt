@@ -103,10 +103,18 @@ fun App() {
     // tree in both looks, so a switch keeps the back stack, the pages' state and the playback.
     val immersive = com.music.spotui.ui.navigation.isImmersive()
     val haze = com.music.spotui.ui.immersive.shell.rememberImmersiveHazeState()
-    // Liquid Glass (Settings > Display): the pages record themselves for the glass to refract.
-    // Not provided while it is off or unsupported, so nothing is recorded for no reader.
+    // Liquid Glass (Settings > Display) & LiquidMusic Glass Mode:
+    // When LIQUID_MUSIC is active, liquidGlassRefraction == true enables LayerBackdrop + Lens refraction,
+    // while false switches to frostPage (Frosted Glass blur) on Android 12+.
     val glassPage = com.music.spotui.ui.immersive.shell.rememberImmersiveBackdrop()
-    val liquidGlass = immersive && com.music.spotui.ui.immersive.shell.rememberLiquidGlassActive()
+    val themeMode by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsState()
+    val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsState()
+    val baseLiquidGlass = com.music.spotui.ui.immersive.shell.rememberLiquidGlassActive()
+    val liquidGlass = immersive && when (themeMode) {
+        com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC ->
+            liquidRefraction && com.music.spotui.ui.immersive.shell.liquidGlassAvailability() == com.music.spotui.ui.immersive.shell.LiquidGlassAvailability.AVAILABLE
+        else -> baseLiquidGlass
+    }
     // Without it (Android 12+), the frost blurs the same recording, which follows page and tab
     // transitions frame by frame where Haze lagged behind.
     val frostPage = immersive && !liquidGlass && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S

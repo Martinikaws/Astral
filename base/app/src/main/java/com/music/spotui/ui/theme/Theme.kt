@@ -19,46 +19,62 @@ import androidx.core.view.WindowCompat
  * spinners, text fields, menus): Astral blue/lavender accents on deep navy surfaces
  * with no tonal tint on elevated containers.
  */
-private fun astralColorScheme(accent: Color) = darkColorScheme(
-    primary = accent,
-    onPrimary = Color(0xFF0A1422),
-    primaryContainer = accent,
-    onPrimaryContainer = Color(0xFF0A1422),
-    secondary = StarryBlue,
-    onSecondary = Color.White,
-    secondaryContainer = StarryCard,
-    onSecondaryContainer = Color.White,
-    tertiary = AstralTrailLight,
-    onTertiary = Color(0xFF0A1422),
-    background = AppBackground,
-    onBackground = Color.White,
-    surface = AppBackground,
-    onSurface = Color.White,
-    surfaceVariant = StarryCard,
-    onSurfaceVariant = AppMuted,
-    surfaceTint = Color.Transparent,
-    surfaceDim = AppBackground,
-    surfaceBright = Color(0xFF1E3250),
-    surfaceContainerLowest = AppBackground,
-    surfaceContainerLow = Color(0xFF101C2E),
-    surfaceContainer = StarryCard,
-    surfaceContainerHigh = Color(0xFF182840),
-    surfaceContainerHighest = Color(0xFF1E3250),
-    inverseSurface = Color.White,
-    inverseOnSurface = Color(0xFF0A1422),
-    inversePrimary = accent,
-    outline = Color(0xFF3A5270),
-    outlineVariant = Color(0xFF243752),
-    error = Color(0xFFF3727F),
-    onError = Color.Black,
-    scrim = Color(0xFF000000),
-)
+private fun astralColorScheme(
+    accent: Color,
+    mode: com.music.spotui.data.preferences.AstralThemeMode,
+): ColorScheme {
+    val cardSurface = when (mode) {
+        com.music.spotui.data.preferences.AstralThemeMode.STARRY_NIGHT -> StarryCard
+        com.music.spotui.data.preferences.AstralThemeMode.GLASSIFY -> GlassifySurface
+        com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC -> LiquidMusicSurface
+    }
+    val borderOutline = when (mode) {
+        com.music.spotui.data.preferences.AstralThemeMode.STARRY_NIGHT -> Color(0xFF3A5270)
+        com.music.spotui.data.preferences.AstralThemeMode.GLASSIFY -> GlassifyBorder
+        com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC -> LiquidMusicBorder
+    }
+    return darkColorScheme(
+        primary = accent,
+        onPrimary = Color(0xFF0A1422),
+        primaryContainer = accent,
+        onPrimaryContainer = Color(0xFF0A1422),
+        secondary = StarryBlue,
+        onSecondary = Color.White,
+        secondaryContainer = cardSurface,
+        onSecondaryContainer = Color.White,
+        tertiary = AstralTrailLight,
+        onTertiary = Color(0xFF0A1422),
+        background = AppBackground,
+        onBackground = Color.White,
+        surface = AppBackground,
+        onSurface = Color.White,
+        surfaceVariant = cardSurface,
+        onSurfaceVariant = AppMuted,
+        surfaceTint = Color.Transparent,
+        surfaceDim = AppBackground,
+        surfaceBright = Color(0xFF1E3250),
+        surfaceContainerLowest = AppBackground,
+        surfaceContainerLow = Color(0xFF101C2E),
+        surfaceContainer = cardSurface,
+        surfaceContainerHigh = Color(0xFF182840),
+        surfaceContainerHighest = Color(0xFF1E3250),
+        inverseSurface = Color.White,
+        inverseOnSurface = Color(0xFF0A1422),
+        inversePrimary = accent,
+        outline = borderOutline,
+        outlineVariant = Color(0xFF243752),
+        error = Color(0xFFF3727F),
+        onError = Color.Black,
+        scrim = Color(0xFF000000),
+    )
+}
 
 @Composable
 fun SpotuiTheme(
     content: @Composable () -> Unit
 ) {
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
+    val themeMode by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsStateWithLifecycle()
     val policy = energy.policy
     androidx.compose.runtime.LaunchedEffect(policy.videoMaxHeight, policy.allowBackgroundLookups) {
         com.music.spotui.video.MusicVideoController.onEnergyPolicyChanged()
@@ -67,7 +83,7 @@ fun SpotuiTheme(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     androidx.compose.runtime.remember(configuration) { com.music.spotui.data.preferences.DynamicColorPref.refresh() }
     // Dark only: a saved choice from the withdrawn light palette is ignored.
-    val visualScheme: ColorScheme = astralColorScheme(AppAccent)
+    val visualScheme: ColorScheme = astralColorScheme(AppAccent, themeMode)
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -85,7 +101,7 @@ fun SpotuiTheme(
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
             // Behind the first frame and under overscroll: opaque night-sky colour (window background must be opaque).
             val windowBg = if (app.myspoti.power.EnergySettings.oledBlack) Color.Black
-                else (com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) ?: Color(0xFF0A1422)).copy(alpha = 1f)
+                else AppBackground.copy(alpha = 1f)
             window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(windowBg.toArgb()))
         }
     }

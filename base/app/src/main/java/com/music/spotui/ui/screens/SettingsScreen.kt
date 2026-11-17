@@ -398,8 +398,10 @@ fun SettingsScreen(navController: NavController) {
             if (tab == TAB_LOOK) {
 
             Section(R.string.settings_section_display)
+            remember(ctx) { com.music.spotui.data.preferences.ModulesPref.init(ctx); true }
             val starryNightEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsStateWithLifecycle()
             val shootingStarsEnabled by com.music.spotui.data.preferences.StarryNightPref.shootingStars.collectAsStateWithLifecycle()
+            val modulesEnabled by com.music.spotui.data.preferences.ModulesPref.enabled.collectAsStateWithLifecycle()
             OptionRow(
                 label = "Starry Night Sky",
                 detail = "Twinkling night sky backdrop across all styles",
@@ -412,6 +414,12 @@ fun SettingsScreen(navController: NavController) {
                 checked = shootingStarsEnabled,
                 enabled = starryNightEnabled,
                 onChecked = { com.music.spotui.data.preferences.StarryNightPref.setShootingStars(ctx, it) },
+            )
+            OptionRow(
+                label = "Modules Tab",
+                detail = "Show full-screen Modules tab (BackMusic & Visualizer)",
+                checked = modulesEnabled,
+                onChecked = { com.music.spotui.data.preferences.ModulesPref.setEnabled(ctx, it) },
             )
             OptionRow(
                 label = stringResource(R.string.settings_amoled_theme),
@@ -484,6 +492,8 @@ fun SettingsScreen(navController: NavController) {
                 onChecked = { com.music.spotui.data.preferences.AppFontPref.set(ctx, it) },
             )
             LookRow()
+            AppThemeRow()
+            SpicyThemeRow()
             PageStyleRow()
             OrientationRow()
             LanguageRow()
@@ -659,6 +669,72 @@ private fun LookRow() {
     }
 }
 
+@Composable
+private fun <T> RadioOptionGroup(
+    title: String,
+    current: T,
+    options: List<Triple<T, String, String>>,
+    onSelect: (T) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+        Text(title, color = AppText, fontSize = 16.sp)
+        for ((value, label, detail) in options) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+                    .semantics { role = Role.RadioButton }
+                    .clickable { onSelect(value) }
+                    .padding(vertical = 8.dp),
+            ) {
+                androidx.compose.material3.RadioButton(selected = current == value, onClick = null)
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text(label, color = AppText, fontSize = 15.sp)
+                    if (detail.isNotEmpty()) Text(detail, color = AppMuted, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppThemeRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val current by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsStateWithLifecycle()
+    val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsStateWithLifecycle()
+    val options = remember {
+        com.music.spotui.data.preferences.AstralThemeMode.entries.map { Triple(it, it.label, it.detail) }
+    }
+    RadioOptionGroup(
+        title = "App Theme",
+        current = current,
+        options = options,
+        onSelect = { com.music.spotui.data.preferences.AstralThemePref.setThemeMode(ctx, it) },
+    )
+    if (current == com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC) {
+        OptionRow(
+            label = "LiquidMusic Glass Mode",
+            detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
+            checked = liquidRefraction,
+            onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
+        )
+    }
+}
+
+@Composable
+private fun SpicyThemeRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val current by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsStateWithLifecycle()
+    val options = remember {
+        com.music.spotui.data.preferences.SpicyThemePreset.entries.map { Triple(it, it.label, "") }
+    }
+    RadioOptionGroup(
+        title = "SpicyThemes Preset",
+        current = current,
+        options = options,
+        onSelect = { com.music.spotui.data.preferences.AstralThemePref.setSpicyTheme(ctx, it) },
+    )
+}
+
 /** Playlist / Album / Artist page style (Orpheon Basic, Orpheon Interactive Glass, Spotifusion 1:1). */
 @Composable
 private fun PageStyleRow() {
@@ -671,24 +747,12 @@ private fun PageStyleRow() {
             Triple(com.music.spotui.data.preferences.PageStyle.SPOTIFUSION, "Spotifusion 1:1", "Classic Spotify-faithful header, track rows, and action bar."),
         )
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-        Text("Playlist / Album / Artist Page Style", color = AppText, fontSize = 16.sp)
-        for ((style, title, detail) in options) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-                    .semantics { role = Role.RadioButton }
-                    .clickable { com.music.spotui.data.preferences.PageStylePref.set(ctx, style) }
-                    .padding(vertical = 8.dp),
-            ) {
-                androidx.compose.material3.RadioButton(selected = current == style, onClick = null)
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text(title, color = AppText, fontSize = 15.sp)
-                    Text(detail, color = AppMuted, fontSize = 12.sp)
-                }
-            }
-        }
-    }
+    RadioOptionGroup(
+        title = "Playlist / Album / Artist Page Style",
+        current = current,
+        options = options,
+        onSelect = { com.music.spotui.data.preferences.PageStylePref.set(ctx, it) },
+    )
 }
 
 /** The accent colour of one look, for everyone (the same palette the supporter sheet uses). */

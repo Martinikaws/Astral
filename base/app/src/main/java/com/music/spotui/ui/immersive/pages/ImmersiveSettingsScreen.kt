@@ -77,7 +77,7 @@ import com.music.spotui.ui.screens.shareDiagnosticReport
 import kotlinx.coroutines.launch
 
 /** Where the Immersive Settings are: the list of categories, one category, or a choice inside it. */
-private enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, PageStyle, Rotation, Language, LyricsLanguage, App, Accounts, Library }
+private enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, AppTheme, SpicyTheme, PageStyle, Rotation, Language, LyricsLanguage, App, Accounts, Library }
 
 private val StreamingChoices = listOf(
     Triple(StreamingQuality.AUTO, R.string.quality_streaming_auto, R.string.quality_streaming_auto_detail),
@@ -148,6 +148,8 @@ fun ImmersiveSettingsScreen(navController: NavController) {
             SettingsPage.Data -> DataPage(back)
             SettingsPage.Display -> DisplayPage(open, back)
             SettingsPage.Look -> LookPage(back)
+            SettingsPage.AppTheme -> AppThemePage(back)
+            SettingsPage.SpicyTheme -> SpicyThemePage(back)
             SettingsPage.PageStyle -> PageStylePage(back)
             SettingsPage.Rotation -> RotationPage(back)
             SettingsPage.Language -> LanguagePage(back)
@@ -904,10 +906,15 @@ private fun DataPage(back: () -> Unit) {
 @Composable
 private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     val ctx = LocalContext.current
+    remember(ctx) { com.music.spotui.data.preferences.ModulesPref.init(ctx); true }
     var canvasWifiOnly by remember { mutableStateOf(com.music.spotui.data.preferences.isCanvasWifiOnly(ctx)) }
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
     val starryNightEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsStateWithLifecycle()
     val shootingStarsEnabled by com.music.spotui.data.preferences.StarryNightPref.shootingStars.collectAsStateWithLifecycle()
+    val themeMode by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsStateWithLifecycle()
+    val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsStateWithLifecycle()
+    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsStateWithLifecycle()
+    val modulesEnabled by com.music.spotui.data.preferences.ModulesPref.enabled.collectAsStateWithLifecycle()
     val look = com.music.spotui.data.preferences.LookPref.look
     val rotation = com.music.spotui.data.preferences.OrientationPref.mode
     val language = remember { com.music.spotui.data.AppLanguage.current(ctx) }
@@ -919,6 +926,28 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     stringResource(R.string.settings_look_title),
                     value = stringResource(if (look == com.music.spotui.data.preferences.Look.CLASSIC) R.string.look_classic else R.string.look_immersive),
                     chevron = true, onClick = { open(SettingsPage.Look) },
+                )
+            }
+            row {
+                ImmersiveGroupRow(
+                    "App Theme",
+                    value = themeMode.label,
+                    chevron = true, onClick = { open(SettingsPage.AppTheme) },
+                )
+            }
+            if (themeMode == com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC) row {
+                ImmersiveSwitchRow(
+                    "LiquidMusic Glass Mode",
+                    checked = liquidRefraction,
+                    onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
+                    detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
+                )
+            }
+            row {
+                ImmersiveGroupRow(
+                    "SpicyThemes Preset",
+                    value = spicyPreset.label,
+                    chevron = true, onClick = { open(SettingsPage.SpicyTheme) },
                 )
             }
             row {
@@ -960,6 +989,14 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     enabled = starryNightEnabled,
                     onChecked = { com.music.spotui.data.preferences.StarryNightPref.setShootingStars(ctx, it) },
                     detail = "Occasional shooting stars across the sky",
+                )
+            }
+            row {
+                ImmersiveSwitchRow(
+                    "Modules Tab",
+                    checked = modulesEnabled,
+                    onChecked = { com.music.spotui.data.preferences.ModulesPref.setEnabled(ctx, it) },
+                    detail = "Show full-screen Modules tab (BackMusic & Visualizer)",
                 )
             }
             if (look == com.music.spotui.data.preferences.Look.IMMERSIVE) row {
@@ -1099,6 +1136,45 @@ private fun LookPage(back: () -> Unit) {
                         selected = current == l,
                         detail = stringResource(if (classic) R.string.look_classic_detail else R.string.look_immersive_detail),
                         onClick = { com.music.spotui.data.preferences.LookPref.set(ctx, l) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppThemePage(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val current by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsStateWithLifecycle()
+    ImmersivePage(title = "App Theme", onBack = back) {
+        immersiveGroup("choices") {
+            for (mode in com.music.spotui.data.preferences.AstralThemeMode.entries) {
+                row {
+                    ImmersiveChoiceRow(
+                        mode.label,
+                        selected = current == mode,
+                        detail = mode.detail,
+                        onClick = { com.music.spotui.data.preferences.AstralThemePref.setThemeMode(ctx, mode) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpicyThemePage(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val current by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsStateWithLifecycle()
+    ImmersivePage(title = "SpicyThemes Preset", onBack = back) {
+        immersiveGroup("choices") {
+            for (preset in com.music.spotui.data.preferences.SpicyThemePreset.entries) {
+                row {
+                    ImmersiveChoiceRow(
+                        preset.label,
+                        selected = current == preset,
+                        onClick = { com.music.spotui.data.preferences.AstralThemePref.setSpicyTheme(ctx, preset) },
                     )
                 }
             }

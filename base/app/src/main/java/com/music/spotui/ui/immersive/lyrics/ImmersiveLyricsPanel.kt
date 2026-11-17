@@ -1163,8 +1163,12 @@ private fun PanelVoice(
     // The line being sung is white; every other one takes a quieter white. Faded across the
     // handover rather than cut, so a line warms as it is reached and cools as it is left.
     // Lyrics with no timing have no line being sung, and stay white throughout.
+    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
+    val customSpicy = spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT
+    val activeColor = if (customSpicy) Color(spicyPreset.accentHex) else Color.White
+    val glowTint = if (customSpicy) Color(spicyPreset.glowHex) else Immersive.Accent
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = if (isActive || !synced) activeColor else Immersive.TextSecondary.copy(alpha = 0.85f),
         label = "lyricLineColor",
     )
     if (synced && (row.isWordSynced || row.swept.endMs > row.timeMs)) {
@@ -1186,7 +1190,7 @@ private fun PanelVoice(
             feather = isActive,
             rise = row.isWordSynced,
             color = color,
-            glowColor = lerp(color, Immersive.Accent, 0.35f),
+            glowColor = lerp(color, glowTint, if (customSpicy) 0.45f else 0.35f),
             alignEnd = lane == true,
             laneLocked = lane != null,
         )
@@ -1226,8 +1230,10 @@ private fun PanelBackground(
     lane: Boolean?,
     modifier: Modifier = Modifier,
 ) {
+    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
+    val activeColor = if (spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT) Color(spicyPreset.accentHex) else Color.White
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = if (isActive || !synced) activeColor else Immersive.TextSecondary.copy(alpha = 0.85f),
         label = "lyricBackgroundColor",
     )
     val dimmer = modifier.graphicsLayer { alpha = BACKGROUND_ALPHA }

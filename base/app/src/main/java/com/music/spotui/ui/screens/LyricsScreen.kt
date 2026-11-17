@@ -632,7 +632,18 @@ fun LyricsScreen(
     val vm: LyricsViewModel = viewModel()
     val state = rememberLyricsState(vm, title, artist)
     val lyrics = (state as? LyricsViewModel.State.Loaded)?.lyrics
-    val palette = paletteFor(lyrics, accentColor)
+    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
+    val customSpicy = spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT
+    val effectiveAccent = if (customSpicy) Color(spicyPreset.accentHex) else accentColor
+    val palette = paletteFor(lyrics, effectiveAccent).let { base ->
+        if (customSpicy) LyricsPalette(
+            background = Color(spicyPreset.bgBottomHex),
+            text = base.text,
+            highlight = Color(spicyPreset.accentHex),
+        ) else base
+    }
+    val spicyGlow = if (customSpicy) Color(spicyPreset.glowHex) else palette.highlight
+    val spicyTopBg = if (customSpicy) Color(spicyPreset.bgTopHex) else palette.background
     val bg by animateColorAsState(palette.background, tween(300), label = "lyricsBg")
     val playing = com.music.spotui.di.Graph.currentSongState.playingState.value
     val position = rememberPosition(playing)
@@ -707,21 +718,21 @@ fun LyricsScreen(
                         val cy2 = size.height * (0.74f + 0.08f * kotlin.math.cos(meshPhase * 0.7f))
                         drawRect(
                             brush = Brush.radialGradient(
-                                colors = listOf(accentColor.copy(alpha = 0.28f * a), bg.copy(alpha = 0.68f * a)),
+                                colors = listOf(effectiveAccent.copy(alpha = 0.28f * a), spicyTopBg.copy(alpha = 0.68f * a)),
                                 center = Offset(cx1, cy1),
                                 radius = size.maxDimension * 0.85f,
                             ),
                         )
                         drawRect(
                             brush = Brush.radialGradient(
-                                colors = listOf(palette.highlight.copy(alpha = 0.12f * a), Color.Transparent),
+                                colors = listOf(spicyGlow.copy(alpha = 0.16f * a), Color.Transparent),
                                 center = Offset(cx2, cy2),
                                 radius = size.maxDimension * 0.7f,
                             ),
                         )
                         drawRect(
                             brush = Brush.verticalGradient(
-                                colors = listOf(bg.copy(alpha = 0.35f * a), Color.Transparent, bg.copy(alpha = 0.58f * a)),
+                                colors = listOf(spicyTopBg.copy(alpha = 0.35f * a), Color.Transparent, bg.copy(alpha = 0.58f * a)),
                             ),
                         )
                     },

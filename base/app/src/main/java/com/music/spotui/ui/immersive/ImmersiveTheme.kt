@@ -11,33 +11,70 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.spotui.data.preferences.AstralThemeMode
+import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.ui.look.ImmersiveDisplay
 import com.music.spotui.ui.look.ImmersiveSans
 import com.music.spotui.ui.theme.AstralLavender
 import com.music.spotui.ui.theme.AstralTrailLight
+import com.music.spotui.ui.theme.AstralTrailMid
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifySurface
+import com.music.spotui.ui.theme.LiquidMusicBackground
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
 import com.music.spotui.ui.theme.StarryAccent
+import com.music.spotui.ui.theme.StarryBlue
 import com.music.spotui.ui.theme.StarrySubtext
 
 /*
  * The Immersive look's tokens, shared by every Immersive screen so they read as one app:
- * StarryNight `[Base]` night sky, Inter, large bold titles, rounded covers, translucent "glass"
- * bars and warm starlight accent (or one taken from the playing cover where there is one).
+ * StarryNight `[Base]` night sky, Glassify frosted glass, or LiquidMusic dynamic refraction,
+ * Inter, large bold titles, rounded covers, translucent "glass" bars and warm starlight /
+ * dynamic accent.
  */
 object Immersive {
     // Colours.
-    /** StarryNight translucent night sky, or an extension's look background (unless the AMOLED setting is on). */
+    /** Active Astral theme sky/surface, or an extension's look background (unless the AMOLED setting is on). */
     val Page: Color get() = if (app.myspoti.power.EnergySettings.oledBlack) Color.Black
-        else com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) ?: Color(0xB80A1422)
-    val Raised: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE) ?: Color(0xCC152238)
+        else com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND)
+            ?: when (AstralThemePref.themeMode.value) {
+                AstralThemeMode.STARRY_NIGHT -> Color(0xB80A1422)
+                AstralThemeMode.GLASSIFY -> GlassifySurface
+                AstralThemeMode.LIQUID_MUSIC -> LiquidMusicBackground
+            }
+    val Raised: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE)
+        ?: when (AstralThemePref.themeMode.value) {
+            AstralThemeMode.STARRY_NIGHT -> Color(0xCC152238)
+            AstralThemeMode.GLASSIFY -> GlassifySurface
+            AstralThemeMode.LIQUID_MUSIC -> LiquidMusicSurface
+        }
     val Separator = AstralTrailLight.copy(alpha = 0.14f)
     val Text = Color.White
     val TextSecondary = StarrySubtext
     val TextTertiary = AstralLavender.copy(alpha = 0.50f)
-    /** StarryNight warm starlight until an Immersive accent colour is chosen in Settings, then that colour (links, the selected tab, toggles). */
+    /** Theme-aware accent (StarryNight warm starlight, Glassify sky-blue/dynamic, LiquidMusic dynamic album-art/Material You). */
     val Accent: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.ACCENT)
-        ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryAccent }
-    val GlassFill = Color(0xD9152238)
-    val GlassEdge = Color.White.copy(alpha = 0.14f)
+        ?: when (AstralThemePref.themeMode.value) {
+            AstralThemeMode.LIQUID_MUSIC ->
+                com.music.spotui.data.preferences.DynamicColorPref.accent()
+                    ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else AstralTrailMid }
+            AstralThemeMode.GLASSIFY ->
+                com.music.spotui.data.preferences.DynamicColorPref.accent()
+                    ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryBlue }
+            AstralThemeMode.STARRY_NIGHT ->
+                com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryAccent }
+        }
+    val GlassFill: Color get() = when (AstralThemePref.themeMode.value) {
+        AstralThemeMode.STARRY_NIGHT -> Color(0xD9152238)
+        AstralThemeMode.GLASSIFY -> GlassifySurface
+        AstralThemeMode.LIQUID_MUSIC -> Color(0x99152238)
+    }
+    val GlassEdge: Color get() = when (AstralThemePref.themeMode.value) {
+        AstralThemeMode.STARRY_NIGHT -> Color.White.copy(alpha = 0.14f)
+        AstralThemeMode.GLASSIFY -> GlassifyBorder
+        AstralThemeMode.LIQUID_MUSIC -> LiquidMusicBorder
+    }
     /** The red of a destructive swipe, menu entry or confirmation (Leave, Remove, an error). */
     val Destructive = Color(0xFFFF453A)
 
