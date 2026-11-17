@@ -258,7 +258,7 @@ object LyricsApi {
         val spotify = if (sourceId in WORD_SOURCES) runCatching { fromSpotify(track) }.getOrNull() else null
         val found = try {
             when {
-                sourceId == "spicy" -> byHand { SpicyLyricsProvider.fetch(com.music.spotui.di.Graph.app, track.trackId, durationMs) }
+                sourceId == "spicy" -> byHand { SpicyLyricsProvider.fetch(runCatching { com.music.spotui.di.Graph.app }.getOrNull(), track.trackId, durationMs) }
                 sourceId == "spotify" -> fromSpotify(track)
                 sourceId.startsWith("ext:") -> com.music.spotui.extensions.Extensions.lyricsFromExtension(
                     sourceId.removePrefix("ext:"), track.trackId, track.title, track.artist, track.album, durationMs, track.coverUrl)
@@ -532,7 +532,7 @@ object LyricsApi {
         val artist = track.artist.substringBefore(",").trim()
         val durationMs = track.durationMs
         val spotify = async { fromSpotify(track) }
-        val spicy = async { within(WORD_WAIT_MS) { asking("spicy", track) { SpicyLyricsProvider.fetch(com.music.spotui.di.Graph.app, track.trackId, durationMs) } } }
+        val spicy = async { within(WORD_WAIT_MS) { asking("spicy", track) { SpicyLyricsProvider.fetch(runCatching { com.music.spotui.di.Graph.app }.getOrNull(), track.trackId, durationMs) } } }
         val plus = async { within(WORD_WAIT_MS) { asking("lyricsplus", track) { fromLyricsPlus(asked, title, artist, durationMs) } } }
         val red = async { within(WORD_WAIT_MS) { asking("lrcred", track) { fromLrcRed(asked, title, artist, durationMs) } } }
         val kugou = async { within(WORD_WAIT_MS) { asking("kugou", track) { fromKugou(title, artist, durationMs) } } }

@@ -822,9 +822,15 @@ fun LyricsScreen(
                 // Lines near the current one rise in one after the other, the first just
                 // above it; the rest of the screen's lines have no visible entrance.
                 val staggerBase = remember(l) { (active - 4).coerceAtLeast(0) }
+                val firstSung = remember(l) { l.lines.firstOrNull { it.text.isNotBlank() && it.text.trim() != "♪" } }
+                val hasIntro = l.synced && firstSung != null && firstSung.timeMs > 4_000L
+                val headerCount = (if (notes.isNotEmpty() && !hintSeen) 1 else 0) +
+                    (if (!l.synced) 1 else 0) +
+                    (if (hasIntro) 1 else 0)
+                val scrollTarget = if (active < 0) -1 else active + headerCount
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val offsetPx = with(LocalDensity.current) { (maxHeight * 0.34f).roundToPx() }
-                    AutoFollow(listState, active, offsetPx, enabled = l.synced && !selecting)
+                    AutoFollow(listState, scrollTarget, offsetPx, enabled = l.synced && !selecting)
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -846,8 +852,7 @@ fun LyricsScreen(
                                 modifier = Modifier.padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
                             )
                         }
-                        val firstSung = l.lines.firstOrNull { it.text.isNotBlank() && it.text.trim() != "♪" }
-                        if (l.synced && firstSung != null && firstSung.timeMs > 4_000L) item(key = "intro-countdown") {
+                        if (hasIntro && firstSung != null) item(key = "intro-countdown") {
                             InterludeDots(
                                 startMs = 0L,
                                 endMs = firstSung.timeMs,

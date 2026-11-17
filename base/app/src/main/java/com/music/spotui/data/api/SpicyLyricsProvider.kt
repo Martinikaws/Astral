@@ -28,7 +28,8 @@ object SpicyLyricsProvider {
     private const val UA = "Myspoti (https://github.com/)"
 
     /** Fetches lyrics for [trackId] from Spicy Lyrics, or returns null on miss/auth/network failure. */
-    fun fetch(context: Context, trackId: String, durationMs: Long = 0L): Lyrics? {
+    fun fetch(context: Context?, trackId: String, durationMs: Long = 0L): Lyrics? {
+        if (context == null) return null
         val id = trackId.trim().substringAfterLast(':')
         if (id.isBlank()) return null
         if (!runCatching { OfflineStore.isOnline(context) }.getOrDefault(true)) return null
@@ -295,7 +296,7 @@ object SpicyLyricsProvider {
             obj.has(k4) -> obj.optDouble(k4, 0.0)
             else -> return 0L
         }
-        if (raw <= 0.0 || raw.isNaN()) return 0L
+        if (raw <= 0.0 || !raw.isFinite()) return 0L
         return if (inSeconds) (raw * 1000.0).roundToLong() else raw.roundToLong()
     }
 }
