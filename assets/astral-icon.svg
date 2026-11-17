@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#060F2B"/>
+      <stop offset="100%" stop-color="#0B1B45"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" rx="26" fill="url(#bg)"/>
+  <!-- Secondary curved comet trail -->
+  <path fill="#85B7EB" d="M28,43 C33,55 44,66 63,71 L61,75 C42,70 31,58 28,43 Z"/>
+  <!-- Primary curved comet trail -->
+  <path fill="#B5D4F4" d="M30,31 C36,46 49,60 68,67 L65,73 C45,66 32,50 30,31 Z"/>
+  <!-- 4-pointed white star head -->
+  <path fill="#FFFFFF" d="M68,59 Q68,70 79,70 Q68,70 68,81 Q68,70 57,70 Q68,70 68,59 Z"/>
+  <!-- Soft lavender sparkles -->
+  <circle cx="58" cy="44" r="2.2" fill="#CECBF6"/>
+  <circle cx="42" cy="32" r="1.7" fill="#CECBF6"/>
+  <circle cx="46" cy="76" r="1.5" fill="#CECBF6"/>
+</svg>
