@@ -17,7 +17,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -102,6 +107,7 @@ import com.music.spotui.ui.look.GLOW_ALPHA
 import com.music.spotui.ui.look.GLOW_ROOM
 import com.music.spotui.ui.look.LINE_FALLOFF_ALPHA
 import com.music.spotui.ui.look.LINE_FALLOFF_BLUR
+import com.music.spotui.ui.look.SUNG_ALPHA
 import com.music.spotui.ui.look.SweptLyricLine
 import com.music.spotui.ui.look.UNSUNG_ALPHA
 import com.music.spotui.ui.look.scaleForDistance
@@ -371,13 +377,23 @@ private fun InterludeDots(
             val through = ((clock.longValue - startMs).toFloat() / span).coerceIn(0f, 1f)
             val radius = 5.dp.toPx()
             val stride = 16.dp.toPx()
+            val wavePhase = (clock.longValue % 1_800L) / 1_800f * (2f * kotlin.math.PI.toFloat())
             repeat(3) { dot ->
                 val lit = (through * 3f - dot).coerceIn(0f, 1f)
-                val pulse = 1f + 0.24f * kotlin.math.sin(lit * kotlin.math.PI).toFloat()
+                val wave = if (active) kotlin.math.sin(wavePhase - dot * 0.9f).toFloat() else 0f
+                val pulse = 1f + 0.24f * kotlin.math.sin(lit * kotlin.math.PI).toFloat() + 0.12f * wave
+                val center = Offset(radius + dot * stride, size.height / 2f - wave * 2.dp.toPx())
+                if (active && lit > 0.05f) {
+                    drawCircle(
+                        color = color.copy(alpha = 0.22f * lit),
+                        radius = radius * pulse * 1.65f,
+                        center = center,
+                    )
+                }
                 drawCircle(
-                    color = color.copy(alpha = 0.25f + 0.75f * lit),
+                    color = color.copy(alpha = 0.28f + 0.72f * lit),
                     radius = radius * pulse,
-                    center = Offset(radius + dot * stride, size.height / 2f),
+                    center = center,
                 )
             }
         }
@@ -509,7 +525,7 @@ private fun LyricLineText(
                 line = swept,
                 clock = clock,
                 style = baseStyle,
-                dimAlpha = if (state == -1) 1f else UNSUNG_ALPHA,
+                dimAlpha = if (state == -1) SUNG_ALPHA else UNSUNG_ALPHA,
                 glowAlpha = if (isActive) GLOW_ALPHA else 0f,
                 glowRoom = if (depthFalloff) GLOW_ROOM else 0.dp,
                 feather = isActive,
@@ -517,6 +533,7 @@ private fun LyricLineText(
                 alignEnd = duet && line.voice == 2,
                 laneLocked = duet && (line.voice == 1 || line.voice == 2),
                 color = palette.highlight,
+                glowColor = lerp(palette.highlight, Color.White, 0.35f),
                 modifier = Modifier.fillMaxWidth().then(underline),
             )
         } else {
@@ -542,9 +559,10 @@ private fun LyricLineText(
         ) {
             Text(
                 text = line.background.orEmpty(),
-                color = color.copy(alpha = color.alpha * 0.6f),
-                fontSize = (fontSize.value * 0.7f).sp,
+                color = color.copy(alpha = color.alpha * 0.56f),
+                fontSize = (fontSize.value * 0.68f).sp,
                 fontWeight = FontWeight.Medium,
+                fontStyle = FontStyle.Italic,
                 textAlign = align,
                 modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
             )
@@ -671,21 +689,39 @@ fun LyricsScreen(
                         .then(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(64.dp) else Modifier),
                 )
             }
+            val reduceMotion = com.music.spotui.ui.look.rememberReduceMotion()
+            val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "spicyMesh").animateFloat(
+                initialValue = 0f,
+                targetValue = (2f * kotlin.math.PI).toFloat(),
+                animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart),
+                label = "meshPhase",
+            ).value
             Box(
                 Modifier
                     .fillMaxSize()
                     .drawBehind {
                         val a = if (reveal == null) 1f else (reveal() / 0.08f).coerceIn(0f, 1f)
+                        val cx1 = size.width * (0.24f + 0.10f * kotlin.math.cos(meshPhase))
+                        val cy1 = size.height * (0.24f + 0.08f * kotlin.math.sin(meshPhase))
+                        val cx2 = size.width * (0.78f - 0.12f * kotlin.math.sin(meshPhase * 0.8f))
+                        val cy2 = size.height * (0.74f + 0.08f * kotlin.math.cos(meshPhase * 0.7f))
                         drawRect(
                             brush = Brush.radialGradient(
-                                colors = listOf(accentColor.copy(alpha = 0.22f * a), bg.copy(alpha = 0.72f * a)),
-                                center = Offset(size.width * 0.25f, size.height * 0.25f),
+                                colors = listOf(accentColor.copy(alpha = 0.28f * a), bg.copy(alpha = 0.68f * a)),
+                                center = Offset(cx1, cy1),
                                 radius = size.maxDimension * 0.85f,
                             ),
                         )
                         drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(palette.highlight.copy(alpha = 0.12f * a), Color.Transparent),
+                                center = Offset(cx2, cy2),
+                                radius = size.maxDimension * 0.7f,
+                            ),
+                        )
+                        drawRect(
                             brush = Brush.verticalGradient(
-                                colors = listOf(bg.copy(alpha = 0.35f * a), Color.Transparent, bg.copy(alpha = 0.55f * a)),
+                                colors = listOf(bg.copy(alpha = 0.35f * a), Color.Transparent, bg.copy(alpha = 0.58f * a)),
                             ),
                         )
                     },
@@ -810,6 +846,17 @@ fun LyricsScreen(
                                 modifier = Modifier.padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
                             )
                         }
+                        val firstSung = l.lines.firstOrNull { it.text.isNotBlank() && it.text.trim() != "♪" }
+                        if (l.synced && firstSung != null && firstSung.timeMs > 4_000L) item(key = "intro-countdown") {
+                            InterludeDots(
+                                startMs = 0L,
+                                endMs = firstSung.timeMs,
+                                clock = clock,
+                                color = palette.highlight,
+                                alignEnd = duet && firstSung.voice == 2,
+                                onTap = if (!selecting) ({ jumpTo(0L) }) else null,
+                            )
+                        }
                         itemsIndexed(l.lines, key = { i, _ -> i }) { i, line ->
                             val nextLineMs = l.lines.getOrNull(i + 1)?.timeMs
                             val dist = if (active < 0) 0 else abs(i - active)
@@ -859,11 +906,12 @@ fun LyricsScreen(
                             }
                         }
                         l.provider?.let { p ->
-                            item {
+                            item(key = "provider-credit") {
                                 Text(
-                                    stringResource(R.string.lyrics_credential_note, p),
-                                    color = palette.highlight.copy(alpha = 0.8f),
+                                    "Lyrics by $p",
+                                    color = palette.highlight.copy(alpha = 0.65f),
                                     fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
                                     // With the lines, in and out: alone it stayed up through the close, then vanished.
                                     modifier = Modifier.padding(top = 24.dp).revealIn(reveal, 0.71f, 22f),
                                 )

@@ -66,26 +66,20 @@ private fun alignsRight(text: String, alignEnd: Boolean, laneLocked: Boolean): B
     if (laneLocked) alignEnd else isRtl(text)
 
 /** How far back the part of the playing line that hasn't been sung yet is held. */
-const val UNSUNG_ALPHA = 0.45f
+const val UNSUNG_ALPHA = 0.38f
+
+/** How bright words/lines that have already been sung settle. */
+const val SUNG_ALPHA = 0.78f
 
 /**
  * The bloom behind the line being sung, at its very strongest.
- *
- * Kept well under half strength: the halo is drawn from the same white as the
- * text, so at full alpha it stops reading as light and starts reading as a
- * second, badly printed copy of the words. What is actually drawn is this
- * scaled by each letter's own bloom, so only a properly carried note ever sees
- * the whole of it — the bloom is attached to the letters of the held words
- * (see [SweptLine.growingWords]), not dragged along under the sweep.
  */
-const val GLOW_ALPHA = 0.62f
+const val GLOW_ALPHA = 0.72f
 
 /**
- * How far the bloom spreads off a letter. Tight, because it is a letter's worth
- * of light: a wide radius on something this small is a smudge behind the text
- * instead of a glow coming off it.
+ * How far the bloom spreads off a letter.
  */
-private val GLOW_RADIUS = 6.dp
+private val GLOW_RADIUS = 8.dp
 
 /**
  * Room reserved inside each copy of a line for the halo to spread into.
@@ -113,11 +107,12 @@ private const val PHASE_AFTER = 2
 private val WIPE_FEATHER = 30.dp
 
 /**
- * How far the word being sung lifts off the line. Two pixels, and it has to be
- * about two: enough that the eye catches the words moving under the sweep,
- * little enough that nothing appears to come loose from the line it belongs to.
+ * How far the word being sung lifts off the line.
  */
-private val WORD_RISE = 2.dp
+private val WORD_RISE = 3.dp
+
+/** Subtle kinetic scale-up on active sung words. */
+private const val ACTIVE_WORD_SCALE = 1.05f
 
 /**
  * How much further up a row is opened when it holds a word being animated
@@ -204,6 +199,8 @@ fun SweptLyricLine(
     laneLocked: Boolean = false,
     /** What the words are set in. */
     color: Color = Color.White,
+    /** Tint of the starlight/accent bloom behind active words. */
+    glowColor: Color = color,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -332,7 +329,7 @@ fun SweptLyricLine(
             Text(
                 text = line.text,
                 style = style,
-                color = color,
+                color = glowColor,
                 maxLines = maxLines,
                 overflow = overflow,
                 modifier = Modifier
@@ -441,9 +438,10 @@ private fun ContentDrawScope.glowGrown(
             if (to <= from) continue
             val top = layout.getLineTop(vl) + inset - peak
             val bottom = layout.getLineBottom(vl) + inset
+            val liftGlow = (0.28f + 0.50f * line.wordLift(i, positionMs)).coerceIn(0f, 1f)
             clipRect(left = from, top = top, right = to, bottom = bottom) {
                 this@glowGrown.drawContent()
-                drawRect(color = Color.White.copy(alpha = 0.36f), blendMode = BlendMode.DstIn)
+                drawRect(color = Color.White.copy(alpha = liftGlow), blendMode = BlendMode.DstIn)
             }
         }
     }
@@ -560,9 +558,19 @@ private fun ContentDrawScope.riseWith(
                     start, end, top, bottom, inset, peak, em, growth,
                 )
             } else {
-                // Only what is off the floor gets room above the row to be off
-                // it in; see [top].
-                sliceRisen(from, top - peak, to, bottom, -lift * peak)
+                val wordScale = 1f + (ACTIVE_WORD_SCALE - 1f) * lift
+                val overhang = (to - from) * (wordScale - 1f) / 2f
+                clipShiftedDown(
+                    left = from - overhang,
+                    top = top - peak,
+                    right = to + overhang,
+                    bottom = bottom,
+                    dy = -lift * peak,
+                ) {
+                    scale(wordScale, wordScale, Offset((from + to) / 2f, (top + bottom) / 2f)) {
+                        this@riseWith.drawContent()
+                    }
+                }
             }
             at = end
             edge = to

@@ -19,6 +19,7 @@ import com.music.spotui.ui.components.secondaryClick
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
@@ -86,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -116,6 +118,7 @@ import com.music.spotui.ui.look.LINE_FALLOFF_ALPHA
 import com.music.spotui.ui.look.LINE_FALLOFF_BLUR
 import com.music.spotui.ui.look.LYRIC_EASING
 import com.music.spotui.ui.look.LYRIC_SETTLE_MS
+import com.music.spotui.ui.look.SUNG_ALPHA
 import com.music.spotui.ui.look.SweptLine
 import com.music.spotui.ui.look.SweptLyricLine
 import com.music.spotui.ui.look.UNSUNG_ALPHA
@@ -209,25 +212,53 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             // A new track starts the list over: its scroll position and handover state belong to
             // the lines they were made for.
             key(trackKey) {
+                val reduceMotion = rememberReduceMotion()
+                val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "immersiveMesh").animateFloat(
+                    initialValue = 0f,
+                    targetValue = (2f * kotlin.math.PI).toFloat(),
+                    animationSpec = infiniteRepeatable(tween(15_000, easing = LinearEasing), RepeatMode.Restart),
+                    label = "meshPhase",
+                ).value
                 Box(
                     modifier.drawBehind {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Immersive.Accent.copy(alpha = 0.14f), Color.Transparent),
-                                center = Offset(size.width * 0.2f, size.height * 0.25f),
-                                radius = size.maxDimension * 0.55f,
-                            ),
-                            radius = size.maxDimension * 0.55f,
-                            center = Offset(size.width * 0.2f, size.height * 0.25f),
+                        val c1 = Offset(
+                            size.width * (0.22f + 0.10f * kotlin.math.cos(meshPhase)),
+                            size.height * (0.25f + 0.08f * kotlin.math.sin(meshPhase)),
+                        )
+                        val c2 = Offset(
+                            size.width * (0.82f - 0.10f * kotlin.math.sin(meshPhase * 0.8f)),
+                            size.height * (0.76f + 0.08f * kotlin.math.cos(meshPhase * 0.7f)),
+                        )
+                        val c3 = Offset(
+                            size.width * (0.50f + 0.12f * kotlin.math.sin(meshPhase * 0.5f)),
+                            size.height * (0.48f - 0.10f * kotlin.math.cos(meshPhase * 0.6f)),
                         )
                         drawCircle(
                             brush = Brush.radialGradient(
-                                colors = listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
-                                center = Offset(size.width * 0.85f, size.height * 0.78f),
-                                radius = size.maxDimension * 0.5f,
+                                colors = listOf(Immersive.Accent.copy(alpha = 0.20f), Color.Transparent),
+                                center = c1,
+                                radius = size.maxDimension * 0.62f,
                             ),
-                            radius = size.maxDimension * 0.5f,
-                            center = Offset(size.width * 0.85f, size.height * 0.78f),
+                            radius = size.maxDimension * 0.62f,
+                            center = c1,
+                        )
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Immersive.Accent.copy(alpha = 0.12f), Color.Transparent),
+                                center = c3,
+                                radius = size.maxDimension * 0.52f,
+                            ),
+                            radius = size.maxDimension * 0.52f,
+                            center = c3,
+                        )
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.07f), Color.Transparent),
+                                center = c2,
+                                radius = size.maxDimension * 0.52f,
+                            ),
+                            radius = size.maxDimension * 0.52f,
+                            center = c2,
                         )
                     },
                 ) {
@@ -690,6 +721,16 @@ private fun LyricsList(
                 },
             )
         }
+        lyrics.provider?.let { p ->
+            item(key = "provider-credit") {
+                Text(
+                    text = "Lyrics by $p",
+                    style = Immersive.Caption,
+                    color = Immersive.TextSecondary.copy(alpha = 0.65f),
+                    modifier = Modifier.padding(start = GLOW_ROOM, end = GLOW_ROOM, top = 24.dp),
+                )
+            }
+        }
     }
 }
 
@@ -951,9 +992,14 @@ private val TRANSLATION_STYLE = Immersive.Lyric.copy(fontSize = 18.sp, lineHeigh
 /** A romanized line: a translation's size, in italics as a transliteration is set, so the two never read alike. */
 private val ROMANIZATION_STYLE = TRANSLATION_STYLE.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
 
-/** The backing vocals: a little smaller than a translation, and drawn dimmer still (see [PanelBackground]). */
-private val BACKGROUND_STYLE = Immersive.Lyric.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-private const val BACKGROUND_ALPHA = 0.7f
+/** The backing vocals: smaller, italic and muted beneath the line (see [PanelBackground]). */
+private val BACKGROUND_STYLE = Immersive.Lyric.copy(
+    fontSize = 18.sp,
+    lineHeight = 24.sp,
+    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+)
+private const val BACKGROUND_ALPHA = 0.62f
 
 /** [base] set at the end of the row for the second singer of a duet, at its start otherwise. */
 private fun secondaryStyle(base: TextStyle, lane: Boolean?): TextStyle =
@@ -1125,7 +1171,7 @@ private fun PanelVoice(
         // Every synced line goes through SweptLyricLine: word-by-word/syllable sweep when
         // word timings are present, and graceful line-level sweep fallback otherwise.
         val tail by animateFloatAsState(
-            targetValue = if (sung) 1f else UNSUNG_ALPHA,
+            targetValue = if (sung) SUNG_ALPHA else UNSUNG_ALPHA,
             label = "lyricTail",
         )
         SweptLyricLine(
@@ -1140,6 +1186,7 @@ private fun PanelVoice(
             feather = isActive,
             rise = row.isWordSynced,
             color = color,
+            glowColor = lerp(color, Immersive.Accent, 0.35f),
             alignEnd = lane == true,
             laneLocked = lane != null,
         )
@@ -1148,7 +1195,11 @@ private fun PanelVoice(
         // lights whole, the moment it starts, and holds itself back at the same dim a swept
         // line's unsung words sit at until then.
         val lit by animateFloatAsState(
-            targetValue = if (!synced || sung || isActive) 1f else UNSUNG_ALPHA,
+            targetValue = when {
+                !synced || isActive -> 1f
+                sung -> SUNG_ALPHA
+                else -> UNSUNG_ALPHA
+            },
             label = "lyricLit",
         )
         Text(
@@ -1261,14 +1312,24 @@ private fun GapRow(
                         ?: ((clock.longValue - row.timeMs).toFloat() / span).coerceIn(0f, 1f)
                     val radius = GAP_DOT_SIZE.toPx() / 2f
                     val stride = (GAP_DOT_SIZE + GAP_DOT_GAP).toPx()
+                    val wavePhase = (clock.longValue % 1_800L) / 1_800f * (2f * kotlin.math.PI.toFloat())
                     repeat(GAP_DOTS) { dot ->
-                        // Each dot owns its share of the break and pulses softly as it fills.
+                        // Each dot owns its share of the break and pulses softly in a wave.
                         val lit = (through * GAP_DOTS - dot).coerceIn(0f, 1f)
-                        val pulse = 1f + 0.22f * kotlin.math.sin(lit * kotlin.math.PI).toFloat()
+                        val wave = if (isActive) kotlin.math.sin(wavePhase - dot * 0.9f).toFloat() else 0f
+                        val pulse = 1f + 0.22f * kotlin.math.sin(lit * kotlin.math.PI).toFloat() + 0.10f * wave
+                        val center = Offset(radius + dot * stride, size.height / 2f - wave * 2.dp.toPx())
+                        if (isActive && lit > 0.05f) {
+                            drawCircle(
+                                color = Immersive.Accent.copy(alpha = 0.24f * lit),
+                                radius = radius * pulse * 1.6f,
+                                center = center,
+                            )
+                        }
                         drawCircle(
                             color = Color.White.copy(alpha = GAP_DOT_REST + (1f - GAP_DOT_REST) * lit),
                             radius = radius * pulse,
-                            center = Offset(radius + dot * stride, size.height / 2f),
+                            center = center,
                         )
                     }
                 }

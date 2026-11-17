@@ -209,10 +209,11 @@ object LyricsApi {
 
     private fun allSetAside(vararg ids: String): String? = ids.map { health.reason(it) }.takeIf { r -> r.all { it != null } }?.first()
 
-    private val WORD_SOURCES = setOf("amll", "lyricsplus", "lrcred", "netease", "kugou")
+    private val WORD_SOURCES = setOf("spicy", "amll", "lyricsplus", "lrcred", "netease", "kugou")
 
     /** The providers that can be tried for [track], in the order the resolver prefers them; the extensions giving lyrics come last (`ext:<id>`). */
     fun sources(track: Track): List<Source> = buildList {
+        if (track.trackId.isNotBlank()) add(Source("spicy", "Spicy Lyrics", true, allSetAside("spicy")))
         if (track.trackId.isNotBlank()) add(Source("spotify", "Spotify", words = true))
         if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
         add(Source("lyricsplus", "LyricsPlus", true, allSetAside(*LYRICS_PLUS.toTypedArray())))
@@ -229,6 +230,7 @@ object LyricsApi {
     fun sourceOf(lyrics: Lyrics): String? {
         val p = lyrics.provider.orEmpty().lowercase()
         return when {
+            "spicy" in p -> "spicy"
             "amll" in p -> "amll"
             "lyricsplus" in p -> "lyricsplus"
             "lrc.red" in p -> "lrcred"
@@ -256,6 +258,7 @@ object LyricsApi {
         val spotify = if (sourceId in WORD_SOURCES) runCatching { fromSpotify(track) }.getOrNull() else null
         val found = try {
             when {
+                sourceId == "spicy" -> byHand { SpicyLyricsProvider.fetch(com.music.spotui.di.Graph.app, track.trackId, durationMs) }
                 sourceId == "spotify" -> fromSpotify(track)
                 sourceId.startsWith("ext:") -> com.music.spotui.extensions.Extensions.lyricsFromExtension(
                     sourceId.removePrefix("ext:"), track.trackId, track.title, track.artist, track.album, durationMs, track.coverUrl)
@@ -529,6 +532,7 @@ object LyricsApi {
         val artist = track.artist.substringBefore(",").trim()
         val durationMs = track.durationMs
         val spotify = async { fromSpotify(track) }
+        val spicy = async { within(WORD_WAIT_MS) { asking("spicy", track) { SpicyLyricsProvider.fetch(com.music.spotui.di.Graph.app, track.trackId, durationMs) } } }
         val plus = async { within(WORD_WAIT_MS) { asking("lyricsplus", track) { fromLyricsPlus(asked, title, artist, durationMs) } } }
         val red = async { within(WORD_WAIT_MS) { asking("lrcred", track) { fromLrcRed(asked, title, artist, durationMs) } } }
         val kugou = async { within(WORD_WAIT_MS) { asking("kugou", track) { fromKugou(title, artist, durationMs) } } }
@@ -540,13 +544,15 @@ object LyricsApi {
         if (sp != null) showEarly(track, sp)
         if (sp != null && sp.wordSynced && sp.uncapped) {
             kugou.cancel(); netease.cancel()
-            return@coroutineScope withBacks(sp, amll, plus, red)
+            return@coroutineScope withBacks(sp, spicy, amll, plus, red)
         }
         // Without Spotify's own (no account, or none for the song) every catalogue still answers.
-        val words = (amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
+        val spicyResult = spicy.await()
+        val words = (spicyResult?.takeIf { it.wordSynced } ?: amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
             ?: netease.await()?.takeIf { it.wordSynced } ?: kugou.await())?.takeIf { it.wordSynced }
         when {
-            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, amll, plus, red) } ?: sp
+            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, spicy, amll, plus, red) } ?: sp
+            spicyResult != null -> spicyResult.copy(colors = sp?.colors)
             sp != null -> sp
             else -> lineFallbacks(track)
         }
