@@ -1,0 +1,16 @@
+**/.gradle/
+**/.kotlin/
+**/.idea/
+**/build/
+**/local.properties
+*.apk
+*.iml
+*.jks
+*.keystore
+*.p12
+*.pem
+*.log
+keystore/
+.DS_Store
+Thumbs.db
+Desktop.ini

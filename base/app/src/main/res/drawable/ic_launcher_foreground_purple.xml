@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Astral brand mark (purple accent): downward-pointing curved comet. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#AF7AF6"
+        android:fillAlpha="0.65"
+        android:pathData="M28,43 C33,55 44,66 63,71 L61,75 C42,70 31,58 28,43 Z" />
+    <path
+        android:fillColor="#CECBF6"
+        android:pathData="M30,31 C36,46 49,60 68,67 L65,73 C45,66 32,50 30,31 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,59 Q68,70 79,70 Q68,70 68,81 Q68,70 57,70 Q68,70 68,59 Z" />
+    <path android:fillColor="#AF7AF6" android:pathData="M55.8,44a2.2,2.2 0,1 0,4.4,0a2.2,2.2 0,1 0,-4.4,0z" />
+    <path android:fillColor="#AF7AF6" android:pathData="M40.3,32a1.7,1.7 0,1 0,3.4,0a1.7,1.7 0,1 0,-3.4,0z" />
+    <path android:fillColor="#AF7AF6" android:pathData="M44.5,76a1.5,1.5 0,1 0,3.0,0a1.5,1.5 0,1 0,-3.0,0z" />
+</vector>

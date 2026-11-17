@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Astral</string>
+    <string name="wear_no_phone">Open Astral on your phone, signed in, with the watch connected.</string>
+    <string name="wear_nothing_on_phone">Nothing playing on the phone</string>
+    <string name="wear_loading">Loading…</string>
+    <string name="wear_retry">Try again</string>
+    <string name="wear_empty">Nothing here</string>
+    <string name="wear_previous">Previous</string>
+    <string name="wear_play">Play</string>
+    <string name="wear_pause">Pause</string>
+    <string name="wear_next">Next</string>
+    <string name="wear_back_15">Back 15s</string>
+    <string name="wear_forward_15">Forward 15s</string>
+    <string name="wear_like">Like</string>
+    <string name="wear_unlike">Unlike</string>
+    <string name="wear_shuffle">Shuffle</string>
+    <string name="wear_repeat">Repeat</string>
+    <string name="wear_library">Your music</string>
+    <string name="wear_home">Home</string>
+    <string name="wear_liked_songs">Liked Songs</string>
+    <string name="wear_playlists">Playlists</string>
+    <string name="wear_albums">Albums</string>
+    <string name="wear_artists">Artists</string>
+    <string name="wear_podcasts">Podcasts</string>
+    <string name="wear_downloads">Downloads</string>
+    <string name="wear_play_list">Play</string>
+    <string name="wear_refresh">Refresh</string>
+    <string name="wear_up_next">Up next</string>
+    <string name="wear_shuffling_from">Shuffling from</string>
+    <string name="wear_queue_empty">Nothing queued</string>
+    <string name="wear_devices">Devices</string>
+    <string name="wear_this_phone">This phone</string>
+</resources>

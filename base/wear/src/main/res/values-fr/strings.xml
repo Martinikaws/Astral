@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wear_no_phone">Ouvrez Astral sur votre téléphone, connecté à votre compte, avec la montre reliée.</string>
+    <string name="wear_nothing_on_phone">Rien en lecture sur le téléphone</string>
+    <string name="wear_loading">Chargement…</string>
+    <string name="wear_retry">Réessayer</string>
+    <string name="wear_empty">Rien ici</string>
+    <string name="wear_previous">Précédent</string>
+    <string name="wear_play">Lecture</string>
+    <string name="wear_pause">Pause</string>
+    <string name="wear_next">Suivant</string>
+    <string name="wear_back_15">Reculer de 15 s</string>
+    <string name="wear_forward_15">Avancer de 15 s</string>
+    <string name="wear_like">Aimer</string>
+    <string name="wear_unlike">Ne plus aimer</string>
+    <string name="wear_shuffle">Lecture aléatoire</string>
+    <string name="wear_repeat">Répéter</string>
+    <string name="wear_library">Votre musique</string>
+    <string name="wear_home">Accueil</string>
+    <string name="wear_liked_songs">Titres likés</string>
+    <string name="wear_playlists">Playlists</string>
+    <string name="wear_albums">Albums</string>
+    <string name="wear_artists">Artistes</string>
+    <string name="wear_podcasts">Podcasts</string>
+    <string name="wear_downloads">Téléchargements</string>
+    <string name="wear_play_list">Lire</string>
+    <string name="wear_refresh">Actualiser</string>
+    <string name="wear_up_next">À suivre</string>
+    <string name="wear_shuffling_from">Aléatoire depuis</string>
+    <string name="wear_queue_empty">File d\'attente vide</string>
+    <string name="wear_devices">Appareils</string>
+    <string name="wear_this_phone">Ce téléphone</string>
+</resources>

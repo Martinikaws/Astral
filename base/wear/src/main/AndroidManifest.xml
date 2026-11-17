@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="android.hardware.type.watch" />
+    <!-- With MEDIA_CONTROLS below: the watch's "Auto-launch media controls" opens this app, not the
+         system's controls, when the phone's app of the same id starts playing (as Spotify's watch app does). -->
+    <uses-permission android:name="com.google.android.wearable.permission.BIND_THIRD_PARTY_MEDIA_CONTROLS" />
+
+    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.DeviceDefault">
+        <!-- The session comes from the phone's app: the watch app does nothing alone. -->
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
+        <activity android:name=".WatchActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <!-- The phone started playing: the system opens this app on its remote (WatchActivity). -->
+                <action android:name="com.google.android.wearable.action.MEDIA_CONTROLS" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
