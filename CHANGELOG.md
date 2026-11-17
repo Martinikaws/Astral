@@ -1,5 +1,19 @@
 # Astral — Release Log
 
+## v1.0.1 — Themes, Liquid Glass Refraction & Full-Screen Modules (2026-11-17)
+
+### Themes & Lyrics Styling
+- **SpicyThemes (`7xeh/SpicyThemes`)**: Added selectable Spicy Lyrics theme presets (`Astral Default`, `Starry Gold`, `Neon Rose`, `Midnight Cyan`, `Sunset Amber`, `Monochrome Frost`) in Settings, styling kinetic word highlights, glow, and mesh backdrops.
+- **Glassify (`spicetify-glassify.sanooj.uk`)**: Added **Glassify** translucent glassmorphism theme option across Basic and Interactive UI.
+- **LiquidMusic (`fraustiz/LiquidMusic`) + Refraction / Frosted Toggle**: Added **LiquidMusic** dynamic album-art-driven theme with a dedicated **Liquid Glass (Refraction) vs Frosted Glass** toggle in Settings (`LayerBackdrop` + `Lens` refraction vs frosted blur).
+
+### Full-Screen Modules Tab
+- **Settings-Activated Modules Tab**: Added a **Modules Tab** toggle in Settings (`ModulesPref`) that adds a full-screen **Modules** tab to navigation.
+- **BackMusic (`rolandyangg/backmusic_extension`)**: Living audio-reactive backdrop with concentric sound-wave rings, 64 radial spectrum bars, floating album art centerpiece, selectable particles (**Stars**, **Snow**, **Fireflies**), track-matched palette, and quick playback controls.
+- **Visualizer (`Konsl/spicetify-visualizer`)**: Dedicated full-screen real-time visualizer with **Spectrum Bars**, **NCS Pulse**, and **Waveform** modes.
+
+---
+
 ## v1.0.0 — Initial Astral Release (2026-11-17)
 
 ### Branding & Visual Identity

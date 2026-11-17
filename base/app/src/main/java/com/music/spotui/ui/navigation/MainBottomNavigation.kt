@@ -29,10 +29,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.music.spotui.data.preferences.ModulesPref
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -135,7 +139,11 @@ fun MainBottomNavigation(navController: NavHostController) {
 
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    val tabs = rememberTabNavigation(navController)
+                    val context = LocalContext.current
+                    LaunchedEffect(Unit) { ModulesPref.init(context) }
+                    val modulesEnabled by ModulesPref.enabled.collectAsState()
+                    val tabItems = remember(modulesEnabled) { getTabItems(modulesEnabled) }
+                    val tabs = rememberTabNavigation(navController, tabItems)
                     // Large windows and a phone on its side: the tabs are in the rail at the side (MainNavigationRail).
                     if (!com.music.spotui.ui.components.windowSize().navigationRail) {
                     // Official bar proportions: a 58 dp strip (the gesture inset is added by
@@ -147,7 +155,7 @@ fun MainBottomNavigation(navController: NavHostController) {
                             .height(NavBarHeight),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TabItems.forEach { item ->
+                        tabItems.forEach { item ->
                             NavBarTab(
                                 iconRes = item.icon,
                                 label = if (item.labelRes != 0) stringResource(item.labelRes) else item.label,
@@ -171,12 +179,12 @@ fun MainBottomNavigation(navController: NavHostController) {
 
 // Friend activity opens from Home's header (as in Spotify), not from a tab.
 /** The tabs, in the order an extension's look sets (`ui.order.nav`) or the app's own. */
-private val TabItems: List<Routes>
-    get() {
-        val tabs = mapOf("home" to Routes.Home, "search" to Routes.Search, "library" to Routes.Library)
-        return com.music.spotui.extensions.ExtensionLook.navOrder?.mapNotNull { tabs[it] }?.takeIf { it.size == tabs.size }
-            ?: listOf(Routes.Home, Routes.Search, Routes.Library)
-    }
+private fun getTabItems(modulesEnabled: Boolean): List<Routes> {
+    val tabs = mapOf("home" to Routes.Home, "search" to Routes.Search, "library" to Routes.Library)
+    val base = com.music.spotui.extensions.ExtensionLook.navOrder?.mapNotNull { tabs[it] }?.takeIf { it.size == tabs.size }
+        ?: listOf(Routes.Home, Routes.Search, Routes.Library)
+    return if (modulesEnabled) base + Routes.Modules else base
+}
 
 /** The tab shown (also on its sub-pages) and what a tap on a tab does; shared by the bar and the rail. */
 private class TabNavigation(private val navController: NavHostController, private val state: androidx.compose.runtime.MutableState<String>, private val currentRoute: String?) {
@@ -208,12 +216,12 @@ private class TabNavigation(private val navController: NavHostController, privat
 }
 
 @Composable
-private fun rememberTabNavigation(navController: NavHostController): TabNavigation {
+private fun rememberTabNavigation(navController: NavHostController, tabItems: List<Routes>): TabNavigation {
     val navStack by navController.currentBackStackEntryAsState()
     val currentRoute = navStack?.destination?.route
     // The tab the user is in, even on one of its sub-pages (album, artist…).
     val selectedTab = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(Routes.Home.route) }
-    if (currentRoute in TabItems.map { it.route }) selectedTab.value = currentRoute!!
+    if (currentRoute in tabItems.map { it.route }) selectedTab.value = currentRoute!!
     return TabNavigation(navController, selectedTab, currentRoute)
 }
 
@@ -226,7 +234,11 @@ private fun rememberTabNavigation(navController: NavHostController): TabNavigati
 fun MainNavigationRail(navController: NavHostController) {
     val shownRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     if (shownRoute == Routes.Player.route || shownRoute == Routes.Queue.route) return
-    val tabs = rememberTabNavigation(navController)
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { ModulesPref.init(context) }
+    val modulesEnabled by ModulesPref.enabled.collectAsState()
+    val tabItems = remember(modulesEnabled) { getTabItems(modulesEnabled) }
+    val tabs = rememberTabNavigation(navController, tabItems)
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -238,7 +250,7 @@ fun MainNavigationRail(navController: NavHostController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TabItems.forEach { item ->
+        tabItems.forEach { item ->
             Row(Modifier.fillMaxWidth().height(72.dp)) {
                 NavBarTab(
                     iconRes = item.icon,

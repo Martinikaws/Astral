@@ -13,6 +13,7 @@ sealed class Routes(
     object Home : Routes(icon = R.drawable.ic_home_filled, label = "Accueil", route = "home", labelRes = R.string.navigationbar_musicappitems_home_title)
     object Search : Routes(icon = R.drawable.ic_search_big, label = "Rechercher", route = "search", labelRes = R.string.navigationbar_musicappitems_search_title)
     object Library : Routes(icon = R.drawable.ic_library_big, label = "Bibliothèque", route = "library", labelRes = R.string.navigationbar_musicappitems_yourlibrary_title)
+    object Modules : Routes(icon = R.drawable.ic_playing, label = "Modules", route = "modules")
     object Album : Routes(0, "Album", "album")
     object Player : Routes(0, "Player", "player")
     object Artist : Routes(0, "Artist", "artist")

@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.music.spotui.data.preferences.ModulesPref
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.look.ImmersiveSans
 import com.music.spotui.ui.look.rememberReduceMotion
@@ -121,10 +125,10 @@ internal fun rememberTabNavigation(navController: NavController): TabNavigation 
 }
 
 // Friend activity is not a tab any more: it opens from Home's header, as in Spotify.
-private val TabRoutes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route)
+private val TabRoutes = listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Modules.route)
 
 /** The tabs the bar shows. */
-internal val TabItems = listOf(Routes.Home, Routes.Library, Routes.Search)
+internal val TabItems = listOf(Routes.Home, Routes.Library, Routes.Modules, Routes.Search)
 
 /** The tab bar itself (pill and Search circle), filling the width [modifier] leaves it. */
 @Composable
@@ -135,6 +139,13 @@ internal fun TabBarContent(
 ) {
     // Held for the same reason the content lambda below is keyed: it is captured once per key.
     val currentOnTabClick by androidx.compose.runtime.rememberUpdatedState(onTabClick)
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { ModulesPref.init(context) }
+    val modulesEnabled by ModulesPref.enabled.collectAsState()
+    val pillTabs = remember(modulesEnabled) {
+        if (modulesEnabled) listOf(Routes.Home, Routes.Library, Routes.Modules)
+        else listOf(Routes.Home, Routes.Library)
+    }
     val pillShape = remember { RoundedCornerShape(percent = 50) }
     val reduceMotion = rememberReduceMotion()
 
@@ -155,10 +166,10 @@ internal fun TabBarContent(
                 tabExpandedContentPadding = PaddingValues(vertical = TAB_VERTICAL_PADDING),
             ),
             reduceMotion = reduceMotion,
-            contentKey = selectedTab,
+            contentKey = selectedTab to modulesEnabled,
         ) {
             // Search is the odd one out: a circle of its own beside the pill.
-            listOf(Routes.Home, Routes.Library).forEach { item ->
+            pillTabs.forEach { item ->
                 val tint = if (selectedTab == item.route) Immersive.Accent else Immersive.Text.copy(alpha = 0.65f)
                 tab(
                     key = item.route,

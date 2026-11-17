@@ -41,6 +41,7 @@ import com.music.spotui.ui.screens.ArtistScreen
 import com.music.spotui.ui.screens.CategoryScreen
 import com.music.spotui.ui.screens.HomeScreen
 import com.music.spotui.ui.screens.LibraryScreen
+import com.music.spotui.ui.screens.ModulesScreen
 import com.music.spotui.ui.screens.ShowScreen
 import com.music.spotui.ui.screens.QueueScreen
 import com.music.spotui.ui.screens.SearchScreen
@@ -82,6 +83,9 @@ fun MyNavHost(
         }
         page(Routes.Library.route) {
             if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(navHostController) else LibraryScreen(navHostController)
+        }
+        page(Routes.Modules.route) {
+            ModulesScreen(navHostController)
         }
         // Older links to the player route open the player sheet over the page instead.
         page(Routes.Player.route){
@@ -354,7 +358,7 @@ private fun SpotifusionWrapper(content: @Composable () -> Unit) {
     }
 }
 
-private val tabRoutes = setOf(Routes.Home.route, Routes.Search.route, Routes.Library.route)
+private val tabRoutes = setOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Modules.route)
 // Full-height sheets over the current page (the official player / queue).
 private val sheetRoutes = setOf(Routes.Player.route, Routes.Queue.route)
 
@@ -461,7 +465,8 @@ private fun NavGraphBuilder.page(
 
 /** Pages that use a large window's whole width (grids, the tabs' own pages, the player). */
 private val FullWidthRoutes = setOf(
-    Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Player.route, Routes.Queue.route,
+    Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Modules.route,
+    Routes.Player.route, Routes.Queue.route,
     Routes.Category.route, Routes.NewReleases.route,
 )
 
