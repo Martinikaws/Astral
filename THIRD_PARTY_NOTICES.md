@@ -322,6 +322,53 @@ terms apply to it:
 
 ---
 
+# Part 4: libraries Astral depends on
+
+Every library the Gradle build pulls in directly (from `base/gradle/libs.versions.toml` and the modules'
+`build.gradle.kts`, checked 2026-11-18). Their licence texts come with each library's published artifact.
+The Apache-2.0 text is also in `base/licenses/Apache-2.0.txt`.
+
+## Shipped in the app
+
+| Library | Author | Licence |
+| --- | --- | --- |
+| Kotlin standard library, kotlinx.coroutines, kotlinx.serialization | JetBrains | Apache-2.0 |
+| Jetpack Compose (UI, Foundation, Material 3, Material Icons), Activity, AppCompat, Core, Lifecycle, Navigation, Palette, ProfileInstaller, WebKit, Media | Google / The Android Open Source Project (AndroidX) | Apache-2.0 |
+| Media3 (ExoPlayer, DASH, HLS, DataSource, Database, UI) | Google / The Android Open Source Project | Apache-2.0 |
+| Wear Compose Foundation & Material 3 | Google / The Android Open Source Project | Apache-2.0 |
+| Material Components for Android | Google | Apache-2.0 |
+| Horologist (Compose Layout, Audio UI Material 3) | Google | Apache-2.0 |
+| OkHttp, okhttp-brotli, okhttp-zstd | Square, Inc. | Apache-2.0 |
+| Glide and Glide Compose | Bump Technologies / Google | BSD-2-Clause, with parts under MIT and Apache-2.0 |
+| ZXing core | ZXing authors | Apache-2.0 |
+| ONNX Runtime | Microsoft | MIT (see Part 1) |
+| NewPipeExtractor | TeamNewPipe | GPL-3.0 |
+| Mozilla Rhino | Mozilla Foundation | MPL-2.0 |
+| Haze | Chris Banes | Apache-2.0 |
+| Reorderable | Calvin Liang | Apache-2.0 |
+| Google Play services (Cronet, Code Scanner, Wearable) | Google | Proprietary, Android Software Development Kit License; not open source |
+
+The Google Play services client libraries are closed-source binaries bundled in the APK under the Android
+Software Development Kit License. They talk to the Google Play services app on the phone or watch.
+
+## Build and test only (not shipped in the app)
+
+| Tool | Author | Licence |
+| --- | --- | --- |
+| Gradle, the Gradle wrapper and the Foojay toolchains resolver plugin | Gradle, Inc. | Apache-2.0 |
+| Android Gradle Plugin, Kotlin and Compose Multiplatform Gradle plugins | Google / JetBrains | Apache-2.0 |
+| JUnit 4 | JUnit team | EPL-1.0 |
+| JUnit 5 (Jupiter, Platform) | JUnit team | EPL-2.0 |
+| AndroidX Test (runner, ext-junit, Compose ui-test-junit4) | Google | Apache-2.0 |
+| Compose UI Tooling and ui-test-manifest (debug builds only, not in release builds) | Google | Apache-2.0 |
+| kotlinx-coroutines-test, kotlinx-io (core, bytestring) | JetBrains | Apache-2.0 |
+| Robolectric | Robolectric authors | MIT |
+| Roborazzi | takahirom | Apache-2.0 |
+| kXML 2 | Stefan Haustein | MIT |
+| JSON-java (`org.json:json` 20240303) | Sean Leary | Public domain |
+
+---
+
 # Trademarks
 
 Spotify is a trademark of Spotify AB. YouTube and YouTube Music are trademarks of Google LLC. Apple Music

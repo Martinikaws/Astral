@@ -114,7 +114,12 @@ Astral is free and open-source software licensed under the **GNU General Public 
 
 | Component | Attribution | License |
 | :--- | :--- | :--- |
-| **AndroidX / Media3 / Horologist / OkHttp** | Google & Square Open Source | **Apache-2.0** (`base/licenses/Apache-2.0.txt`) |
+| **Kotlin, kotlinx, AndroidX, Compose, Media3, Wear Compose, Horologist, Material, OkHttp, ZXing, Haze, Reorderable** | JetBrains, Google, Square, ZXing, Chris Banes, Calvin Liang | **Apache-2.0** (`base/licenses/Apache-2.0.txt`) |
+| **NewPipeExtractor** | TeamNewPipe | **GPL-3.0** |
+| **Glide** | Bump Technologies / Google | **BSD-2-Clause** (parts MIT / Apache-2.0) |
+| **ONNX Runtime & Beat This! model** | Microsoft / CPJKU | **MIT** |
+| **Mozilla Rhino** | Mozilla Foundation | **MPL-2.0** |
+| **Google Play services (Cronet, Code Scanner, Wearable)** | Google | **Proprietary** (Android SDK License, closed-source client libraries) |
 | **Metadata / Catalog Libraries** | Bundled catalog notice | **LGPL-3.0** (`base/catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt`) |
 | **Typography (`Inter`, `Manrope`)** | Rasmus Andersson / Mikhail Sharanda | **SIL OFL 1.1** (`base/licenses/Inter-OFL.txt`, `base/licenses/Manrope-OFL.txt`) |
 
