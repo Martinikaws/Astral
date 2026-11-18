@@ -205,6 +205,19 @@ fun App() {
  * Glassify (`spicetify-glassify`) heavily blurred album-art ambient layer behind the interactive shell.
  * Stays translucent over [com.music.spotui.ui.components.StarryNightBackdrop] when Starry Night is active.
  */
+/*
+ * Glassify's page is transparent, so the blurred cover (a white one is the worst case) sits straight under the
+ * text. Worst case: cover alpha 0.52 over GlassifyBackground (~#0E1118, sRGB ~0.06) gives sRGB 0.55; the accent
+ * glow (alpha 0.36 radial) can lift the brightest spot to ~0.71. Black scrim alpha a scales that to 0.71 * (1 - a).
+ *  - Secondary text #ADB5BD has relative luminance ~0.456, so 4.5:1 needs a background luminance <= (0.456+0.05)/4.5 - 0.05
+ *    = 0.0624, i.e. sRGB <= ~0.277, i.e. (1 - a) <= 0.39 -> a >= 0.61 at the glow's very centre, the brightest spot there is.
+ *  - White needs 7:1, i.e. background luminance <= 1.05/7 - 0.05 = 0.10 (sRGB ~0.35): met from a >= 0.50.
+ * So the scrim never drops below 0.62 at the top and 0.72 at the bottom (where the mini player and tab bar sit),
+ * whatever the stars extra does.
+ */
+private const val MinCoverScrimTop = 0.62f
+private const val MinCoverScrimBottom = 0.72f
+
 @OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
 private fun GlassifyAmbientBackdrop(
@@ -248,8 +261,8 @@ private fun GlassifyAmbientBackdrop(
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
                         colors = listOf(
-                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.16f else 0.42f),
-                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.28f else 0.65f),
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = maxOf(if (starryActive) 0.16f else 0.42f, MinCoverScrimTop)),
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = maxOf(if (starryActive) 0.28f else 0.65f, MinCoverScrimBottom)),
                         ),
                     ),
                 ),

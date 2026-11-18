@@ -83,7 +83,6 @@ object AstralThemePref {
             else -> AstralThemeMode.STARRY_NIGHT
         }
         setThemeMode(context, mapped)
-        StarryNightPref.onLookChanged(context, look)
     }
 
     fun setLiquidGlassRefraction(context: Context, enabled: Boolean) {

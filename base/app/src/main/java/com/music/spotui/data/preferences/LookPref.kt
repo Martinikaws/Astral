@@ -101,18 +101,23 @@ internal object LookMigration {
      * Starry Night used to be a switch (default on) over the Astral Interactive look. It is a Look now
      * and the switch is only an extra ("stars behind any Look", default off): a user who had the stars
      * on (never touched, or explicitly on) with Astral Interactive moves to [Look.STARRY_NIGHT]; the
-     * switch is then cleared. Anyone else keeps their Look; the stored extra only survives when it was
-     * explicitly on. Idempotent (flag [FLAG_STARRY]); fresh installs are untouched.
+     * switch is then cleared. Anyone else keeps their Look; the extra is kept on for an upgrader who never set the
+     * switch (the stars were on by default behind every Look) and survives when it was explicitly on. Idempotent (flag [FLAG_STARRY]); fresh installs are untouched.
      */
     fun runStarryLook(p: SharedPreferences) {
         if (p.getBoolean(FLAG_STARRY, false)) return
         val e = p.edit().putBoolean(FLAG_STARRY, true)
-        val existing = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK) || p.contains(PAGE_STYLE) || p.contains(THEME_MODE)
+        val existing = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK) || p.contains(PAGE_STYLE) || p.contains(THEME_MODE) ||
+            p.contains("starry_night_shooting_stars")
         if (existing) {
             val starryOn = p.getBoolean(STARRY_ENABLED, true) // an unset switch was on
-            if (Look.fromKey(p.getString(LOOK, null)) == Look.IMMERSIVE && starryOn) {
+            val look = Look.fromKey(p.getString(LOOK, null))
+            if (look == Look.IMMERSIVE && starryOn) {
                 e.putString(LOOK, Look.STARRY_NIGHT.name).putBoolean(STARRY_ENABLED, false)
                 if (p.contains(THEME_MODE)) e.putString(THEME_MODE, "STARRY_NIGHT")
+            } else if (look != Look.IMMERSIVE && look != Look.STARRY_NIGHT && !p.contains(STARRY_ENABLED)) {
+                // The stars were on by default behind every other Look too: the extra keeps them for upgraders.
+                e.putBoolean(STARRY_ENABLED, true)
             }
         }
         e.apply()

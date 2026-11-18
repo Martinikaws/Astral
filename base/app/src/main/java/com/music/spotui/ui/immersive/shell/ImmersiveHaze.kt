@@ -90,7 +90,7 @@ internal fun Modifier.immersiveFrost(
 ): Modifier {
     val page = LocalImmersiveFrostPage.current
     if (page != null && state === LocalImmersiveHaze.current) return this.immersivePageFrost(page, tint, blur)
-    val fallbackBg = if (Immersive.Page == Color.Transparent) Color(0xFF0A1422) else Immersive.Page
+    val fallbackBg = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page
     return hazeFrost(state, tint, blur, fallbackBg)
 }
 

@@ -27,6 +27,11 @@ android {
     val keystore = Properties().apply { if (keystoreFile.exists()) keystoreFile.inputStream().use { load(it) } }
     val envStore = System.getenv("MYSPOTI_KEYSTORE")
     val hasReleaseKey = envStore != null || keystoreFile.exists()
+    // As base/app: a stable release (a version without "-beta", given by CI) is never signed with the debug key.
+    // Local builds (no version) and -PoverDev are not stable releases.
+    val stableRelease = !beta && findProperty("overDev") == null
+    if (stableRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
+        throw GradleException("A stable release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
     signingConfigs {
         create("release") {
             if (envStore != null) {

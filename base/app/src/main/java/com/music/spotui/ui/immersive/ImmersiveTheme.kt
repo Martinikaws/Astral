@@ -256,7 +256,9 @@ object Immersive {
     val Raised: Color get() {
         @Suppress("UNUSED_EXPRESSION")
         starryNightRevision
-        return com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE) ?: Tokens.surface
+        return com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE)
+            ?: if (StarryNightPref.enabled.value && LookPref.look.let { it == Look.CLASSIC || it == Look.IMMERSIVE }) StarryCard
+            else Tokens.surface
     }
     /** The line between the rows of a group. */
     val Separator: Color get() = Tokens.divider

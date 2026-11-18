@@ -86,6 +86,7 @@ Astral/
 4. **Signed releases** (the in-app updater needs release builds signed with the same key):
    - Create the key once. `base/keystore/` is gitignored, so create the folder first:
      ```powershell
+     mkdir base\keystore
      keytool -genkeypair -v -keystore base/keystore/astral-release.jks -alias astral -keyalg RSA -keysize 4096 -validity 10000
      ```
      Then copy `base/keystore.properties.example` to `base/keystore/keystore.properties` and fill in the passwords.

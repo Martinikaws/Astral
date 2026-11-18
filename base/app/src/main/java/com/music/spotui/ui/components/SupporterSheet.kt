@@ -129,6 +129,7 @@ fun SupporterSheet(onDismiss: () -> Unit) {
             }
             Text(stringResource(R.string.supporter_thanks_title), color = AppMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
 
+            if (SupportReminder.honoursChosenAccent(LookPref.look)) {
             Text(stringResource(R.string.supporter_accent), color = AppText, fontSize = 16.sp, modifier = Modifier.padding(top = 20.dp, bottom = 10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 for (a in Accent.entries) {
@@ -140,6 +141,7 @@ fun SupporterSheet(onDismiss: () -> Unit) {
                             .pressable(0.92f) { SupportReminder.setAccent(context, LookPref.look, a) },
                     )
                 }
+            }
             }
 
             Text(stringResource(R.string.supporter_icon), color = AppText, fontSize = 16.sp, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))

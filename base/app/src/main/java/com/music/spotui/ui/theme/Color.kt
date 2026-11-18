@@ -26,16 +26,6 @@ internal fun notifyStarryNightChanged() {
     starryNightRevision++
 }
 
-/** True when the root [com.music.spotui.ui.components.StarryNightBackdrop] is active and visible. */
-internal val isStarryNightActive: Boolean
-    get() {
-        @Suppress("UNUSED_EXPRESSION")
-        starryNightRevision
-        return StarryNightPref.enabled.value &&
-            !app.myspoti.power.EnergySettings.oledBlack &&
-            com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
-    }
-
 /** The Looks whose accent is the playing cover's colour (LiquidMusic and Starry Night keep a fixed one). */
 internal fun lookFollowsCover(look: Look): Boolean = look == Look.GLASSIFY || look == Look.IMMERSIVE
 
@@ -140,8 +130,8 @@ val AppAccent: Color get() =
 /**
  * The accent each Look brings of its own (null for Astral Basic, which follows Material You / the chosen
  * accent): Interactive the cover colour (a chosen accent wins, else sky blue), Spotifusion a fixed green,
- * Glassify the cover colour (else the chosen accent, else cool blue), LiquidMusic a fixed red and
- * Starry Night warm starlight gold (both ignore the chosen accent: that is their identity).
+ * Glassify the cover colour (else the chosen accent, else cool blue), LiquidMusic red and
+ * Starry Night warm starlight gold (a chosen accent wins on both: nobody who picked one loses it).
  */
 internal fun lookAccentOrNull(look: Look): Color? {
     fun chosen(): Color? = com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else null }
@@ -150,8 +140,8 @@ internal fun lookAccentOrNull(look: Look): Color? {
         Look.SPOTIFUSION -> SpotifusionGreen
         Look.IMMERSIVE -> chosen() ?: dynamicCoverAccent ?: StarryBlue
         Look.GLASSIFY -> dynamicCoverAccent ?: chosen() ?: StarryBlue
-        Look.LIQUID_MUSIC -> LiquidMusicAccent
-        Look.STARRY_NIGHT -> StarryAccent
+        Look.LIQUID_MUSIC -> chosen() ?: LiquidMusicAccent
+        Look.STARRY_NIGHT -> chosen() ?: StarryAccent
     }
 }
 

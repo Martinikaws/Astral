@@ -188,4 +188,41 @@ class LookMigrationTest {
         assertEquals("Starry Night", Look.STARRY_NIGHT.label)
         assertEquals(PageStyle.ORPHEON_GLASS, PageStyle.forLook(Look.STARRY_NIGHT))
     }
+
+    @Test fun `upgrader on another look who never set the stars switch keeps the stars`() {
+        for (l in listOf("CLASSIC", "SPOTIFUSION", "GLASSIFY", "LIQUID_MUSIC")) {
+            p.edit().clear().commit()
+            v101(look = l)
+            LookMigration.run(p)
+            assertEquals(Look.fromKey(l), look())
+            assertTrue("$l keeps its stars", p.getBoolean("starry_night_enabled", false))
+        }
+    }
+
+    @Test fun `upgrader with the stars switch explicitly off keeps it off`() {
+        v101(look = "CLASSIC")
+        p.edit().putBoolean("starry_night_enabled", false).commit()
+        LookMigration.run(p)
+        assertFalse(p.getBoolean("starry_night_enabled", true))
+    }
+
+    @Test fun `stars keep-on step runs once`() {
+        v101(look = "CLASSIC")
+        LookMigration.run(p)
+        p.edit().putBoolean("starry_night_enabled", false).commit() // the user turns them off later
+        LookMigration.run(p)
+        assertFalse(p.getBoolean("starry_night_enabled", true))
+    }
+
+    @Test fun `fresh install keeps the stars extra unset (off by default)`() {
+        LookMigration.run(p)
+        assertFalse(p.contains("starry_night_enabled"))
+    }
+
+    @Test fun `Interactive with the stars switch off does not get the extra turned on`() {
+        v101(look = "IMMERSIVE")
+        p.edit().putBoolean("starry_night_enabled", false).commit()
+        LookMigration.run(p)
+        assertFalse(p.getBoolean("starry_night_enabled", true))
+    }
 }
