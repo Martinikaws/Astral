@@ -352,8 +352,7 @@ private fun ShelfSection(navController: NavController, section: HomeSection, pla
 private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, playingContext: State<String>) {
     val look = LocalLook.current
     val tileShape = when (look) {
-        Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
-        Look.GLASSIFY -> RoundedCornerShape(16.dp)
+        Look.LIQUID_MUSIC, Look.GLASSIFY, Look.STARRY_NIGHT -> Immersive.Card
         else -> Immersive.CoverMedium
     }
     val coverShape = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) RoundedCornerShape(8.dp) else Immersive.CoverMedium
@@ -382,13 +381,13 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
                                 ),
                                 shape = tileShape,
                             )
+                        // The Look's own surface (LiquidMusic: a flat iOS group, no rim); the accent lights what plays.
                         Look.LIQUID_MUSIC -> Modifier
-                            .background(LiquidMusicSurface, tileShape)
-                            .border(
-                                width = 1.dp,
-                                color = if (playing) Immersive.Accent.copy(alpha = 0.65f) else LiquidMusicBorder,
-                                shape = tileShape,
-                            )
+                            .background(Immersive.Raised, tileShape)
+                            .then(if (playing) Modifier.border(1.dp, Immersive.Accent.copy(alpha = 0.65f), tileShape) else Modifier)
+                        Look.STARRY_NIGHT -> Modifier
+                            .background(Immersive.Raised, tileShape)
+                            .border(1.dp, if (playing) Immersive.Accent.copy(alpha = 0.65f) else Immersive.Tokens.edgeColor, tileShape)
                         else -> Modifier.background(Immersive.Raised)
                     }
                     Row(

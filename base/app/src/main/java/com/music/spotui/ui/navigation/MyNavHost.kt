@@ -468,10 +468,16 @@ private fun NavGraphBuilder.page(
         val starryActive = starryEnabled &&
             !app.myspoti.power.EnergySettings.oledBlack &&
             com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
-        val pageBg = if (starryActive) androidx.compose.ui.graphics.Color(0xB80A1422)
+        // A single light translucent veil while the stars are drawn, so transitions don't ghost while stars stay
+        // crisp. Only the Starry Night Look has the navy one; the stars extra on another Look is veiled in that
+        // Look's own page colour, so each Look keeps its colours.
+        val look = com.music.spotui.ui.look.LocalLook.current
+        val pageBg = if (starryActive) {
+            if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) androidx.compose.ui.graphics.Color(0xB80A1422)
+            else com.music.spotui.ui.immersive.lookTokens(look).page.copy(alpha = 0.72f)
+        }
             else if (immersive) com.music.spotui.ui.immersive.Immersive.Page
             else AppBackground
-        // Use a single light translucent veil when Starry Night is active so transitions don't ghost while stars stay crisp.
         Box(Modifier.fillMaxSize()
             .then(if (fade == null) Modifier else Modifier.graphicsLayer { this.alpha = fade.value })
             .then(if (pageBg == androidx.compose.ui.graphics.Color.Transparent) Modifier else Modifier.background(pageBg))) {

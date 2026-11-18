@@ -39,7 +39,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.music.spotui.ui.immersive.GroupStyle
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.immersive.immersiveSurface
+import com.music.spotui.ui.immersive.immersiveSwitchColors
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.shell.ImmersiveLargeTitle
 import com.music.spotui.ui.immersive.shell.ImmersiveTopBar
@@ -125,15 +129,18 @@ internal fun LazyListScope.immersiveGroup(
         if (scope.rows.isEmpty()) return@item
         val header = header ?: headerRes?.let { androidx.compose.ui.res.stringResource(it) }
         val footer = footer ?: footerRes?.let { androidx.compose.ui.res.stringResource(it) }
-        Column(Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter).padding(top = 14.dp)) {
+        // The Look decides how a group reads: a rounded card on its surface (a hairline or specular rim where
+        // the Look has one), or an iOS inset list (LiquidMusic): a larger gap above, a sentence-case header.
+        val inset = Immersive.GroupLayout == GroupStyle.INSET_LIST
+        Column(Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter).padding(top = if (inset) 22.dp else 14.dp)) {
             if (header != null) {
                 Text(
-                    header.uppercase(),
-                    style = Immersive.Caption,
+                    if (inset) header else header.uppercase(),
+                    style = if (inset) Immersive.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 13.sp) else Immersive.Caption,
                     modifier = Modifier.padding(start = GroupSeparatorInset, bottom = 6.dp),
                 )
             }
-            Column(Modifier.fillMaxWidth().clip(Immersive.Card).background(Immersive.Raised)) {
+            Column(Modifier.fillMaxWidth().immersiveSurface(Immersive.Group)) {
                 scope.rows.forEachIndexed { i, row ->
                     row()
                     if (i < scope.rows.lastIndex) {
@@ -141,7 +148,7 @@ internal fun LazyListScope.immersiveGroup(
                             Modifier
                                 .padding(start = GroupSeparatorInset)
                                 .fillMaxWidth()
-                                .heightIn(min = 0.5.dp, max = 0.5.dp)
+                                .heightIn(min = Immersive.SeparatorThickness, max = Immersive.SeparatorThickness)
                                 .background(Immersive.Separator),
                         )
                     }
@@ -248,16 +255,7 @@ internal fun ImmersiveSwitchRow(
             checked = checked,
             onCheckedChange = null,
             enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Immersive.Accent,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFF3A3A3F),
-                uncheckedBorderColor = Color.Transparent,
-                disabledCheckedTrackColor = Immersive.Accent.copy(alpha = 0.4f),
-                disabledUncheckedTrackColor = Color(0xFF2A2A2E),
-                disabledUncheckedBorderColor = Color.Transparent,
-            ),
+            colors = immersiveSwitchColors(),
         )
     }
 }

@@ -36,7 +36,10 @@ internal val isStarryNightActive: Boolean
             com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
     }
 
-/** Contrast-adjusted dynamic album-art accent used by [Look.GLASSIFY] and [Look.LIQUID_MUSIC]. */
+/** The Looks whose accent is the playing cover's colour (LiquidMusic and Starry Night keep a fixed one). */
+internal fun lookFollowsCover(look: Look): Boolean = look == Look.GLASSIFY || look == Look.IMMERSIVE
+
+/** Contrast-adjusted dynamic album-art accent used by [Look.IMMERSIVE] and [Look.GLASSIFY]. */
 internal var dynamicCoverAccent by mutableStateOf<Color?>(null)
 
 private val coverAccentCache = java.util.Collections.synchronizedMap(
@@ -102,7 +105,7 @@ val AppBackground: Color get() {
     else com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND)
         ?: if (StarryNightPref.enabled.value) Color.Transparent
         else when (LookPref.look) {
-            Look.CLASSIC, Look.IMMERSIVE -> Color(0xFF0A1422)
+            Look.CLASSIC, Look.IMMERSIVE, Look.STARRY_NIGHT -> Color(0xFF0A1422)
             Look.SPOTIFUSION -> SpotifusionBackground
             Look.GLASSIFY -> GlassifyBackground
             Look.LIQUID_MUSIC -> LiquidMusicBackground
@@ -117,7 +120,8 @@ val GridBackground: Color get() {
         ?: when (LookPref.look) {
             Look.SPOTIFUSION -> SpotifusionCard
             Look.GLASSIFY -> GlassifySurface
-            Look.LIQUID_MUSIC -> LiquidMusicSurface
+            Look.LIQUID_MUSIC -> LiquidMusicGroup
+            Look.STARRY_NIGHT -> StarryCard
             Look.CLASSIC, Look.IMMERSIVE -> if (StarryNightPref.enabled.value) StarryCard else StarryCardOpaque
         }
 }
@@ -126,23 +130,35 @@ val GridBackground: Color get() {
 val AppPalette: Color get() = AppAccent
 val AppAccent: Color get() =
     com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.ACCENT)
-        ?: when (LookPref.look) {
-            Look.SPOTIFUSION -> SpotifusionGreen
-            Look.GLASSIFY -> dynamicCoverAccent ?: StarryBlue
-            Look.LIQUID_MUSIC -> dynamicCoverAccent ?: LiquidMusicAccent
-            Look.IMMERSIVE ->
-                com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryAccent }
-            Look.CLASSIC ->
-                com.music.spotui.data.preferences.DynamicColorPref.accent()
-                    ?: com.music.spotui.data.api.SupportReminder.accentColor.takeUnless {
-                        it == com.music.spotui.data.api.SupportReminder.Accent.GREEN.color
-                    }
-                    ?: StarryAccent
-        }
+        ?: lookAccentOrNull(LookPref.look)
+        ?: (com.music.spotui.data.preferences.DynamicColorPref.accent()
+            ?: com.music.spotui.data.api.SupportReminder.accentColor.takeUnless {
+                it == com.music.spotui.data.api.SupportReminder.Accent.GREEN.color
+            }
+            ?: StarryAccent)
+
+/**
+ * The accent each Look brings of its own (null for Astral Basic, which follows Material You / the chosen
+ * accent): Interactive the cover colour (a chosen accent wins, else sky blue), Spotifusion a fixed green,
+ * Glassify the cover colour (else the chosen accent, else cool blue), LiquidMusic a fixed red and
+ * Starry Night warm starlight gold (both ignore the chosen accent: that is their identity).
+ */
+internal fun lookAccentOrNull(look: Look): Color? {
+    fun chosen(): Color? = com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else null }
+    return when (look) {
+        Look.CLASSIC -> null
+        Look.SPOTIFUSION -> SpotifusionGreen
+        Look.IMMERSIVE -> chosen() ?: dynamicCoverAccent ?: StarryBlue
+        Look.GLASSIFY -> dynamicCoverAccent ?: chosen() ?: StarryBlue
+        Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.STARRY_NIGHT -> StarryAccent
+    }
+}
 
 /** Spotifusion 1:1 Spotify palette. */
 val SpotifusionBackground = Color(0xFF121212)
 val SpotifusionCard = Color(0xFF1E1E1E)
+val SpotifusionElevated = Color(0xFF282828)
 val SpotifusionGreen = Color(0xFF1DB954)
 
 /** Glassify translucent frosted surface (`spicetify-glassify`) and crisp 1dp specular border. */
@@ -150,10 +166,14 @@ val GlassifyBackground = Color(0xFF0E1118)
 val GlassifyGlassFill = Color(0x28333338)
 val GlassifySurface = Color(0x38282C38)
 val GlassifyBorder = Color.White.copy(alpha = 0.24f)
+/** A page card in Glassify: white at 8% with a cool blue cast, over the blurred-cover ambient. */
+val GlassifyTint = Color(0x14DCE8FF)
 
 /** LiquidMusic iOS-inspired liquid-glass surfaces and contrast accent. */
-val LiquidMusicBackground = Color(0xFF0B0B0F)
+val LiquidMusicBackground = Color(0xFF000000)
 val LiquidMusicSurface = Color(0x8C1C1C1E)
+/** LiquidMusic inset grouped list fill (iOS secondary grouped background) on the pure black page. */
+val LiquidMusicGroup = Color(0xFF1C1C1E)
 val LiquidMusicBorder = Color.White.copy(alpha = 0.22f)
 val LiquidMusicAccent = Color(0xFFFA2D48)
 
@@ -163,6 +183,8 @@ val StarrySkyBottom = Color(0xFF142B44)
 val StarryCard = Color(0xD9152238)
 val StarryCardOpaque = Color(0xFF152238)
 val StarryAccent = Color(0xFFFFF3C4)
+/** The faint gold line round a Starry Night card. */
+val StarryHairline = Color(0xFFFFF3C4).copy(alpha = 0.16f)
 val StarryBlue = Color(0xFF4687D6)
 val StarrySubtext = Color(0xFFADB5BD)
 

@@ -105,6 +105,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
         Look.LIQUID_MUSIC -> LiquidMusicAccent
         Look.GLASSIFY -> StarryBlue
         Look.IMMERSIVE -> Color.White
+        Look.STARRY_NIGHT -> StarryAccent
         Look.CLASSIC -> AppAccent
     }
     val buttonInk = if (buttonColor.luminance() > 0.45f) Color.Black else Color.White
@@ -245,6 +246,7 @@ private fun Look.swatchColor(): Color = when (this) {
     Look.SPOTIFUSION -> SpotifusionGreen
     Look.GLASSIFY -> StarryBlue
     Look.LIQUID_MUSIC -> LiquidMusicAccent
+    Look.STARRY_NIGHT -> StarryAccent
 }
 
 /** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 5 Looks. */
@@ -253,6 +255,7 @@ private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
     Box(Modifier.fillMaxSize()) {
         LookDemo(look, clock, still = still)
         when (look) {
+            Look.STARRY_NIGHT -> Unit
             Look.SPOTIFUSION -> {
                 Box(
                     Modifier

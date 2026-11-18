@@ -71,14 +71,19 @@ object AstralThemePref {
         prefs(context).edit().putString(KEY_THEME_MODE, mode.name).apply()
     }
 
-    /** Keeps [themeMode] aligned when the unified [LookPref] changes. */
+    /**
+     * Keeps [themeMode] aligned when the unified [LookPref] changes. Starry Night is a Look of its own now
+     * ([Look.STARRY_NIGHT]): the stars follow the Look through [StarryNightPref.onLookChanged], this key only
+     * tells Glassify / LiquidMusic from everything else.
+     */
     fun syncFromLook(context: Context, look: Look) {
         val mapped = when (look) {
             Look.GLASSIFY -> AstralThemeMode.GLASSIFY
             Look.LIQUID_MUSIC -> AstralThemeMode.LIQUID_MUSIC
-            Look.CLASSIC, Look.IMMERSIVE, Look.SPOTIFUSION -> AstralThemeMode.STARRY_NIGHT
+            else -> AstralThemeMode.STARRY_NIGHT
         }
         setThemeMode(context, mapped)
+        StarryNightPref.onLookChanged(context, look)
     }
 
     fun setLiquidGlassRefraction(context: Context, enabled: Boolean) {

@@ -232,7 +232,7 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                             contentDescription = stringResource(R.string.profile_more_options),
                             onClick = { barMenu = true },
                         )
-                        DropdownMenu(expanded = barMenu, onDismissRequest = { barMenu = false }, containerColor = Immersive.Raised) {
+                        DropdownMenu(expanded = barMenu, onDismissRequest = { barMenu = false }, containerColor = Immersive.Popup) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(if (b) R.string.profile_unblock else R.string.profile_block), style = Immersive.Body) },
                                 onClick = {

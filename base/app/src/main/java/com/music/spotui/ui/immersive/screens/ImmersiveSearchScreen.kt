@@ -253,6 +253,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                             shape = fieldShape,
                         )
                     Look.LIQUID_MUSIC -> Modifier.clip(fieldShape).border(1.dp, LiquidMusicBorder, fieldShape)
+                    Look.STARRY_NIGHT -> Modifier.clip(fieldShape).border(1.dp, Immersive.Tokens.edgeColor, fieldShape)
                     else -> Modifier
                 }
                 Column(Modifier.fillMaxWidth().then(stickyBgModifier).padding(top = 4.dp, bottom = 6.dp)) {

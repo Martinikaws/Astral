@@ -110,6 +110,7 @@ import com.music.spotui.ui.components.FastScrollbar
 import com.music.spotui.ui.components.matchesFind
 import com.music.spotui.ui.components.withRowKeys
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.immersive.immersiveSurface
 import com.music.spotui.ui.immersive.components.ImmersiveButton
 import com.music.spotui.ui.immersive.components.ImmersiveCircleButton
 import com.music.spotui.ui.immersive.components.ImmersiveCover
@@ -502,7 +503,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = Immersive.Gutter, vertical = 6.dp).fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)).background(Immersive.Raised).padding(12.dp),
+                        .immersiveSurface(Immersive.Card).padding(12.dp),
                 ) {
                     Icon(androidx.compose.material.icons.Icons.Outlined.Group, contentDescription = null, tint = Immersive.TextSecondary, modifier = Modifier.size(20.dp))
                     Text(
@@ -538,7 +539,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
             // While a song is moved: the rows in the order under the finger.
             val (listed, keys) = drag.order?.takeIf { reordering }?.let { o -> o to o.map(PlaylistReorder::key) } ?: shown
             itemsIndexed(listed, key = { i, _ -> keys[i] }) { index, song ->
-                Column(if (reordering) movableRow(drag, song, Immersive.Raised) else Modifier) {
+                Column(if (reordering) movableRow(drag, song, Immersive.Popup) else Modifier) {
                     ImmersiveSwipeToQueue(song) {
                         ImmersiveSongRow(
                             song = song,
@@ -668,7 +669,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
         ) { data ->
             Snackbar(
                 snackbarData = data,
-                containerColor = Immersive.Raised,
+                containerColor = Immersive.Popup,
                 contentColor = Immersive.Text,
                 actionContentColor = Immersive.Accent,
             )
@@ -713,7 +714,7 @@ private fun ContextHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(lerp(tint, Color.Black, 0.3f), pageBg)))
+            .background(Brush.verticalGradient(listOf(Immersive.headerWash(tint), pageBg)))
             .padding(top = immersiveTopContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -936,7 +937,7 @@ private fun DownloadCircle(downloaded: Int, total: Int, busy: Boolean, kept: Boo
 /** The sort menu: picking the sort already chosen flips its direction (the arrow shows it). */
 @Composable
 private fun SortMenu(open: Boolean, sort: TrackOrder, onDismiss: () -> Unit, onSort: (TrackOrder) -> Unit) {
-    DropdownMenu(expanded = open, onDismissRequest = onDismiss, containerColor = Immersive.Raised) {
+    DropdownMenu(expanded = open, onDismissRequest = onDismiss, containerColor = Immersive.Popup) {
         Text(
             stringResource(R.string.filter_and_sort_sort_section_title),
             style = Immersive.Caption,

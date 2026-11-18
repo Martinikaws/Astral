@@ -78,6 +78,7 @@ import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Haptics
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.immersive.immersiveSurface
 import com.music.spotui.ui.immersive.glass
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.components.rememberImmersiveOverscrollFactory
@@ -101,20 +102,14 @@ internal fun ImmersiveSegmentedControl(
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val look = LocalLook.current
-    val trackShape = when (look) {
-        Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
-        Look.GLASSIFY -> RoundedCornerShape(16.dp)
-        else -> RoundedCornerShape(10.dp)
-    }
-    val pillShape = when (look) {
-        Look.LIQUID_MUSIC -> RoundedCornerShape(16.dp)
-        Look.GLASSIFY -> RoundedCornerShape(12.dp)
-        else -> RoundedCornerShape(8.dp)
-    }
-    val trackMod = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) {
+    // The track and the pill follow the Look's radii (pills on Spotifusion, 20dp LiquidMusic, 16dp Glassify...).
+    val trackShape = if (look == Look.SPOTIFUSION) Immersive.Button else Immersive.Card
+    val pillRadius = (Immersive.Tokens.cardRadius - 4.dp).coerceAtLeast(6.dp)
+    val pillShape = if (look == Look.SPOTIFUSION) Immersive.Button else RoundedCornerShape(pillRadius)
+    val trackMod = if (look == Look.GLASSIFY) {
         Modifier.clip(trackShape).glass(trackShape)
     } else {
-        Modifier.clip(trackShape).background(Immersive.Raised)
+        Modifier.immersiveSurface(trackShape)
     }
     val selectedInk = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
     Row(

@@ -92,6 +92,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -112,7 +113,6 @@ import app.myspoti.engine.R
 import app.myspoti.power.EnergySettings
 import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.Lyrics
-import com.music.spotui.data.preferences.AstralThemeMode
 import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.data.preferences.LyricsRomanizationPref
 import com.music.spotui.data.preferences.SpicyThemePreset
@@ -224,11 +224,10 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                 // The palette always carries stock fallback colours; only trust it when there is a cover.
                 val artworkColors = if (hasCover) artworkPalette.colors else emptyList()
                 val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
-                val themeMode by AstralThemePref.themeMode.collectAsState()
                 val starryEnabled by StarryNightPref.enabled.collectAsState()
                 val oledBlack = EnergySettings.oledBlack
                 val customSpicy = spicyPreset != SpicyThemePreset.ASTRAL_DEFAULT
-                val starryActive = !customSpicy && starryEnabled && themeMode == AstralThemeMode.STARRY_NIGHT && !oledBlack
+                val starryActive = !customSpicy && starryEnabled && !oledBlack
 
                 val meshColors = remember(customSpicy, spicyPreset, artworkColors, Immersive.Accent) {
                     if (customSpicy) {
@@ -247,7 +246,15 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                     starryActive -> artworkColors.firstOrNull()?.let { lerp(it, StarryAccent, 0.45f) } ?: StarryAccent
                     else -> artworkColors.firstOrNull()?.let { lerp(it, Immersive.Accent, 0.45f) } ?: Immersive.Accent
                 }
-                val activeColor = if (customSpicy) Color(spicyPreset.accentHex) else Color.White
+                // The sung line is white, tinted by the Look: starlight gold on Starry Night, a breath of the
+                // cover's accent on Glassify.
+                val look = com.music.spotui.data.preferences.LookPref.look
+                val activeColor = when {
+                    customSpicy -> Color(spicyPreset.accentHex)
+                    look == com.music.spotui.data.preferences.Look.STARRY_NIGHT -> StarryAccent
+                    look == com.music.spotui.data.preferences.Look.GLASSIFY -> lerp(Color.White, Immersive.Accent, 0.25f)
+                    else -> Color.White
+                }
 
                 Box(modifier) {
                     SpicyPanelBackdrop(
@@ -412,7 +419,7 @@ private fun SpicyPanelBackdrop(
     }
 }
 
-/** A round toggle over the lyrics, lit white while what it shows is on; a spinner while that is fetched. */
+/** A round toggle over the lyrics, lit in the Look's accent while what it shows is on; a spinner while that is fetched. */
 @Composable
 private fun LyricsToggle(
     icon: ImageVector,
@@ -427,7 +434,7 @@ private fun LyricsToggle(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(if (on) Color.White else Color.White.copy(alpha = 0.14f))
+            .background(if (on) Immersive.Accent else Color.White.copy(alpha = 0.14f))
             .immersiveClickable(onClick = onClick, enabled = !loading, pressedScale = 0.9f),
     ) {
         if (loading) {
@@ -436,7 +443,7 @@ private fun LyricsToggle(
             Icon(
                 icon,
                 contentDescription = description,
-                tint = if (on) Color.Black else Color.White,
+                tint = if (on) { if (Immersive.Accent.luminance() > 0.45f) Color.Black else Color.White } else Color.White,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -1083,7 +1090,7 @@ private fun PanelRow(
 /** Over the foot of the panel while lines are picked: what to do, then Cancel and Share. */
 @Composable
 private fun ShareBar(canShare: Boolean, onCancel: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(12.dp)) {
+    Column(modifier.fillMaxWidth().glass(RoundedCornerShape(Immersive.Tokens.cardRadius + 10.dp)).padding(12.dp)) {
         Text(
             text = stringResource(R.string.lyrics_select_hint),
             style = Immersive.Caption,
