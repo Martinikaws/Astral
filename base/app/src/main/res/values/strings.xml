@@ -22,4 +22,8 @@
     <string name="player_source_downloaded">Downloaded</string>
     <string name="extension_change_write">Now also allowed to send to Spotify: %1$s</string>
     <string name="accent_look_default" tools:ignore="MissingTranslation">Look default</string>
+    <string name="canvas_background" tools:ignore="MissingTranslation">Canvas background</string>
+    <string name="canvas_on" tools:ignore="MissingTranslation">On</string>
+    <string name="canvas_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="canvas_blur" tools:ignore="MissingTranslation">Canvas blur</string>
 </resources>
