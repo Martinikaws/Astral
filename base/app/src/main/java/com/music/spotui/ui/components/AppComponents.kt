@@ -218,7 +218,8 @@ fun MiniPlayer() {
     // The Canvas of the song playing is looked up and loaded now, so the full player
     // opens on it directly instead of showing the cover first.
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
-    LaunchedEffect(np.uri, energy.policy.allowCanvas, com.music.spotui.data.DataSaver.active) {
+    LaunchedEffect(np.uri, energy.policy.allowCanvas, com.music.spotui.data.DataSaver.active, com.music.spotui.data.preferences.CanvasPref.background) {
+        if (!com.music.spotui.data.preferences.CanvasPref.background) return@LaunchedEffect
         val id = np.uri.removePrefix("spotify:track:").takeIf { np.uri.startsWith("spotify:track:") } ?: return@LaunchedEffect
         if (!energy.policy.allowCanvas || com.music.spotui.data.DataSaver.active) return@LaunchedEffect
         val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

@@ -339,7 +339,7 @@ fun ImmersivePlayer(
         val bleedHeight = fullBleedCoverHeight(playerWidth, maxHeight)
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         // Under a fully shown clip the mesh and the blurred cover would only be drawn for nothing.
-        val clipCovers by remember { derivedStateOf { canvasOpen.value >= 1f } }
+        val clipCovers by remember(canvasUrl) { derivedStateOf { canvasUrl != null && canvasOpen.value >= 1f } }
         if (!clipCovers && coverStyle != null && coverStyle.blackBackdrop) {
             Box(Modifier.fillMaxSize().background(Color.Black))
         } else if (!clipCovers) {

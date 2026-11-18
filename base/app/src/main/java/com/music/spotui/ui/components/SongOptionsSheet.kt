@@ -100,6 +100,7 @@ fun SongOptionsSheet(
     onRemoveFromPlaylist: (() -> Unit)? = null,
     // The playlist the track is shown in, so the "Add to another playlist" picker can hide it.
     currentPlaylistId: String? = null,
+    extraRows: (@Composable () -> Unit)? = null,
 ) {
     val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
@@ -353,6 +354,7 @@ fun SongOptionsSheet(
                     MenuRow(Icons.Outlined.GraphicEq, stringResource(R.string.quality_sheet_title)) { showQuality = true }
                 }
                 MenuRow(Icons.Outlined.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
+                extraRows?.invoke()
             }
             // Entries from extensions (menu.items), after the app's own; each names its extension.
             if (hasId) com.music.spotui.extensions.ExtensionMenuEntries(

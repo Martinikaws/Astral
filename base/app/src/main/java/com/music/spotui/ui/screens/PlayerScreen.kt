@@ -254,12 +254,14 @@ fun PlayerScreen(navController: NavController) {
             }
     }
 
+    val canvasBgEnabled = com.music.spotui.data.preferences.CanvasPref.background
+    val canvasAllowed = canvasBgEnabled && energy.policy.allowCanvas && !com.music.spotui.data.DataSaver.active &&
+        !(com.music.spotui.data.DataSaver.metered && com.music.spotui.data.preferences.isCanvasWifiOnly(context))
     // The confirmed URI can change after an optimistic songId already changed.
     // Hide a stale result in this composition, before the loading effect runs.
-    LaunchedEffect(displayedTrackId, energy.policy.allowCanvas, audioBuffering) {
+    LaunchedEffect(displayedTrackId, canvasAllowed, audioBuffering) {
         playerViewModel.loadCanvas(
-            if (energy.policy.allowCanvas && !com.music.spotui.data.DataSaver.active &&
-                !(com.music.spotui.data.DataSaver.metered && com.music.spotui.data.preferences.isCanvasWifiOnly(context))) displayedTrackId else "",
+            if (canvasAllowed) displayedTrackId else "",
             allowFetch = !audioBuffering,
         )
     }
@@ -267,8 +269,6 @@ fun PlayerScreen(navController: NavController) {
     // Read from the cache in this very frame when already looked up (the view model's state
     // only follows one frame later): the screen then opens on the Canvas, not on the cover.
     val knownCanvas = remember(displayedTrackId) { com.music.spotui.di.Graph.api.knownCanvas(displayedTrackId)?.getOrNull() }
-    val canvasAllowed = energy.policy.allowCanvas && !com.music.spotui.data.DataSaver.active &&
-            !(com.music.spotui.data.DataSaver.metered && com.music.spotui.data.preferences.isCanvasWifiOnly(context))
     val canvasUrl = (if (canvas.trackId == displayedTrackId) canvas.url else knownCanvas).takeIf {
         canvasAllowed && displayedTrackId.isNotBlank()
     }
@@ -378,10 +378,11 @@ fun PlayerScreen(navController: NavController) {
             else if (shortWindow) SHORT_PLAYER_PEEK_DP else PLAYER_PEEK_DP
         val pillAboveTitle = canvasUrl != null && !videoOn
         if (canvasUrl != null && !videoOn) {
-            CanvasVideo(
+            com.music.spotui.ui.immersive.player.CanvasBackgroundVideo(
                 url = canvasUrl,
                 onFirstFrame = { canvasShown = true },
                 playing = songPlayingState && !showLyrics && !audioBuffering,
+                blurPercent = com.music.spotui.data.preferences.CanvasPref.blur,
                 // Read in the layer: the fade then changes the alpha only, without recomposing
                 // the whole player for each of its frames.
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = canvasProgress.value },
@@ -1553,6 +1554,7 @@ fun PlayerOptionsSheet(
         onDismiss = onDismiss,
         nowPlaying = true,
         onOpenQueue = onOpenQueue,
+        extraRows = { com.music.spotui.ui.immersive.player.ClassicCanvasMenuRows() },
     )
 }
 
@@ -1644,56 +1646,6 @@ fun AddButton(song: () -> SongsModel, liked: Boolean, size: androidx.compose.ui.
             android.widget.Toast.makeText(context, context.getString(R.string.snackbar_added_to_liked_songs), android.widget.Toast.LENGTH_SHORT).show()
         }
     }
-}
-
-/**
- * Plays a Spotify Canvas clip: a short, muted, looping video filling the
- * now-playing background, on the shared [CanvasPlayer] (separate from the audio engine),
- * paused when the composable leaves. [onFirstFrame]: the clip is visible.
- *
- * Loops are served from the media cache: without it every loop re-downloaded the
- * clip, and since ExoPlayer ignores the activity lifecycle it kept doing so in the
- * background (#87, gigabytes per hour). It also pauses while the app is not visible, and
- * its decoder is given back then (CanvasPlayer.onBackground).
- */
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@Composable
-internal fun CanvasVideo(url: String, playing: Boolean, onFirstFrame: () -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val exo = remember(url) { com.music.spotui.ui.components.CanvasPlayer.get(context, url) }
-    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
-    val requested by androidx.compose.runtime.rememberUpdatedState(playing)
-    val shown by androidx.compose.runtime.rememberUpdatedState(onFirstFrame)
-    LaunchedEffect(exo, playing, lifecycle) {
-        exo.playWhenReady = playing && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
-    }
-    androidx.compose.runtime.DisposableEffect(exo, lifecycle) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            // Back on screen: the clip given back in the background (CanvasPlayer.onBackground) is loaded again.
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) com.music.spotui.ui.components.CanvasPlayer.get(context, url)
-            exo.playWhenReady = requested && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
-        }
-        lifecycle.addObserver(observer)
-        val removeFrame = com.music.spotui.ui.components.CanvasPlayer.onFirstFrame { shown() }
-        onDispose {
-            lifecycle.removeObserver(observer)
-            removeFrame()
-            exo.playWhenReady = false
-        }
-    }
-    androidx.compose.ui.viewinterop.AndroidView(
-        modifier = modifier,
-        // factory runs once; a new track's clip gets a new player, so rebind it here.
-        update = { it.player = exo },
-        factory = { ctx ->
-            // Inflated: the surface type (texture view) can only be set from XML.
-            (android.view.LayoutInflater.from(ctx).inflate(R.layout.canvas_player_view, null) as androidx.media3.ui.PlayerView).apply {
-                setArtworkDisplayMode(androidx.media3.ui.PlayerView.ARTWORK_DISPLAY_MODE_OFF)
-                setDefaultArtwork(null)
-                player = exo
-            }
-        },
-    )
 }
 
 /** Cover to Canvas cross-fade. */
