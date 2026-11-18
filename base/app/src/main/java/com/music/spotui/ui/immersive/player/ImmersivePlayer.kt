@@ -42,11 +42,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.State
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,6 +56,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -331,14 +334,50 @@ fun ImmersivePlayer(
         val landscape = window.playerSideBySide(maxWidth, maxHeight)
         val sidePane = window.large && maxWidth >= SIDE_PANE_MIN_WIDTH
         val playerWidth = maxWidth
-        PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl)
+        // Phones upright: the cover runs edge to edge from the top of the screen and fades into the
+        // backdrop. Wider windows and Spotifusion keep the centred card.
+        val coverStyle = if (!landscape && playerWidth < FULL_BLEED_MAX_WIDTH) {
+            coverStyleFor(com.music.spotui.data.preferences.LookPref.look)
+        } else null
+        val fullBleed = coverStyle != null
+        val bleedHeight = fullBleedCoverHeight(playerWidth, maxHeight)
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        if (coverStyle != null && coverStyle.blackBackdrop) {
+            Box(Modifier.fillMaxSize().background(Color.Black))
+        } else {
+            PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl)
+            // Gone as the player collapses to a panel, so the panels look as before.
+            if (coverStyle != null) {
+                PlayerCoverBlurBackdrop(
+                    state.coverUrl,
+                    Modifier.graphicsLayer { alpha = (1f - collapse.value).coerceIn(0f, 1f) },
+                )
+            }
+        }
+        if (coverStyle != null) {
+            // Gone as the cover travels to the header (the thumbnail takes over) and under a Canvas.
+            PlayerFullBleedCover(
+                coverUrl = state.coverUrl,
+                blend = blend,
+                style = coverStyle,
+                height = bleedHeight,
+                topScrimHeight = statusBarTop + DISMISS_STRIP_HEIGHT,
+                modifier = Modifier.align(Alignment.TopStart).graphicsLayer {
+                    alpha = (1f - collapse.value * 2f).coerceIn(0f, 1f) * (1f - canvasOpen.value)
+                },
+            )
+        }
         if (canvasUrl != null) {
             com.music.spotui.ui.screens.CanvasVideo(
                 url = canvasUrl,
                 onFirstFrame = { canvasShown = true },
                 // Still while the sheet is closed, the song paused or a panel covers it.
                 playing = PlayerSheet.open.value && state.playing && !state.buffering && panel == Panel.NONE,
-                modifier = Modifier.fillMaxSize().graphicsLayer {
+                modifier = (if (coverStyle != null) {
+                    // Same area and the same fade as the cover.
+                    Modifier.align(Alignment.TopStart).fillMaxWidth().height(bleedHeight)
+                        .coverFadeMask(coverStyle.fadeStart)
+                } else Modifier.fillMaxSize()).graphicsLayer {
                     val o = canvasOpen.value
                     alpha = o
                     // Settles from slightly closer as it opens.
@@ -386,6 +425,8 @@ fun ImmersivePlayer(
                 BoxWithConstraints(Modifier.weight(1f, fill = !window.large).heightIn(max = blockMax).fillMaxWidth()) {
                     val contentWidth = minOf(maxWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH)
                     val left = (maxWidth - contentWidth) / 2
+                    // Full-bleed: the cover is drawn behind the player (PlayerFullBleedCover); this square
+                    // box keeps the old geometry as its gesture area and, collapsed, the header's thumbnail.
                     val fullArt = minOf(contentWidth, maxHeight - ART_BOX_TOP_PAD - ART_TITLE_GAP - HEADER_HEIGHT - 16.dp)
                         .coerceAtLeast(THUMB_SIZE)
                     // While the player is whole the credits sit just above the scrubber and the cover is
@@ -400,7 +441,14 @@ fun ImmersivePlayer(
                     fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
                     fun artTop(): Dp = ART_BOX_TOP_PAD + lerp(groupTop, 0.dp, p())
                     fun artStart(): Dp = left + lerp((contentWidth - fullArt) / 2, 0.dp, p())
-                    fun titleTop(): Dp = ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP, 0.dp, p())
+                    // Full-bleed: the credits end at the foot of the cover (its height in this box's
+                    // coordinates: minus the status bar and the handle), never lower than the old place
+                    // right above the controls.
+                    val bleedTitleTop = (bleedHeight - statusBarTop - DISMISS_STRIP_HEIGHT - HEADER_HEIGHT)
+                        .coerceAtMost(ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP)
+                        .coerceAtLeast(ART_BOX_TOP_PAD)
+                    fun titleTop(): Dp = if (fullBleed) lerp(bleedTitleTop, ART_BOX_TOP_PAD, p())
+                    else ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP, 0.dp, p())
                     fun titleStart(): Dp = lerp(0.dp, THUMB_SIZE + 12.dp, p())
                     // The credits only crawl while they are the screen: over a list they would pull the eye.
                     val scrolls by remember { derivedStateOf { collapse.value < 0.01f } }
@@ -442,7 +490,9 @@ fun ImmersivePlayer(
                                 val scale = (pauseScale.value + (1f - pauseScale.value) * p()) * (1f + CANVAS_COVER_GROW * opened) * beat
                                 scaleX = scale
                                 scaleY = scale
-                                alpha = 1f - opened
+                                // Full-bleed: the cover is drawn behind the player; this box is only seen
+                                // as the header's thumbnail, once the cover has mostly travelled.
+                                alpha = if (fullBleed) ((p() - 0.5f) * 2f).coerceIn(0f, 1f) else 1f - opened
                                 shadowElevation = 10.dp.toPx() * (1f - p()) * (1f - opened)
                                 shape = ArtCorner
                                 clip = true
@@ -467,6 +517,18 @@ fun ImmersivePlayer(
                             requestBuilderTransform = { it.override(COVER_DECODE_PX) },
                         )
                         SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                    }
+
+                    // A soft scrim behind the credits, over the half-faded foot of the cover.
+                    if (fullBleed) {
+                        Box(
+                            Modifier
+                                .offset { IntOffset(0, (titleTop() - 24.dp).roundToPx()) }
+                                .fillMaxWidth()
+                                .height(HEADER_HEIGHT + 40.dp)
+                                .graphicsLayer { alpha = (1f - p() * 2f).coerceIn(0f, 1f) }
+                                .background(CreditsScrimBrush),
+                        )
                     }
 
                     // ---- Title + round glyphs ----
@@ -508,6 +570,7 @@ fun ImmersivePlayer(
                     modifier = Modifier
                         .widthIn(max = PLAYER_MAX_WIDTH + PLAYER_GUTTER * 2)
                         .fillMaxWidth()
+                        .then(if (coverStyle?.glassStrip == true) Modifier.frostedStrip() else Modifier)
                         .padding(horizontal = PLAYER_GUTTER)
                         .align(Alignment.CenterHorizontally),
                 ) {
