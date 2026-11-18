@@ -6,6 +6,7 @@ package com.music.spotui.data.preferences
  */
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -65,6 +66,64 @@ enum class Look(
     }
 }
 
+/**
+ * One-time upgrade from v1.0.1, where the visual settings lived in three places: [Look] (CLASSIC /
+ * IMMERSIVE), `page_style` (a page style rendered independently of the look, default ORPHEON_GLASS) and
+ * `astral_theme_mode` (GLASSIFY / LIQUID_MUSIC). Folds them into the 5-Look model so nobody loses their
+ * appearance. Idempotent (flag [FLAG]) and a no-op for fresh installs. Runs on raw [SharedPreferences]
+ * (no Android Context, no singletons) so it is unit-testable and safe to call from any pref initialiser.
+ */
+internal object LookMigration {
+    const val FLAG = "look_migrated_v2"
+    private const val LOOK = "look"
+    private const val LOOK_CHOSEN = "look_chosen"
+    private const val PAGE_STYLE = "page_style"
+    private const val PAGE_STYLE_OVERRIDE = "page_style_override"
+    private const val THEME_MODE = "astral_theme_mode"
+
+    fun run(c: Context) = run(c.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE))
+
+    fun run(p: SharedPreferences) {
+        if (p.getBoolean(FLAG, false)) return
+        val e = p.edit().putBoolean(FLAG, true)
+        val lookChosen = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK)
+        val styleName = p.getString(PAGE_STYLE, null)
+        val theme = p.getString(THEME_MODE, null)
+        if (!lookChosen && styleName == null && theme == null) { e.apply(); return } // fresh install
+
+        val look = Look.fromKey(p.getString(LOOK, null))
+        val old = look == Look.CLASSIC || look == Look.IMMERSIVE
+        val newLook = when {
+            old && theme == "GLASSIFY" -> Look.GLASSIFY
+            old && theme == "LIQUID_MUSIC" -> Look.LIQUID_MUSIC
+            look == Look.CLASSIC && styleName == PageStyle.SPOTIFUSION.name -> Look.SPOTIFUSION
+            else -> look
+        }
+        if (newLook != look) e.putString(LOOK, newLook.name)
+
+        // v1.0.1 rendered pages purely from page_style, defaulting to ORPHEON_GLASS when never stored
+        // (PageStyle.of), whatever the look was. So a chosen look without a stored style really showed
+        // glass pages: keep that as an explicit override when it differs from what the look implies
+        // (CLASSIC -> Basic now). Past the fresh-install return, v1.0.1 data exists, so what it rendered is preserved.
+        val rendered = PageStyle.of(styleName)
+        if (rendered != PageStyle.forLook(newLook)) {
+            e.putString(PAGE_STYLE, rendered.name).putBoolean(PAGE_STYLE_OVERRIDE, true)
+        } else {
+            e.remove(PAGE_STYLE).putBoolean(PAGE_STYLE_OVERRIDE, false)
+        }
+
+        // Same mapping as AstralThemePref.syncFromLook; only the theme key is touched, Starry Night's own
+        // enable state lives in StarryNightPref.
+        val mode = when (newLook) {
+            Look.GLASSIFY -> "GLASSIFY"
+            Look.LIQUID_MUSIC -> "LIQUID_MUSIC"
+            else -> "STARRY_NIGHT"
+        }
+        if (theme != null && theme != mode) e.putString(THEME_MODE, mode)
+        e.apply()
+    }
+}
+
 object LookPref {
     private const val PREF = "settings_prefs"
     private const val KEY = "look"
@@ -72,7 +131,9 @@ object LookPref {
     private const val KEY_OFFERED = "look_offered"
 
     /** The chosen look, as Compose state: everything reading it redraws when it changes. */
-    var look by mutableStateOf(Look.fromKey(prefs(com.music.spotui.di.Graph.app).getString(KEY, null)))
+    var look by mutableStateOf(
+        prefs(com.music.spotui.di.Graph.app).also { LookMigration.run(it) }.getString(KEY, null).let(Look::fromKey),
+    )
         private set
 
     fun set(c: Context, value: Look) {

@@ -1708,6 +1708,13 @@ private fun DrawScope.drawMirroredHorizontalBars(
     }
 }
 
+// Reused per-draw scratch (draw pass runs on the main thread only; each is reset/overwritten before use).
+private val spectrumCurvePath = Path()
+private val spectrumAreaPath = Path()
+private val spectrumXs = FloatArray(64)
+private val spectrumYs = FloatArray(64)
+private val waveformPath = Path()
+
 private fun DrawScope.drawSpectrumVisualizer(
     frame: AudioFrame,
     peaks: FloatArray,
@@ -1731,10 +1738,10 @@ private fun DrawScope.drawSpectrumVisualizer(
         strokeWidth = (1.2f + 1.2f * frame.barPulse).dp.toPx(),
     )
 
-    val curvePath = Path()
-    val areaPath = Path()
-    val xs = FloatArray(count)
-    val ys = FloatArray(count)
+    val curvePath = spectrumCurvePath.also { it.reset() }
+    val areaPath = spectrumAreaPath.also { it.reset() }
+    val xs = spectrumXs
+    val ys = spectrumYs
 
     for (i in 0 until count) {
         val norm = i / (count - 1f)
@@ -1836,7 +1843,7 @@ private fun DrawScope.drawBeatWaveformVisualizer(
 
     val layers = 3
     for (layer in 0 until layers) {
-        val path = Path()
+        val path = waveformPath.also { it.reset() }
         val layerScale = when (layer) {
             0 -> 1.0f
             1 -> 0.72f

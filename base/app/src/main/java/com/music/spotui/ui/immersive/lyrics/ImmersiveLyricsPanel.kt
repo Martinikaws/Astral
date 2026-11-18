@@ -219,7 +219,10 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             key(trackKey) {
                 val reduceMotion = rememberReduceMotion()
                 val coverUri = song.coverUri.value
+                val hasCover = coverUri.isNotBlank()
                 val artworkPalette = rememberArtworkColors(coverUri.takeIf { it.isNotBlank() })
+                // The palette always carries stock fallback colours; only trust it when there is a cover.
+                val artworkColors = if (hasCover) artworkPalette.colors else emptyList()
                 val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
                 val themeMode by AstralThemePref.themeMode.collectAsState()
                 val starryEnabled by StarryNightPref.enabled.collectAsState()
@@ -227,7 +230,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                 val customSpicy = spicyPreset != SpicyThemePreset.ASTRAL_DEFAULT
                 val starryActive = !customSpicy && starryEnabled && themeMode == AstralThemeMode.STARRY_NIGHT && !oledBlack
 
-                val meshColors = remember(customSpicy, spicyPreset, artworkPalette) {
+                val meshColors = remember(customSpicy, spicyPreset, artworkColors, Immersive.Accent) {
                     if (customSpicy) {
                         listOf(
                             Color(spicyPreset.accentHex),
@@ -236,13 +239,13 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                             lerp(Color(spicyPreset.bgTopHex), Color(spicyPreset.accentHex), 0.40f),
                         )
                     } else {
-                        (artworkPalette.colors + listOf(Immersive.Accent, Color.White)).take(4)
+                        (artworkColors + listOf(Immersive.Accent, Color.White)).take(4)
                     }
                 }
                 val glowTint = when {
                     customSpicy -> Color(spicyPreset.glowHex)
-                    starryActive -> artworkPalette.colors.firstOrNull()?.let { lerp(it, StarryAccent, 0.45f) } ?: StarryAccent
-                    else -> artworkPalette.colors.firstOrNull()?.let { lerp(it, Immersive.Accent, 0.45f) } ?: Immersive.Accent
+                    starryActive -> artworkColors.firstOrNull()?.let { lerp(it, StarryAccent, 0.45f) } ?: StarryAccent
+                    else -> artworkColors.firstOrNull()?.let { lerp(it, Immersive.Accent, 0.45f) } ?: Immersive.Accent
                 }
                 val activeColor = if (customSpicy) Color(spicyPreset.accentHex) else Color.White
 
@@ -329,12 +332,13 @@ private fun SpicyPanelBackdrop(
             label = "panelBlob$idx",
         ).value
     }
-    val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "immersiveMesh").animateFloat(
+    // Kept as State and read inside the draw lambda so the drift does not recompose each frame.
+    val meshPhaseState = rememberInfiniteTransition(label = "immersiveMesh").animateFloat(
         initialValue = 0f,
         targetValue = (2f * PI).toFloat(),
         animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
         label = "meshPhase",
-    ).value
+    )
 
     Box(Modifier.fillMaxSize()) {
         if (starryActive) {
@@ -371,6 +375,7 @@ private fun SpicyPanelBackdrop(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
+                    val meshPhase = if (reduceMotion) 0f else meshPhaseState.value
                     val strength = when {
                         oledBlack -> 0.14f
                         customSpicy -> 0.32f
@@ -491,9 +496,11 @@ private fun panelLines(lyrics: Lyrics, synced: Boolean, songDurationMs: Long): L
         } else {
             val background = line.background?.trim()?.takeIf { it.isNotEmpty() }
             val romanization = line.romanization?.trim()?.takeIf { it.isNotEmpty() && !it.equals(line.text.trim(), ignoreCase = true) }
-            val effectiveNext = next?.takeIf { it > line.timeMs }
-                ?: songDurationMs.takeIf { it > line.timeMs }
-                ?: (line.timeMs + (line.text.length * 90L).coerceIn(2_500L, 6_000L))
+            val heuristicEnd = line.timeMs + (line.text.length * 90L).coerceIn(2_500L, 6_000L)
+            val effectiveNext = when {
+                next != null -> next.takeIf { it > line.timeMs } ?: heuristicEnd
+                else -> songDurationMs.takeIf { it > line.timeMs } ?: heuristicEnd
+            }
             val swept = line.toSwept(effectiveNext).let {
                 if (synced && it.words.isEmpty() && effectiveNext > line.timeMs) it.copy(sungUntilMs = effectiveNext) else it
             }
@@ -580,7 +587,10 @@ private fun scrollLead(rows: List<PanelLine>, positionMs: Long): Long {
     val current = rows.indexOfLast { it.timeMs <= positionMs }
     if (current < 0) return SCROLL_LEAD_MIN_MS
     val next = rows.getOrNull(current + 1) ?: return SCROLL_LEAD_MIN_MS
-    val gap = next.timeMs - rows[current].endMs
+    val row = rows[current]
+    // Line-synced rows end at the next start, so measure from the last sung word instead.
+    val sungEnd = if (row.isGap) row.endMs else (row.swept.words.lastOrNull()?.endMs ?: (row.timeMs + (row.text.length * 90L).coerceIn(2_500L, 6_000L)))
+    val gap = next.timeMs - sungEnd
     return gap.coerceIn(SCROLL_LEAD_MIN_MS, SCROLL_LEAD_MAX_MS)
 }
 

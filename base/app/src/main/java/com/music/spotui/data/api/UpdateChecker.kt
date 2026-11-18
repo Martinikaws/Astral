@@ -140,14 +140,17 @@ object UpdateChecker {
      * The release's APK download link for this Astral channel (`app.astral` / `app.astral.beta`)
      * and this phone. A release carries `<name>-<version>-ARMv8.apk`, `-ARMv7.apk`, `-universal.apk`
      * (betas: `<name>-Beta-<version>-...`), where [name] is `BuildConfig.APK_NAME` ("Astral").
-     * The first matching ABI in [abis] wins, with `-universal.apk` as fallback.
+     * The first matching ABI in [abis] wins, with `-universal.apk` as fallback. The universal APK
+     * only carries the ARM ABIs, so a phone with none of them (x86) gets no link and the page opens.
      */
     internal fun apkAsset(release: JSONObject, beta: Boolean = isBeta, abis: List<String> = deviceAbis, name: String = BuildConfig.APK_NAME): String {
         val assets = release.optJSONArray("assets") ?: return ""
         val version = release.optString("tag_name").removePrefix("v")
         val named = "${if (beta) "$name-Beta" else name}-$version"
         val byName = (0 until assets.length()).map { assets.getJSONObject(it) }.associateBy { it.optString("name") }
-        return abis.filter { it in RELEASE_ABIS }.map { "$named-${RELEASE_ABIS.getValue(it)}.apk" }
+        val supported = abis.filter { it in RELEASE_ABIS }
+        if (supported.isEmpty()) return ""
+        return supported.map { "$named-${RELEASE_ABIS.getValue(it)}.apk" }
             .firstNotNullOfOrNull { byName[it] }?.optString("browser_download_url").orEmpty()
             .ifEmpty { byName["$named-universal.apk"]?.optString("browser_download_url").orEmpty() }
     }

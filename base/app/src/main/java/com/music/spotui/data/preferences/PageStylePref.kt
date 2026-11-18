@@ -34,7 +34,7 @@ object PageStylePref {
     private const val KEY_CHOSEN = "page_style_chosen"
 
     private var overrideStyle by mutableStateOf(
-        runCatching { prefs(com.music.spotui.di.Graph.app) }.getOrNull()
+        runCatching { prefs(com.music.spotui.di.Graph.app).also { LookMigration.run(it) } }.getOrNull()
             ?.takeIf { it.getBoolean(KEY_OVERRIDE, false) }
             ?.getString(KEY, null)
             ?.let { name -> PageStyle.entries.firstOrNull { it.name == name } },

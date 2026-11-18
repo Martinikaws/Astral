@@ -105,6 +105,7 @@ object TrackAudioSync {
     private const val DB_SPAN = DB_MAX - DB_MIN
     private const val MOVING_AVG_WINDOW_SEC = 0.15
     private const val CURVE_STEP_SEC = 0.025
+    private const val MAX_CURVE_SAMPLES = 60_000
     private const val CACHE_MAX_TRACKS = 32
     private const val RETRY_TRANSIENT_MS = 20_000L
     private const val RETRY_UNAVAILABLE_MS = 300_000L
@@ -193,6 +194,8 @@ object TrackAudioSync {
     }
 
     private class AutoMixModel(
+        /** `localTrack.uri` the analysis was fetched for; the model is only valid while that track is current. */
+        val sourceUri: String,
         val analysisRef: TrackAnalysis,
         override val bpm: Float,
         override val beats: DoubleArray,
@@ -230,9 +233,19 @@ object TrackAudioSync {
 
     // Sampler / clock state (updated from UI frame loop on Main thread).
     private var activeTrackKey: String = ""
+    @Volatile
     private var activeLocalModel: AutoMixModel? = null
     private var lastModelRef: TrackModel? = null
     private var lastAutoMixCheckRealTimeMs: Long = 0L
+    private var lastEffectivePosMs: Long = 0L
+
+    /** Uri of the local track currently being modelled (main thread writes; background publish checks it). */
+    @Volatile
+    private var currentLocalUri: String = ""
+    /** Uri whose model is being built on a background thread (main thread only). */
+    private var buildingLocalUri: String = ""
+    @Volatile
+    private var localModelGen: Int = 0
 
     private var anchorPosMs: Long = 0L
     private var anchorRealTimeMs: Long = 0L
@@ -297,19 +310,49 @@ object TrackAudioSync {
             lastPosSec = anchorPosMs / 1000.0
         }
 
-        // Resolve local AutoMix analysis (cached in memory once resolved).
+        // Resolve local AutoMix analysis (cached in memory once resolved). The model is keyed on the
+        // uri it was fetched for (the exo item), never on trackKey, so a stale song can't stick.
         if (localTrack != null) {
-            val cachedLocal = activeLocalModel
-            val needPoll = cachedLocal == null &&
+            val srcUri = localTrack.uri.toString()
+            if (srcUri != currentLocalUri) {
+                currentLocalUri = srcUri
+                localModelGen++
+                buildingLocalUri = ""
+                lastAutoMixCheckRealTimeMs = 0L
+            }
+            if (activeLocalModel?.let { it.sourceUri != srcUri } == true) {
+                activeLocalModel = null
+            }
+            val needPoll = activeLocalModel == null && buildingLocalUri != srcUri &&
                 (lastAutoMixCheckRealTimeMs == 0L || (nowRealTimeMs - lastAutoMixCheckRealTimeMs) >= AUTOMIX_POLL_MS)
-            if (cachedLocal == null && needPoll) {
+            if (needPoll) {
                 lastAutoMixCheckRealTimeMs = nowRealTimeMs
-                AutoMix.analysis(localTrack.uri)?.let { an ->
-                    activeLocalModel = buildAutoMixModel(an, trackKey)
+                val an = AutoMix.analysis(localTrack.uri)
+                if (an != null) {
+                    buildingLocalUri = srcUri
+                    val gen = localModelGen
+                    val playerDurMs = SongPlayer.getDuration().coerceAtLeast(0L)
+                    val key = trackKey
+                    scope.launch(Dispatchers.Default) {
+                        val built = try {
+                            buildAutoMixModel(an, key, srcUri, playerDurMs / 1000.0)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Throwable) {
+                            null
+                        }
+                        // Publish only if the same local track is still current.
+                        if (built != null && gen == localModelGen && currentLocalUri == srcUri) {
+                            activeLocalModel = built
+                        }
+                    }
                 }
             }
         } else {
             activeLocalModel = null
+            currentLocalUri = ""
+            buildingLocalUri = ""
+            localModelGen++
         }
 
         // Fetch Spotify audio-analysis if we don't have local AutoMix data yet (or for Spotify tracks).
@@ -325,7 +368,7 @@ object TrackAudioSync {
 
         // Prefer local AutoMix analysis when playing a local/extension file (matches exact decoded PCM timing);
         // otherwise use Spotify's audio-analysis.
-        val model: TrackModel? = activeLocalModel ?: spotifyModel
+        val model: TrackModel? = activeLocalModel?.takeIf { it.sourceUri == currentLocalUri } ?: spotifyModel
 
         val isPlaying = SongPlayer.isPlaying()
         val isMoving = SongPlayer.positionMoving()
@@ -362,7 +405,8 @@ object TrackAudioSync {
                 }
                 diff < -45L -> {
                     // Smooth slight drift without bouncing beats.
-                    val nudged = predicted + (diff * 0.18).toLong()
+                    // Never move backwards frame-to-frame so beatIdx can't drop and refire.
+                    val nudged = maxOf(predicted + (diff * 0.18).toLong(), lastEffectivePosMs)
                     anchorPosMs = nudged
                     anchorRealTimeMs = nowRealTimeMs
                     nudged
@@ -373,6 +417,7 @@ object TrackAudioSync {
             if (durationMs > 0L) pos.coerceIn(0L, durationMs) else pos.coerceAtLeast(0L)
         }
         wasMoving = isMoving
+        lastEffectivePosMs = effectivePosMs
 
         val posSec = effectivePosMs / 1000.0
         val jumped = abs(posSec - lastPosSec) >= 0.6 || posSec < lastPosSec - 0.05 || lastModelRef !== model
@@ -495,8 +540,11 @@ object TrackAudioSync {
     private fun resetForTrack(newKey: String) {
         activeTrackKey = newKey
         activeLocalModel = null
+        buildingLocalUri = ""
+        localModelGen++
         lastModelRef = null
         lastAutoMixCheckRealTimeMs = 0L
+        lastEffectivePosMs = 0L
         lastBeatIdx = -1
         lastBarIdx = -1
         beatPulse = 0f
@@ -732,7 +780,13 @@ object TrackAudioSync {
                     return@launch
                 }
 
-                val parsed = root?.let { parseSpotifyAnalysis(trackId, it) }
+                val parsed = try {
+                    root?.let { parseSpotifyAnalysis(trackId, it) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    null
+                }
                 if (parsed != null) {
                     spotifyCache[trackId] = parsed
                     retryAtMs.remove(trackId)
@@ -824,23 +878,28 @@ object TrackAudioSync {
     }
 
     private fun buildSpotifyCurve(segments: List<Segment>, totalDurSec: Double): LoudnessCurve {
-        val sampleCount = ((totalDurSec / CURVE_STEP_SEC).roundToInt() + 2).coerceIn(2, 60_000)
+        val step = curveStepFor(totalDurSec)
+        val sampleCount = ((totalDurSec / step).roundToInt() + 2).coerceIn(2, MAX_CURVE_SAMPLES)
         val values = FloatArray(sampleCount)
         var segIdx = 0
         for (i in 0 until sampleCount) {
-            val t = i * CURVE_STEP_SEC
+            val t = i * step
             while (segIdx + 1 < segments.size && segments[segIdx + 1].start <= t) {
                 segIdx++
             }
             values[i] = evaluateSegmentPerceptual(segments[segIdx], t)
         }
         val integral = FloatArray(sampleCount)
-        val stepF = CURVE_STEP_SEC.toFloat()
+        val stepF = step.toFloat()
         for (i in 1 until sampleCount) {
             integral[i] = integral[i - 1] + 0.5f * stepF * (values[i - 1] + values[i])
         }
-        return LoudnessCurve(CURVE_STEP_SEC, values, integral)
+        return LoudnessCurve(step, values, integral)
     }
+
+    /** Curve step that keeps the sample count under [MAX_CURVE_SAMPLES] for any duration. */
+    private fun curveStepFor(durSec: Double): Double =
+        maxOf(CURVE_STEP_SEC, durSec / (MAX_CURVE_SAMPLES - 10))
 
     private fun sampleSegmentAmplitude(segments: List<Segment>, tSec: Double): Float {
         if (segments.isEmpty()) return 0.1f
@@ -866,16 +925,26 @@ object TrackAudioSync {
     private fun dbToPerceptual(db: Double): Float =
         ((db - DB_MIN) / DB_SPAN).toFloat().coerceIn(0f, 1f)
 
-    private fun buildAutoMixModel(an: TrackAnalysis, trackKey: String): AutoMixModel {
+    private fun buildAutoMixModel(
+        an: TrackAnalysis,
+        trackKey: String,
+        sourceUri: String,
+        playerDurSec: Double,
+    ): AutoMixModel {
         val beats = when {
             an.beats.isNotEmpty() -> an.beats.filter { it.isFinite() && it >= 0.0 }.sorted().toDoubleArray()
             an.modelBeats.isNotEmpty() -> an.modelBeats.filter { it.isFinite() && it >= 0.0 }.sorted().toDoubleArray()
             else -> DoubleArray(0)
         }
-        val bars = an.barStarts.filter { it.isFinite() && it >= 0.0 }.sorted().toDoubleArray()
+        // Clean + sort bars once; every bar-derived array below is reordered with the same index list
+        // so bars[i], barMid[i], ... always describe the same bar.
+        val barOrder = an.barStarts.indices
+            .filter { an.barStarts[it].isFinite() && an.barStarts[it] >= 0.0 }
+            .sortedBy { an.barStarts[it] }
+        val bars = DoubleArray(barOrder.size) { an.barStarts[barOrder[it]] }
         val bpm = if (an.bpm.isFinite() && an.bpm > 10.0) an.bpm.toFloat() else estimateBpmFromBeats(beats).toFloat()
 
-        val barCount = an.bars
+        val barCount = bars.size
         val (midMin, midSpan) = percentileBounds(an.barDb)
         val (bassMin, bassSpan) = percentileBounds(an.barBassDb)
         val (lowMin, lowSpan) = percentileBounds(an.barLowDb)
@@ -883,7 +952,7 @@ object TrackAudioSync {
 
         fun normalizeBar(arr: FloatArray, minDb: Double, spanDb: Double): FloatArray =
             FloatArray(barCount) { b ->
-                val raw = arr.getOrNull(b)?.takeIf { it.isFinite() }?.toDouble() ?: minDb
+                val raw = arr.getOrNull(barOrder[b])?.takeIf { it.isFinite() }?.toDouble() ?: minDb
                 val dyn = ((raw - minDb) / spanDb).toFloat().coerceIn(0f, 1f)
                 val perc = dbToPerceptual(raw)
                 (0.55f * perc + 0.45f * dyn).coerceIn(0.04f, 1f)
@@ -894,24 +963,34 @@ object TrackAudioSync {
         val barLow = normalizeBar(an.barLowDb, lowMin, lowSpan)
         val barHigh = normalizeBar(an.barHighDb, highMin, highSpan)
 
-        val durSec = (if (an.duration.isFinite() && an.duration > 1.0) an.duration else 180.0)
-        val sampleCount = ((durSec / CURVE_STEP_SEC).roundToInt() + 2).coerceIn(2, 60_000)
+        val lastBarStart = if (barCount > 0) bars[barCount - 1] else 0.0
+        val lastBeat = if (beats.isNotEmpty()) beats[beats.size - 1] else 0.0
+        val durSec = when {
+            an.duration.isFinite() && an.duration > 1.0 -> an.duration
+            an.contentEnd.isFinite() && an.contentEnd > 1.0 -> an.contentEnd
+            playerDurSec.isFinite() && playerDurSec > 1.0 -> playerDurSec
+            maxOf(lastBarStart, lastBeat) > 0.0 -> maxOf(lastBarStart, lastBeat) + 4.0
+            else -> 180.0
+        }
+        val step = curveStepFor(durSec)
+        val sampleCount = ((durSec / step).roundToInt() + 2).coerceIn(2, MAX_CURVE_SAMPLES)
         val beatPeriodSec = if (bpm > 10f) (60.0 / bpm).coerceIn(0.2, 2.0) else 0.5
         val decaySec = (beatPeriodSec * 0.45).coerceIn(0.10, 0.34)
 
         var bIdx = 0
         var btIdx = 0
         val values = FloatArray(sampleCount) { i ->
-            val t = i * CURVE_STEP_SEC
+            val t = i * step
             val barLevel = if (barCount > 0) {
-                while (bIdx + 1 < barCount && an.barStarts[bIdx + 1] <= t) bIdx++
-                if (t < an.barStarts[0]) {
+                while (bIdx + 1 < barCount && bars[bIdx + 1] <= t) bIdx++
+                if (t < bars[0]) {
                     barMid[0] * 0.55f
                 } else {
                     val cur = barMid[bIdx]
                     val next = barMid[(bIdx + 1).coerceAtMost(barCount - 1)]
-                    val start = an.barStarts[bIdx]
-                    val end = an.barEnd(bIdx).takeIf { it.isFinite() }?.coerceAtLeast(start + 0.05) ?: (start + 2.0)
+                    val start = bars[bIdx]
+                    val rawEnd = if (bIdx + 1 < barCount) bars[bIdx + 1] else an.contentEnd
+                    val end = rawEnd.takeIf { it.isFinite() }?.coerceAtLeast(start + 0.05) ?: (start + 2.0)
                     val frac = ((t - start) / (end - start)).toFloat().coerceIn(0f, 1f)
                     cur + (next - cur) * frac
                 }
@@ -935,13 +1014,14 @@ object TrackAudioSync {
         }
 
         val integral = FloatArray(sampleCount)
-        val stepF = CURVE_STEP_SEC.toFloat()
+        val stepF = step.toFloat()
         for (i in 1 until sampleCount) {
             integral[i] = integral[i - 1] + 0.5f * stepF * (values[i - 1] + values[i])
         }
 
         val seed = an.audioKey.takeIf { it.isNotBlank() }?.hashCode() ?: trackKey.hashCode()
         return AutoMixModel(
+            sourceUri = sourceUri,
             analysisRef = an,
             bpm = bpm,
             beats = beats,
@@ -950,7 +1030,7 @@ object TrackAudioSync {
             barLow = barLow,
             barMid = barMid,
             barHigh = barHigh,
-            curve = LoudnessCurve(CURVE_STEP_SEC, values, integral),
+            curve = LoudnessCurve(step, values, integral),
             seed = seed,
         )
     }

@@ -862,8 +862,9 @@ object SongPlayer {
         }
         val mv = com.music.spotui.video.MusicVideoController
         mv.onAudioBuffering(isBuffering, song.spotifyTrackId)
-        // Clips are shown by the Classic player only: under the Immersive look no clip is looked up.
-        val clipsShown = com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.CLASSIC
+        // Clips are shown on every look that uses the classic player (Astral Basic, Spotifusion 1:1);
+        // the floating glass shells (Astral Interactive, Glassify, LiquidMusic) show none, so none is looked up there.
+        val clipsShown = !com.music.spotui.data.preferences.LookPref.look.isImmersive()
         // Clip lookup only where it can pay off: video wanted, or the player screen
         // is up (toggle then is instant). Looking up every track by default cost
         // searches and full-audio alignment downloads for users who never watch.
