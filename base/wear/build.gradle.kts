@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // The Wear OS remote manager for the phone's app over the Wearable Data Layer. Same application
 // id and signature as the phone's app: the Data Layer only links those.
 plugins {
@@ -12,20 +14,40 @@ android {
     val version = (findProperty("appVersionName") as String?) ?: "1.0.2"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        // As the phone's app (base/app): betas "app.orpheon.beta", releases "app.orpheon", debug builds ".dev".
+        // As the phone's app (base/app): betas "app.astral.beta", releases "app.astral", debug builds ".dev".
         applicationId = if (beta) "app.astral.beta" else "app.astral"
         minSdk = 30
         targetSdk = 36
         versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 202
         versionName = version
     }
+    // The phone's release key (CI env, else base/keystore/keystore.properties, as base/app): the Data
+    // Layer only links a watch and phone app signed alike. Without it, the debug key (local testing).
+    val keystoreFile = rootProject.file("keystore/keystore.properties")
+    val keystore = Properties().apply { if (keystoreFile.exists()) keystoreFile.inputStream().use { load(it) } }
+    val envStore = System.getenv("MYSPOTI_KEYSTORE")
+    val hasReleaseKey = envStore != null || keystoreFile.exists()
+    signingConfigs {
+        create("release") {
+            if (envStore != null) {
+                storeFile = file(envStore)
+                storePassword = System.getenv("MYSPOTI_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MYSPOTI_KEY_ALIAS")
+                keyPassword = System.getenv("MYSPOTI_KEY_PASSWORD")
+            } else if (keystoreFile.exists()) {
+                storeFile = rootProject.file("keystore/${keystore.getProperty("storeFile")}")
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         debug { applicationIdSuffix = ".dev" }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // The phone's release key in CI (the two apps must be signed alike); the debug key locally.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
         // A release build (R8, not debuggable: the speed of the shipped app) that still pairs with the
         // phone's debug build (".dev", debug key): what to try the watch on, a debug build lags.

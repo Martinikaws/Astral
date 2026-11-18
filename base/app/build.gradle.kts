@@ -239,10 +239,10 @@ dependencies {
 }
 /**
  * `./gradlew :app:collectApks` after assembleRelease: the APKs under clear names in
- * build/release-apks/: Orpheon-2.4.0-ARMv8.apk (64-bit phones, almost all of them),
- * Orpheon-2.4.0-ARMv7.apk (32-bit), Orpheon-2.4.0-universal.apk (both) and Orpheon-2.4.0-TV.apk
+ * build/release-apks/: Astral-1.0.3-ARMv8.apk (64-bit phones, almost all of them),
+ * Astral-1.0.3-ARMv7.apk (32-bit), Astral-1.0.3-universal.apk (both) and Astral-1.0.3-TV.apk
  * (Android TV: the universal APK, since many TVs run 32-bit apps on a 64-bit chip). Betas are
- * Orpheon-Beta-..., the optimised dev builds Orpheon-dev-...
+ * Astral-Beta-..., the optimised dev builds Astral-dev-...
  */
 tasks.register("collectApks") {
     mustRunAfter("assembleRelease")

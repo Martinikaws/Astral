@@ -83,6 +83,19 @@ Astral/
    .\gradlew.bat :app:assembleDebug :wear:assembleDebug :wear:assembleFast
    ```
 3. Release auto-updates point to `Martinikaws/Astral` via `UPDATE_REPO` (override with `-PupdateRepo="owner/repo"`).
+4. **Signed releases** (the in-app updater needs release builds signed with the same key):
+   - Create the key once. `base/keystore/` is gitignored, so create the folder first:
+     ```powershell
+     keytool -genkeypair -v -keystore base/keystore/astral-release.jks -alias astral -keyalg RSA -keysize 4096 -validity 10000
+     ```
+     Then copy `base/keystore.properties.example` to `base/keystore/keystore.properties` and fill in the passwords.
+   - Back up the key (`.jks` and passwords). Losing it means no installed copy of Astral can ever update again.
+   - Build from `base/`:
+     ```powershell
+     .\gradlew.bat :app:assembleRelease :wear:assembleRelease :app:collectApks -PappVersionName=1.0.3
+     ```
+   - Upload `base/app/build/release-apks/*.apk` to the GitHub release. The updater looks for `Astral-<version>-ARMv8.apk`, `-ARMv7.apk` and `-universal.apk`.
+   - Never upload `app-*-debug.apk`. Debug builds are signed with the debug key and the updater is off in them.
 
 ---
 
