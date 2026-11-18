@@ -1,5 +1,20 @@
 # Astral — Release Log
 
+## v1.2.1-beta.1 — Signed Beta Release, Starry Night Look, Full-Bleed Player & Canvas Backdrop (2026-11-18)
+
+### Signed Beta Release & Auto-Updater (`app.astral.beta`)
+- **Signed Release Pipeline**: Switched release builds to sign with the Astral release key (`base/keystore/keystore.properties`, phone + Wear OS matching signature) so `app.astral.beta` checks GitHub pre-releases (`UPDATE_REPO = Martinikaws/Astral`) and auto-updates in-app (`UpdateChecker` / `AppUpdater`).
+
+### Looks, Contrast & Starry Night Identity
+- **Starry Night as a Dedicated Look (`Look.STARRY_NIGHT`)**: Promoted Starry Night to a first-class 6th Look while keeping `StarryNightPref` as an optional "stars behind any Look" overlay (plus migration from v1.0.1/v1.0.2 settings).
+- **Per-Look Visual Identity (`LookTokens`)**: Distinct surface fills, borders (specular Glassify rim, gold Starry Night hairline, flat Spotifusion cards, iOS inset-grouped LiquidMusic lists), radii, typography, default accents (`Look default` swatch with `FlowRow` wrapping), bright-cover accent clamping (`adjustForDarkGlass`), and luminance-aware switch thumbs.
+
+### Player Cover Fade, Cover Glow & Full-Screen Canvas Background
+- **Full-Bleed Faded Player Cover & Header Cover Glow**: Enlarged player artwork blending seamlessly into the backdrop (`PlayerCoverArt`), plus color-matched ambient glow around playlist and album header covers (`CoverGlow`).
+- **Full-Screen Spotify Canvas Backdrop (`CanvasPref`)**: Edge-to-edge looping Canvas background across both Interactive and Classic/Spotifusion players with Android 12+ blur slider (`0–100%`) and on/off toggle in player options.
+
+---
+
 ## v1.0.2 — Unified 5-Look Overhaul, Starry Night Transparency, Beat-Synced Modules & Spicy Lyrics Display (2026-11-18)
 
 ### Unified 5-Look System & Starry Night Visibility
