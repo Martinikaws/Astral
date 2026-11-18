@@ -117,4 +117,75 @@ class LookMigrationTest {
         assertEquals(Look.LIQUID_MUSIC, Look.fromKey("LIQUID_MUSIC"))
         assertEquals(Look.LIQUID_MUSIC, Look.fromKey("liquidmusic"))
     }
+
+    // ---- v1.0.3: Starry Night becomes a Look of its own ----
+
+    @Test fun `Interactive with the never-touched Starry Night default moves to the Starry Night look`() {
+        v101(look = "IMMERSIVE", style = "ORPHEON_GLASS", theme = "STARRY_NIGHT")
+        LookMigration.run(p)
+        assertEquals(Look.STARRY_NIGHT, look())
+        assertEquals(PageStyle.ORPHEON_GLASS, pages())
+        assertFalse(p.getBoolean("starry_night_enabled", true)) // the extra starts off
+        assertTrue(p.getBoolean(LookMigration.FLAG_STARRY, false))
+    }
+
+    @Test fun `Interactive with Starry Night explicitly on moves to the Starry Night look`() {
+        v101(look = "IMMERSIVE")
+        p.edit().putBoolean("starry_night_enabled", true).commit()
+        LookMigration.run(p)
+        assertEquals(Look.STARRY_NIGHT, look())
+        assertFalse(p.getBoolean("starry_night_enabled", true))
+    }
+
+    @Test fun `Interactive with Starry Night off stays Interactive`() {
+        v101(look = "IMMERSIVE")
+        p.edit().putBoolean("starry_night_enabled", false).commit()
+        LookMigration.run(p)
+        assertEquals(Look.IMMERSIVE, look())
+        assertFalse(p.getBoolean("starry_night_enabled", true))
+    }
+
+    @Test fun `other looks keep their look and an explicit stars extra`() {
+        v101(look = "CLASSIC", style = "ORPHEON_BASIC")
+        p.edit().putBoolean("starry_night_enabled", true).commit()
+        LookMigration.run(p)
+        assertEquals(Look.CLASSIC, look())
+        assertTrue(p.getBoolean("starry_night_enabled", false))
+    }
+
+    @Test fun `Glassify and Spotifusion are not turned into Starry Night`() {
+        v101(look = "IMMERSIVE", theme = "GLASSIFY")
+        LookMigration.run(p)
+        assertEquals(Look.GLASSIFY, look())
+    }
+
+    @Test fun `Starry Night migration runs once`() {
+        v101(look = "IMMERSIVE")
+        LookMigration.run(p)
+        assertEquals(Look.STARRY_NIGHT, look())
+        p.edit().putString("look", "IMMERSIVE").commit() // a later user choice must survive
+        LookMigration.run(p)
+        assertEquals(Look.IMMERSIVE, look())
+    }
+
+    @Test fun `already migrated v2 data still gets the Starry Night step`() {
+        v101(look = "IMMERSIVE")
+        p.edit().putBoolean(LookMigration.FLAG, true).commit() // upgraded straight from 1.0.2
+        LookMigration.run(p)
+        assertEquals(Look.STARRY_NIGHT, look())
+    }
+
+    @Test fun `fresh install gets no Starry Night look`() {
+        LookMigration.run(p)
+        assertNull(p.getString("look", null))
+        assertTrue(p.getBoolean(LookMigration.FLAG_STARRY, false))
+    }
+
+    @Test fun `Starry Night look is immersive and parsed from its key`() {
+        assertTrue(Look.STARRY_NIGHT.isImmersive())
+        assertEquals(Look.STARRY_NIGHT, Look.fromKey("starry_night"))
+        assertEquals(Look.STARRY_NIGHT, Look.fromKey("STARRY_NIGHT"))
+        assertEquals("Starry Night", Look.STARRY_NIGHT.label)
+        assertEquals(PageStyle.ORPHEON_GLASS, PageStyle.forLook(Look.STARRY_NIGHT))
+    }
 }

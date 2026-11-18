@@ -1,7 +1,7 @@
 package com.music.spotui.data.preferences
 
 /*
- * The app's unified look (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic),
+ * The app's unified look (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night),
  * picked during onboarding or changed live in Settings → Look.
  */
 
@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** The five unified app looks. [CLASSIC] is the default fallback. */
+/** The six unified app looks. [CLASSIC] is the default fallback. */
 enum class Look(
     val key: String,
     val label: String,
@@ -40,11 +40,16 @@ enum class Look(
     LIQUID_MUSIC(
         key = "liquid_music",
         label = "LiquidMusic",
-        detail = "iOS 20dp rounded glass panels, cover accent & Liquid Refraction toggle.",
+        detail = "Pure black, iOS inset lists, bold titles, red accent & Liquid Refraction toggle.",
+    ),
+    STARRY_NIGHT(
+        key = "starry_night",
+        label = "Starry Night",
+        detail = "Deep navy sky with twinkling stars, shooting stars & warm starlight gold.",
     );
 
-    /** True for floating interactive glass shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC]). */
-    fun isImmersive(): Boolean = this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC
+    /** True for floating interactive shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC], [STARRY_NIGHT]). */
+    fun isImmersive(): Boolean = this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC || this == STARRY_NIGHT
 
     companion object {
         fun fromKey(key: String?): Look {
@@ -56,6 +61,7 @@ enum class Look(
                 "spotifusion", "spotifusion_1_1" -> SPOTIFUSION
                 "glassify" -> GLASSIFY
                 "liquid_music", "liquidmusic" -> LIQUID_MUSIC
+                "starry_night", "starrynight" -> STARRY_NIGHT
                 else -> entries.firstOrNull {
                     it.name.equals(norm, ignoreCase = true) || it.key.equals(norm, ignoreCase = true)
                 } ?: CLASSIC
@@ -75,6 +81,9 @@ enum class Look(
  */
 internal object LookMigration {
     const val FLAG = "look_migrated_v2"
+    /** v1.0.3: Starry Night became a Look of its own, see [runStarryLook]. */
+    const val FLAG_STARRY = "look_migrated_v3"
+    private const val STARRY_ENABLED = "starry_night_enabled"
     private const val LOOK = "look"
     private const val LOOK_CHOSEN = "look_chosen"
     private const val PAGE_STYLE = "page_style"
@@ -84,6 +93,32 @@ internal object LookMigration {
     fun run(c: Context) = run(c.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE))
 
     fun run(p: SharedPreferences) {
+        runV2(p)
+        runStarryLook(p)
+    }
+
+    /**
+     * Starry Night used to be a switch (default on) over the Astral Interactive look. It is a Look now
+     * and the switch is only an extra ("stars behind any Look", default off): a user who had the stars
+     * on (never touched, or explicitly on) with Astral Interactive moves to [Look.STARRY_NIGHT]; the
+     * switch is then cleared. Anyone else keeps their Look; the stored extra only survives when it was
+     * explicitly on. Idempotent (flag [FLAG_STARRY]); fresh installs are untouched.
+     */
+    fun runStarryLook(p: SharedPreferences) {
+        if (p.getBoolean(FLAG_STARRY, false)) return
+        val e = p.edit().putBoolean(FLAG_STARRY, true)
+        val existing = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK) || p.contains(PAGE_STYLE) || p.contains(THEME_MODE)
+        if (existing) {
+            val starryOn = p.getBoolean(STARRY_ENABLED, true) // an unset switch was on
+            if (Look.fromKey(p.getString(LOOK, null)) == Look.IMMERSIVE && starryOn) {
+                e.putString(LOOK, Look.STARRY_NIGHT.name).putBoolean(STARRY_ENABLED, false)
+                if (p.contains(THEME_MODE)) e.putString(THEME_MODE, "STARRY_NIGHT")
+            }
+        }
+        e.apply()
+    }
+
+    private fun runV2(p: SharedPreferences) {
         if (p.getBoolean(FLAG, false)) return
         val e = p.edit().putBoolean(FLAG, true)
         val lookChosen = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK)
@@ -141,6 +176,7 @@ object LookPref {
         prefs(c).edit().putString(KEY, value.name).apply()
         PageStylePref.clearOverride(c)
         AstralThemePref.syncFromLook(c, value)
+        StarryNightPref.onLookChanged(c, value)
     }
 
     /** The look step of the onboarding was seen (new installs and updates alike). */

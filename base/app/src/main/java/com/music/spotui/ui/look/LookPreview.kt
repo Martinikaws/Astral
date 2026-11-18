@@ -192,6 +192,7 @@ fun LookDemo(look: Look, clock: DemoClock, still: Boolean = false) {
         Look.IMMERSIVE -> ImmersiveDemo(clock, still, Look.IMMERSIVE)
         Look.GLASSIFY -> ImmersiveDemo(clock, still, Look.GLASSIFY)
         Look.LIQUID_MUSIC -> ImmersiveDemo(clock, still, Look.LIQUID_MUSIC)
+        Look.STARRY_NIGHT -> ImmersiveDemo(clock, still, Look.STARRY_NIGHT)
     }
 }
 

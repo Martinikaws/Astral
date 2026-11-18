@@ -956,10 +956,13 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
         immersiveGroup("display") {
             row {
                 ImmersiveSwitchRow(
-                    "Starry Night Sky",
+                    "Stars behind any Look",
                     checked = starryNightEnabled,
+                    // The Starry Night look is the stars: nothing to switch there.
+                    enabled = look != com.music.spotui.data.preferences.Look.STARRY_NIGHT,
                     onChecked = { com.music.spotui.data.preferences.StarryNightPref.setEnabled(ctx, it) },
-                    detail = "Twinkling night sky backdrop across all styles",
+                    detail = if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) "Always on in the Starry Night look"
+                        else "Twinkling night sky backdrop behind the other looks",
                 )
             }
             row {

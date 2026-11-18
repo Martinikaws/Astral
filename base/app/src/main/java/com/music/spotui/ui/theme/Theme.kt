@@ -31,33 +31,43 @@ private fun astralColorScheme(
     val cardSurface = when (look) {
         Look.SPOTIFUSION -> SpotifusionCard
         Look.GLASSIFY -> GlassifySurface
-        Look.LIQUID_MUSIC -> LiquidMusicSurface
+        Look.LIQUID_MUSIC -> LiquidMusicGroup
+        Look.STARRY_NIGHT -> StarryCard
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) StarryCard else StarryCardOpaque
     }
     val lowSurface = when (look) {
         Look.SPOTIFUSION -> Color(0xFF181818)
         Look.GLASSIFY -> Color(0xBF181C26)
-        Look.LIQUID_MUSIC -> Color(0xC718181B)
+        Look.LIQUID_MUSIC -> Color(0xFF0C0C0E)
+        Look.STARRY_NIGHT -> Color(0xD9101C2E)
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) Color(0xD9101C2E) else Color(0xFF101C2E)
     }
     val elevatedSurface = when (look) {
         Look.SPOTIFUSION -> Color(0xFF282828)
         Look.GLASSIFY -> Color(0xD91E222D)
-        Look.LIQUID_MUSIC -> Color(0xE01C1C1E)
+        Look.LIQUID_MUSIC -> Color(0xFF2C2C2E)
+        Look.STARRY_NIGHT -> Color(0xEB182840)
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) Color(0xEB182840) else Color(0xFF1E3250)
     }
     val borderOutline = when (look) {
         Look.SPOTIFUSION -> Color(0xFF3E3E3E)
         Look.GLASSIFY -> GlassifyBorder
-        Look.LIQUID_MUSIC -> LiquidMusicBorder
+        Look.LIQUID_MUSIC -> Color(0xFF38383A)
+        Look.STARRY_NIGHT -> StarryHairline.copy(alpha = 0.30f)
         Look.CLASSIC, Look.IMMERSIVE -> Color(0xFF3A5270)
     }
     val onAccent = when {
         look == Look.SPOTIFUSION -> Color.Black
+        look == Look.STARRY_NIGHT -> Color(0xFF0A1422)
         accent.luminance() > 0.45f -> Color(0xFF0A1422)
         else -> Color.White
     }
-    val secondary = if (look == Look.SPOTIFUSION) Color(0xFFB3B3B3) else StarryBlue
+    val secondary = when (look) {
+        Look.SPOTIFUSION -> Color(0xFFB3B3B3)
+        Look.LIQUID_MUSIC -> Color(0xFF8E8E93)
+        Look.STARRY_NIGHT -> Color(0xFFE6D9A8)
+        else -> StarryBlue
+    }
     return darkColorScheme(
         primary = accent,
         onPrimary = onAccent,
@@ -74,7 +84,11 @@ private fun astralColorScheme(
         surface = AppBackground,
         onSurface = Color.White,
         surfaceVariant = cardSurface,
-        onSurfaceVariant = if (look == Look.SPOTIFUSION) Color(0xFFB3B3B3) else AppMuted,
+        onSurfaceVariant = when (look) {
+            Look.SPOTIFUSION -> Color(0xFFB3B3B3)
+            Look.LIQUID_MUSIC -> Color(0xFF98989F)
+            else -> AppMuted
+        },
         surfaceTint = Color.Transparent,
         surfaceDim = AppBackground,
         surfaceBright = elevatedSurface,
@@ -87,7 +101,12 @@ private fun astralColorScheme(
         inverseOnSurface = Color(0xFF0A1422),
         inversePrimary = accent,
         outline = borderOutline,
-        outlineVariant = if (look == Look.SPOTIFUSION) Color(0xFF282828) else Color(0xFF243752),
+        outlineVariant = when (look) {
+            Look.SPOTIFUSION -> Color(0xFF282828)
+            Look.LIQUID_MUSIC -> Color(0xFF2C2C2E)
+            Look.STARRY_NIGHT -> StarryHairline
+            else -> Color(0xFF243752)
+        },
         error = Color(0xFFF3727F),
         onError = Color.Black,
         scrim = Color(0xFF000000),

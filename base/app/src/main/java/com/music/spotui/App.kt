@@ -123,22 +123,18 @@ fun App() {
     }
     val frostPage = immersive && !liquidGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    // Glassify & LiquidMusic dynamic cover accent extraction (contrast-adjusted against dark surfaces).
+    // Interactive & Glassify dynamic cover accent extraction (contrast-adjusted against dark surfaces).
     val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
     val appContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(coverUri, look) {
-        if (coverUri.isBlank() ||
-            (look != com.music.spotui.data.preferences.Look.GLASSIFY &&
-                look != com.music.spotui.data.preferences.Look.LIQUID_MUSIC)
-        ) {
+        if (coverUri.isBlank() || !com.music.spotui.ui.theme.lookFollowsCover(look)) {
             com.music.spotui.ui.theme.dynamicCoverAccent = null
         } else {
             val requestedCover = coverUri
             com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, requestedCover) { extracted ->
                 val activeLook = com.music.spotui.data.preferences.LookPref.look
                 if (com.music.spotui.di.Graph.currentSongState.coverUri.value == requestedCover &&
-                    (activeLook == com.music.spotui.data.preferences.Look.GLASSIFY ||
-                        activeLook == com.music.spotui.data.preferences.Look.LIQUID_MUSIC)
+                    com.music.spotui.ui.theme.lookFollowsCover(activeLook)
                 ) {
                     com.music.spotui.ui.theme.dynamicCoverAccent = extracted
                 }
@@ -166,7 +162,9 @@ fun App() {
         oled -> androidx.compose.ui.graphics.Color.Black
         extBg != null -> extBg
         starryActive -> androidx.compose.ui.graphics.Color.Transparent
-        immersive -> com.music.spotui.ui.immersive.Immersive.Page
+        // Glassify's page is transparent (the ambient shows through): the root keeps its opaque base.
+        immersive -> com.music.spotui.ui.immersive.Immersive.Page.takeIf { it != androidx.compose.ui.graphics.Color.Transparent }
+            ?: com.music.spotui.ui.immersive.lookTokens(look).page
         else -> com.music.spotui.ui.theme.AppBackground
     }
     androidx.compose.foundation.layout.Box(

@@ -400,13 +400,16 @@ fun SettingsScreen(navController: NavController) {
 
             Section(R.string.settings_section_display)
             remember(ctx) { com.music.spotui.data.preferences.ModulesPref.init(ctx); true }
+            val starryExtra by com.music.spotui.data.preferences.StarryNightPref.extra.collectAsStateWithLifecycle()
             val starryNightEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsStateWithLifecycle()
+            val starryLook = com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.STARRY_NIGHT
             val shootingStarsEnabled by com.music.spotui.data.preferences.StarryNightPref.shootingStars.collectAsStateWithLifecycle()
             val modulesEnabled by com.music.spotui.data.preferences.ModulesPref.enabled.collectAsStateWithLifecycle()
             OptionRow(
-                label = "Starry Night Sky",
-                detail = "Twinkling night sky backdrop across all styles",
+                label = "Stars behind any Look",
+                detail = if (starryLook) "Always on in the Starry Night look" else "Twinkling night sky backdrop behind the other looks",
                 checked = starryNightEnabled,
+                enabled = !starryLook,
                 onChecked = { com.music.spotui.data.preferences.StarryNightPref.setEnabled(ctx, it) },
             )
             OptionRow(
@@ -647,7 +650,7 @@ internal fun Section(title: Int) {
 @Composable
 private fun Divider() = HorizontalDivider(color = tone(0xFF2A2A2A), modifier = Modifier.padding(top = 8.dp))
 
-/** Unified 5-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic). */
+/** Unified 5-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night). */
 @Composable
 private fun LookRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current

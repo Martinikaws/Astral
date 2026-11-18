@@ -67,13 +67,7 @@ internal fun ImmersiveSwitch(checked: Boolean, onChecked: (Boolean) -> Unit) {
     Switch(
         checked = checked,
         onCheckedChange = onChecked,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = Color.White,
-            checkedTrackColor = Immersive.Accent,
-            uncheckedThumbColor = Color.White,
-            uncheckedTrackColor = Color(0xFF3A3A3F),
-            uncheckedBorderColor = Color.Transparent,
-        ),
+        colors = com.music.spotui.ui.immersive.immersiveSwitchColors(),
     )
 }
 

@@ -92,7 +92,7 @@ fun ImmersiveMiniPlayer(modifier: Modifier = Modifier) {
     val playing = vm.currentSongPlayingState.value
     val adPlaying = SongPlayer.adPlaying
     val buffering = SongPlayer.isBuffering
-    val shape = RoundedCornerShape(MINI_HEIGHT / 2)
+    val shape = Immersive.MiniPlayerShape
     val capsuleSource = remember { MutableInteractionSource() }
 
     Row(
