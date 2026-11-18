@@ -301,7 +301,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
         // position on the screen, which is what both windows share.
         val usable = attached && (sameWindow || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
         report(usable, source, coordinates, attached, sameWindow, page)
-        val pageFill = if (Immersive.Page == Color.Transparent) Color(0xFF0A1422) else Immersive.Page
+        val pageFill = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page
         drawRect(if (usable) pageFill else Immersive.GlassFill, topLeft = FAR_TOP_LEFT, size = FAR_SIZE)
         if (!usable) return
         if (sameWindow) {

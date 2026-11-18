@@ -67,7 +67,26 @@ object SupportReminder {
         private set
 
     /** The accent chosen for a look. */
-    fun accentOf(look: Look): Accent = if (look == Look.IMMERSIVE) immersiveAccent else classicAccent
+    fun accentOf(look: Look): Accent = if (usesImmersiveAccent(look)) immersiveAccent else classicAccent
+
+    /** The Looks that read the "immersive" accent pref (every interactive Look); Basic and Spotifusion use the classic one. */
+    fun usesImmersiveAccent(look: Look): Boolean = look.isImmersive()
+
+    /** Whether the Look honours a chosen accent at all (Spotifusion is always green, Glassify follows the cover). */
+    fun honoursChosenAccent(look: Look): Boolean = look != Look.SPOTIFUSION && look != Look.GLASSIFY
+
+    /** The Looks with an accent of their own (LiquidMusic red, Starry Night gold) that a chosen one only overrides. */
+    fun hasLookDefaultAccent(look: Look): Boolean = look == Look.LIQUID_MUSIC || look == Look.STARRY_NIGHT
+
+    /** Whether the Look's own accent is showing, i.e. [setAccent] never picked one (or [clearAccent] dropped it). */
+    fun usesLookDefaultAccent(look: Look): Boolean = hasLookDefaultAccent(look) && !immersiveAccentChosen
+
+    /** Drops the chosen accent so the Look's own default applies again. */
+    fun clearAccent(context: Context) {
+        immersiveAccent = Accent.GREEN
+        immersiveAccentChosen = false
+        prefs(context).edit().remove(KEY_ACCENT_IMMERSIVE).apply()
+    }
 
     /** The colour the active look uses for its accent (Spotify green unless another was chosen in Settings). */
     val accentColor: Color get() = accentOf(LookPref.look).color
@@ -119,7 +138,7 @@ object SupportReminder {
     }
 
     fun setAccent(context: Context, look: Look, value: Accent) {
-        if (look == Look.IMMERSIVE) {
+        if (usesImmersiveAccent(look)) {
             immersiveAccent = value
             immersiveAccentChosen = true
             prefs(context).edit().putString(KEY_ACCENT_IMMERSIVE, value.key).apply()

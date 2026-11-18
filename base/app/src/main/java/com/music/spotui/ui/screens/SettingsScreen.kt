@@ -650,7 +650,7 @@ internal fun Section(title: Int) {
 @Composable
 private fun Divider() = HorizontalDivider(color = tone(0xFF2A2A2A), modifier = Modifier.padding(top = 8.dp))
 
-/** Unified 5-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night). */
+/** Unified 6-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night). */
 @Composable
 private fun LookRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -791,7 +791,7 @@ private fun TransitionsLink(onOpen: () -> Unit) {
     }
 }
 
-/** Foreground ink color for selected accent-filled chips across all 5 Looks. */
+/** Foreground ink color for selected accent-filled chips across all 6 Looks. */
 @Composable
 private fun accentChipInk(): Color =
     if (com.music.spotui.ui.theme.AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White

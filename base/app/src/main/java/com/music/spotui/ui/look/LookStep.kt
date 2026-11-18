@@ -163,7 +163,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                     }
                 }
                 // Above the preview, so nothing in it reacts: a tap pauses or resumes, a swipe
-                // cycles through all 5 Looks.
+                // cycles through all 6 Looks.
                 Box(Modifier.matchParentSize().pointerInput(look) {
                     val swipe = 56.dp.toPx()
                     awaitEachGesture {
@@ -249,7 +249,7 @@ private fun Look.swatchColor(): Color = when (this) {
     Look.STARRY_NIGHT -> StarryAccent
 }
 
-/** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 5 Looks. */
+/** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 6 Looks. */
 @Composable
 private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
     Box(Modifier.fillMaxSize()) {
@@ -322,7 +322,7 @@ private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
     }
 }
 
-/** Horizontally scrollable 5-Look card picker so every Look has room for its title and summary. */
+/** Horizontally scrollable 6-Look card picker so every Look has room for its title and summary. */
 @Composable
 private fun LookSegments(
     look: Look,

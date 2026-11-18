@@ -403,7 +403,7 @@ internal fun ImmersiveTopGlass(visible: () -> Float, modifier: Modifier, hazeSta
     val reduce = rememberReduceMotion()
     val overscan = with(LocalDensity.current) { HeaderOverscan.roundToPx() }
     val shape = remember(overscan) { HeaderShape }
-    val pageTint = if (Immersive.Page == Color.Transparent) Color(0xFF0A1422) else Immersive.Page
+    val pageTint = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page
     val glass = when {
         page != null && hazeState != null && hazeState === LocalImmersiveHaze.current ->
             Modifier.immersiveLiquidGlass(shape, page)

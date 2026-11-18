@@ -476,7 +476,13 @@ private fun NavGraphBuilder.page(
             if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) androidx.compose.ui.graphics.Color(0xB80A1422)
             else com.music.spotui.ui.immersive.lookTokens(look).page.copy(alpha = 0.72f)
         }
-            else if (immersive) com.music.spotui.ui.immersive.Immersive.Page
+            // Glassify's page is transparent (the cover ambient shows through): a partial veil of its base keeps
+            // pages from ghosting through each other during transitions.
+            else if (immersive) com.music.spotui.ui.immersive.Immersive.Page.let {
+                if (it == androidx.compose.ui.graphics.Color.Transparent && look == com.music.spotui.data.preferences.Look.GLASSIFY)
+                    com.music.spotui.ui.theme.GlassifyBackground.copy(alpha = 0.55f)
+                else it
+            }
             else AppBackground
         Box(Modifier.fillMaxSize()
             .then(if (fade == null) Modifier else Modifier.graphicsLayer { this.alpha = fade.value })

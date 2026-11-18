@@ -10,6 +10,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -92,7 +94,7 @@ fun SupportChoice(onChosen: (Level) -> Unit) {
 }
 
 /** Supporter perks: thank-yous only (colour, icon, badge); nothing in the app is locked. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SupporterSheet(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -129,10 +131,24 @@ fun SupporterSheet(onDismiss: () -> Unit) {
             }
             Text(stringResource(R.string.supporter_thanks_title), color = AppMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
 
+            if (SupportReminder.honoursChosenAccent(LookPref.look)) {
             Text(stringResource(R.string.supporter_accent), color = AppText, fontSize = 16.sp, modifier = Modifier.padding(top = 20.dp, bottom = 10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (SupportReminder.hasLookDefaultAccent(LookPref.look)) {
+                    val defaultSelected = SupportReminder.usesLookDefaultAccent(LookPref.look)
+                    val defaultColor = if (LookPref.look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) com.music.spotui.ui.theme.StarryAccent
+                        else com.music.spotui.ui.theme.LiquidMusicAccent
+                    val defaultName = stringResource(R.string.accent_look_default)
+                    Box(
+                        Modifier.size(40.dp).semantics { contentDescription = defaultName }.clip(CircleShape).background(defaultColor)
+                            .border(if (defaultSelected) 3.dp else 1.dp, if (defaultSelected) AppText else AppText.copy(alpha = 0.4f), CircleShape)
+                            .pressable(0.92f) { SupportReminder.clearAccent(context) },
+                    )
+                }
                 for (a in Accent.entries) {
-                    val selected = SupportReminder.accentOf(LookPref.look) == a
+                    val selected = !SupportReminder.usesLookDefaultAccent(LookPref.look) &&
+                        (!SupportReminder.usesImmersiveAccent(LookPref.look) || SupportReminder.immersiveAccentChosen) &&
+                        SupportReminder.accentOf(LookPref.look) == a
                     val name = stringResource(accentName(a))
                     Box(
                         Modifier.size(40.dp).semantics { contentDescription = name }.clip(CircleShape).background(a.color)
@@ -140,6 +156,7 @@ fun SupporterSheet(onDismiss: () -> Unit) {
                             .pressable(0.92f) { SupportReminder.setAccent(context, LookPref.look, a) },
                     )
                 }
+            }
             }
 
             Text(stringResource(R.string.supporter_icon), color = AppText, fontSize = 16.sp, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
