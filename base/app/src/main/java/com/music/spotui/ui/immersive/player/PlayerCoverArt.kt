@@ -7,11 +7,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -52,24 +56,30 @@ internal fun coverStyleFor(look: Look): CoverStyle? = when (look) {
 /** Height of the full-bleed cover: a bit taller than square, but never so tall the controls lose room. */
 internal fun fullBleedCoverHeight(width: Dp, windowHeight: Dp): Dp =
     minOf(width * 1.2f, windowHeight * 0.58f).coerceAtLeast(minOf(width, windowHeight * 0.4f))
-
 /**
  * Fades the content out vertically: opaque down to [start] of its height, transparent at the
- * bottom. An offscreen layer plus a DstIn gradient, so it works on a video view too.
+ * bottom. An offscreen layer plus a DstIn gradient, so it works on a video view too. The brush
+ * is built once in the draw cache, not per frame (a Canvas redraws on every video frame).
  */
 internal fun Modifier.coverFadeMask(start: Float): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        drawRect(
-            brush = Brush.verticalGradient(
-                0f to Color.Black,
-                start to Color.Black,
-                1f to Color.Transparent,
-            ),
-            blendMode = BlendMode.DstIn,
+    .drawWithCache {
+        val brush = Brush.verticalGradient(
+            0f to Color.Black,
+            start to Color.Black,
+            1f to Color.Transparent,
         )
+        onDrawWithContent {
+            drawContent()
+            drawRect(brush, blendMode = BlendMode.DstIn)
+        }
     }
+
+/** Keeps the status bar and the handle readable over a bright cover. */
+private val TopScrimBrush = Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.40f), Color.Transparent))
+
+/** Under the credits, over the half-faded foot of the cover (short phones). */
+internal val CreditsScrimBrush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)))
 
 /** The cover itself, full width and [height] tall, with a light scrim on top and the fade at its foot. */
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -79,6 +89,7 @@ internal fun PlayerFullBleedCover(
     blend: SongBlend?,
     style: CoverStyle,
     height: Dp,
+    topScrimHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier.fillMaxWidth().height(height).coverFadeMask(style.fadeStart)) {
@@ -92,35 +103,60 @@ internal fun PlayerFullBleedCover(
             requestBuilderTransform = { it.override(640) },
         )
         SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(640) }
-        // Keeps the status bar and the top buttons readable over a bright cover.
-        Box(
-            Modifier.fillMaxWidth().height(120.dp).align(Alignment.TopCenter).background(
-                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.40f), Color.Transparent)),
-            ),
-        )
+        // The status bar plus the handle.
+        Box(Modifier.fillMaxWidth().height(topScrimHeight).align(Alignment.TopCenter).background(TopScrimBrush))
     }
 }
 
 /**
- * A copy of the cover under the mesh and the fade, so the fade lands on the cover's own colours.
- * Blurred with a render effect on API 31+; before that a tiny decode drawn large and faint.
+ * A blurred copy of the cover drawn over the mesh (at 0.6 alpha), so the fade lands on the cover's
+ * own colours. Blurred with a render effect on API 31+; before that a tiny decode drawn large and
+ * faint. A track change keeps the previous cover underneath while the new one fades in, so the
+ * backdrop never drops to the bare mesh.
  */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 internal fun PlayerCoverBlurBackdrop(coverUrl: String, modifier: Modifier = Modifier) {
     val blurred = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    GlideImage(
-        model = coverUrl.takeIf { it.isNotBlank() },
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier.fillMaxSize().graphicsLayer { alpha = if (blurred) 0.6f else 0.35f }
+    // The url shown before this one: recomputed only when the url changes, i.e. on a track change.
+    val holder = remember { arrayOf(coverUrl) }
+    val previous = remember(coverUrl) { holder[0].also { holder[0] = coverUrl } }
+    val decode = if (blurred) 160 else 24
+    // The new cover dissolves in over the old one, as SongBlendCover does for the cover itself.
+    val fadeIn = remember { Animatable(1f) }
+    LaunchedEffect(coverUrl) {
+        if (previous != coverUrl) {
+            fadeIn.snapTo(0f)
+            fadeIn.animateTo(1f, tween(400))
+        }
+    }
+    Box(
+        modifier.fillMaxSize().graphicsLayer { alpha = if (blurred) 0.6f else 0.35f }
             .let { if (blurred) it.blur(60.dp) else it },
-        requestBuilderTransform = { it.override(if (blurred) 160 else 24) },
-    )
+    ) {
+        if (previous != coverUrl) {
+            GlideImage(
+                model = previous.takeIf { it.isNotBlank() },
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                requestBuilderTransform = { it.override(decode) },
+            )
+        }
+        GlideImage(
+            model = coverUrl.takeIf { it.isNotBlank() },
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = fadeIn.value },
+            requestBuilderTransform = { it.override(decode) },
+        )
+    }
 }
 
-/** A frosted strip: a faint white wash (no live backdrop blur is available on a Compose layer). */
-internal fun Modifier.frostedStrip(): Modifier = this.background(
-    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f))),
-    RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+private val FrostedStripBrush = Brush.verticalGradient(
+    listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f)),
 )
+private val FrostedStripShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+
+/** A frosted strip: a faint white wash (no live backdrop blur is available on a Compose layer). */
+internal fun Modifier.frostedStrip(): Modifier = this.background(FrostedStripBrush, FrostedStripShape)
