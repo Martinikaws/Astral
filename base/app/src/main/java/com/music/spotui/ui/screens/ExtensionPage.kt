@@ -170,7 +170,7 @@ private class SandboxClient(private val hosts: List<String>, private val network
         // OkHttp with the sandbox's Dns: a name that resolves to a local address is never connected to,
         // and no redirect is followed (a redirect would escape the allowed hosts).
         return runCatching {
-            val req = okhttp3.Request.Builder().url(url).header("User-Agent", "Myspoti-Extension-Page/1").get().build()
+            val req = okhttp3.Request.Builder().url(url).header("User-Agent", "Astral-Extension-Page/1").get().build()
             val client = app.myspoti.extensions.SafeNet.client.newBuilder()
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).readTimeout(15, java.util.concurrent.TimeUnit.SECONDS).build()
             client.newCall(req).execute().use { r ->

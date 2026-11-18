@@ -22,6 +22,22 @@ fun ProvideLook(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalLook provides LookPref.look, content = content)
 }
 
+/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC]). */
+@Composable
+fun isImmersive(): Boolean = LocalLook.current.isImmersive()
+
+/** True when the [Look.SPOTIFUSION] (Spotifusion 1:1) look is active. */
+@Composable
+fun isSpotifusionLook(): Boolean = LocalLook.current == Look.SPOTIFUSION
+
+/** True when the [Look.GLASSIFY] look is active. */
+@Composable
+fun isGlassifyLook(): Boolean = LocalLook.current == Look.GLASSIFY
+
+/** True when the [Look.LIQUID_MUSIC] look is active. */
+@Composable
+fun isLiquidMusicLook(): Boolean = LocalLook.current == Look.LIQUID_MUSIC
+
 /**
  * The Immersive look's typeface: Inter (SIL Open Font License 1.1, licenses/Inter-OFL.txt), the
  * free face closest to the system one of the player it follows, cut down to Latin. One variable

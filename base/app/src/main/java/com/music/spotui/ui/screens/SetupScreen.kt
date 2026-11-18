@@ -66,6 +66,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +75,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -82,8 +84,18 @@ import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import app.myspoti.power.BatteryExemption
 import com.music.spotui.data.local.LocalMusic
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.theme.AppBackground
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.navigation.isImmersive
 
 /**
@@ -95,10 +107,9 @@ object Setup {
     private const val KEY = "SetupDone"
     private const val EXTENSIONS_KEY = "SetupExtensionsSeen"
     private const val ACCOUNT_KEY = "SetupAccountSeen"
-    /** The permissions step, the sound quality one, the look one, the page style one, the music account one or the extensions one (each new step is shown once after the update too). */
+    /** The permissions step, the sound quality one, the unified 5-look one, the music account one or the extensions one. */
     fun needed(context: Context) = !permissionsDone(context) || !com.music.spotui.data.preferences.isQualityChosen(context) ||
         !com.music.spotui.data.preferences.LookPref.isChosen(context) ||
-        !com.music.spotui.data.preferences.PageStylePref.isChosen(context) ||
         !extensionsSeen(context) || !accountSeen(context)
     fun accountSeen(context: Context) = prefs(context).getBoolean(ACCOUNT_KEY, false)
     fun setAccountSeen(context: Context) = prefs(context).edit().putBoolean(ACCOUNT_KEY, true).apply()
@@ -106,7 +117,7 @@ object Setup {
     fun done(context: Context) = prefs(context).edit().putBoolean(KEY, true).apply()
     fun extensionsSeen(context: Context) = prefs(context).getBoolean(EXTENSIONS_KEY, false)
     /**
-     * The steps still to show, in order: how Myspoti works (first setup only), the look, the music
+     * The steps still to show, in order: how Myspoti works (first setup only), the unified look, the music
      * account (only for someone who has not chosen it: a new install chooses it before signing in,
      * see [Onboarding]), the sound quality, the permissions, then the extensions (last, so the end of
      * the setup leads straight to their page); each skipped when done before an update.
@@ -116,7 +127,6 @@ object Setup {
         return listOfNotNull(
             STEP_INTRO.takeIf { needPerms },
             STEP_LOOK.takeIf { !com.music.spotui.data.preferences.LookPref.isChosen(context) },
-            STEP_PAGE_STYLE.takeIf { !com.music.spotui.data.preferences.PageStylePref.isChosen(context) },
             STEP_ACCOUNT.takeIf { !accountSeen(context) },
             STEP_QUALITY.takeIf { !com.music.spotui.data.preferences.isQualityChosen(context) },
             STEP_PERMISSIONS.takeIf { needPerms },
@@ -145,13 +155,22 @@ fun SetupScreen(onDone: () -> Unit) {
     // Back goes to the previous step (the look can be changed again from there).
     androidx.activity.compose.BackHandler(enabled = index > 0) { index-- }
     val immersive = isImmersive()
-    Box(Modifier.fillMaxSize().background(if (immersive) Immersive.Page else AppBackground)) {
-        // The page takes the look picked in the look step, live.
-        androidx.compose.animation.Crossfade(immersive, animationSpec = tween(350), label = "setupBackdrop") { imm ->
-            if (imm) Box(Modifier.fillMaxSize()) {
-                com.music.spotui.ui.look.MeshGradientBackground(com.music.spotui.ui.look.LookMeshPalettes.first(), animated = false)
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-            } else Glow(Modifier.fillMaxSize(), alpha = 0.16f)
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val starryActive = starryEnabled &&
+        !app.myspoti.power.EnergySettings.oledBlack &&
+        com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+    val containerBg = if (starryActive) Color.Transparent else if (immersive) Immersive.Page else AppBackground
+    Box(Modifier.fillMaxSize().then(if (containerBg == Color.Transparent) Modifier else Modifier.background(containerBg))) {
+        // When Starry Night is active, let the root StarryNightBackdrop shine through with only a soft glow.
+        androidx.compose.animation.Crossfade(immersive to starryActive, animationSpec = tween(350), label = "setupBackdrop") { (imm, starry) ->
+            when {
+                starry -> Glow(Modifier.fillMaxSize(), alpha = 0.14f)
+                imm -> Box(Modifier.fillMaxSize()) {
+                    com.music.spotui.ui.look.MeshGradientBackground(com.music.spotui.ui.look.LookMeshPalettes.first(), animated = false)
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+                }
+                else -> Glow(Modifier.fillMaxSize(), alpha = 0.16f)
+            }
         }
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Several steps to go through: dots say where the user is.
@@ -175,9 +194,6 @@ fun SetupScreen(onDone: () -> Unit) {
                     })
                     STEP_LOOK -> com.music.spotui.ui.look.LookStep(onNext = {
                         com.music.spotui.data.preferences.LookPref.setChosen(context)
-                        next()
-                    })
-                    STEP_PAGE_STYLE -> PageStyleStep(onNext = {
                         com.music.spotui.data.preferences.PageStylePref.setChosen(context)
                         next()
                     })
@@ -203,69 +219,6 @@ internal const val STEP_QUALITY = 2
 internal const val STEP_EXTENSIONS = 3
 internal const val STEP_PERMISSIONS = 4
 internal const val STEP_ACCOUNT = 5
-internal const val STEP_PAGE_STYLE = 6
-
-@Composable
-private fun PageStyleStep(onNext: () -> Unit) {
-    val context = LocalContext.current
-    val pref = com.music.spotui.data.preferences.PageStylePref
-    val accent = if (isImmersive()) Immersive.Accent else AppAccent
-    val options = remember {
-        listOf(
-            Triple(
-                com.music.spotui.data.preferences.PageStyle.ORPHEON_BASIC,
-                "Astral Basic",
-                "Clean, lightweight layout with fast scrolling and minimal visual effects."
-            ),
-            Triple(
-                com.music.spotui.data.preferences.PageStyle.ORPHEON_GLASS,
-                "Astral Interactive (Glass)",
-                "Translucent frosted cards, dynamic cover glow, and interactive depth."
-            ),
-            Triple(
-                com.music.spotui.data.preferences.PageStyle.SPOTIFUSION,
-                "Spotifusion 1:1",
-                "Classic Spotify-faithful header, track rows, and action bar layout."
-            ),
-        )
-    }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        var row = 0
-        SetupTitle("Playlist & Album Style", Modifier.riseIn(row++))
-        SetupSubtitle("Choose how Playlists, Albums, and Artists look. You can change this later in Settings.", Modifier.riseIn(row++))
-        Spacer(Modifier.height(8.dp))
-        for ((style, title, detail) in options) {
-            val selected = pref.style == style
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .riseIn(row++)
-                    .setupCard()
-                    .then(if (selected) Modifier.border(2.dp, accent, if (isImmersive()) Immersive.Card else RoundedCornerShape(12.dp)) else Modifier)
-                    .clickable { pref.set(context, style) }
-                    .padding(16.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    CardTitle(title)
-                    CardDetail(detail)
-                }
-                if (selected) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.padding(start = 12.dp).size(26.dp),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        SetupButton(stringResource(R.string.setup_continue), onNext, Modifier.fillMaxWidth().height(50.dp).riseIn(row))
-    }
-}
 
 /**
  * The first launch, before any sign-in: the music account, on the setup's backdrop. [onDone] once
@@ -275,11 +228,20 @@ private fun PageStyleStep(onNext: () -> Unit) {
 fun AccountChoiceScreen(onBack: () -> Unit, onDone: () -> Unit) {
     androidx.activity.compose.BackHandler(onBack = onBack)
     val immersive = isImmersive()
-    Box(Modifier.fillMaxSize().background(if (immersive) Immersive.Page else AppBackground)) {
-        if (immersive) Box(Modifier.fillMaxSize()) {
-            com.music.spotui.ui.look.MeshGradientBackground(com.music.spotui.ui.look.LookMeshPalettes.first(), animated = false)
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-        } else Glow(Modifier.fillMaxSize(), alpha = 0.16f)
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val starryActive = starryEnabled &&
+        !app.myspoti.power.EnergySettings.oledBlack &&
+        com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+    val containerBg = if (starryActive) Color.Transparent else if (immersive) Immersive.Page else AppBackground
+    Box(Modifier.fillMaxSize().then(if (containerBg == Color.Transparent) Modifier else Modifier.background(containerBg))) {
+        when {
+            starryActive -> Glow(Modifier.fillMaxSize(), alpha = 0.14f)
+            immersive -> Box(Modifier.fillMaxSize()) {
+                com.music.spotui.ui.look.MeshGradientBackground(com.music.spotui.ui.look.LookMeshPalettes.first(), animated = false)
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+            }
+            else -> Glow(Modifier.fillMaxSize(), alpha = 0.16f)
+        }
         Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             AccountStep(onNext = onDone, beforeSignIn = true)
         }
@@ -517,18 +479,34 @@ private fun SetupSubtitle(text: String, modifier: Modifier = Modifier, size: and
     else Text(text, color = AppMuted, fontSize = size, modifier = modifier)
 }
 
-/** The step's main button: green and square-ish in Classic, white and rounded in Immersive (as the look step's). */
+/** The step's main button: adapts shape and fill to the active Look. */
 @Composable
 private fun SetupButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth().height(50.dp)) {
-    val immersive = isImmersive()
+    val look = LocalLook.current
+    val immersive = look.isImmersive()
+    val containerColor = when (look) {
+        Look.SPOTIFUSION -> SpotifusionGreen
+        Look.IMMERSIVE -> Color.White
+        Look.GLASSIFY, Look.LIQUID_MUSIC -> Immersive.Accent
+        Look.CLASSIC -> AppAccent
+    }
+    val contentColor = if (containerColor.luminance() > 0.45f) Color.Black else Color.White
     Button(
         onClick = onClick,
-        shape = if (immersive) Immersive.Button else ButtonDefaults.shape,
-        colors = ButtonDefaults.buttonColors(containerColor = if (immersive) Color.White else AppAccent, contentColor = Color.Black),
+        shape = when (look) {
+            Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+            Look.IMMERSIVE, Look.GLASSIFY -> Immersive.Button
+            else -> ButtonDefaults.shape
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor),
         modifier = modifier,
     ) {
-        Text(text, fontFamily = if (immersive) com.music.spotui.ui.look.ImmersiveSans else null, fontSize = 16.sp,
-            fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold)
+        Text(
+            text,
+            fontFamily = if (immersive) com.music.spotui.ui.look.ImmersiveSans else null,
+            fontSize = 16.sp,
+            fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold,
+        )
     }
 }
 
@@ -540,11 +518,33 @@ private fun SetupLinkButton(text: String, onClick: () -> Unit, modifier: Modifie
     }
 }
 
-/** A card of the setup: Classic's dark grey, Immersive's raised grouped-list fill. */
+/** A card of the setup: styled per active Look (always non-transparent for readability). */
 @Composable
-private fun Modifier.setupCard(): Modifier =
-    if (isImmersive()) this.fillMaxWidth().clip(Immersive.Card).background(Immersive.Raised.copy(alpha = 0.92f))
-    else this.fillMaxWidth().background(tone(0xFF1E1E1E), RoundedCornerShape(12.dp))
+private fun Modifier.setupCard(): Modifier {
+    val look = LocalLook.current
+    return when (look) {
+        Look.GLASSIFY -> this
+            .fillMaxWidth()
+            .clip(Immersive.Card)
+            .background(GlassifyGlassFill)
+            .border(1.dp, GlassifyBorder, Immersive.Card)
+        Look.LIQUID_MUSIC -> this
+            .fillMaxWidth()
+            .clip(Immersive.Card)
+            .background(LiquidMusicSurface)
+            .border(1.dp, LiquidMusicBorder, Immersive.Card)
+        Look.IMMERSIVE -> this
+            .fillMaxWidth()
+            .clip(Immersive.Card)
+            .background(Immersive.Raised.copy(alpha = 0.92f))
+        Look.SPOTIFUSION -> this
+            .fillMaxWidth()
+            .background(SpotifusionCard, RoundedCornerShape(12.dp))
+        Look.CLASSIC -> this
+            .fillMaxWidth()
+            .background(GridBackground, RoundedCornerShape(12.dp))
+    }
+}
 
 /** A card of the intro and extensions steps: an accent icon, a title and a line of detail. */
 @Composable

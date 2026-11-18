@@ -12,6 +12,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
@@ -31,6 +32,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
@@ -75,20 +77,24 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import com.music.spotui.data.entity.LyricWord
 import androidx.compose.ui.draw.drawWithContent
@@ -103,15 +109,24 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.placeholder
 import com.music.spotui.ui.look.GLOW_ALPHA
 import com.music.spotui.ui.look.GLOW_ROOM
 import com.music.spotui.ui.look.LINE_FALLOFF_ALPHA
 import com.music.spotui.ui.look.LINE_FALLOFF_BLUR
+import com.music.spotui.ui.look.LYRIC_EASING
+import com.music.spotui.ui.look.LYRIC_SETTLE_MS
 import com.music.spotui.ui.look.SUNG_ALPHA
+import com.music.spotui.ui.look.SweptLine
 import com.music.spotui.ui.look.SweptLyricLine
 import com.music.spotui.ui.look.UNSUNG_ALPHA
+import com.music.spotui.ui.look.rememberArtworkColors
+import com.music.spotui.ui.look.rememberReduceMotion
 import com.music.spotui.ui.look.scaleForDistance
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -139,16 +154,24 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.myspoti.power.EnergySettings
 import com.music.spotui.data.api.LyricsApi
 import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.Lyrics
+import com.music.spotui.data.preferences.AstralThemeMode
+import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.data.preferences.LyricsRomanizationPref
+import com.music.spotui.data.preferences.SpicyThemePreset
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.getLyricTranslateLang
 import com.music.spotui.data.preferences.isLyricsExtraSources
 import com.music.spotui.data.preferences.setLyricsExtraSources
 import com.music.spotui.di.SongPlayer
+import com.music.spotui.ui.components.StarryNightBackdrop
 import com.music.spotui.ui.components.rememberFrameClock
 import com.music.spotui.ui.components.shareLyricLines
+import com.music.spotui.ui.components.titleMarquee
+import com.music.spotui.ui.theme.StarryAccent
 import com.music.spotui.ui.viewmodel.LyricsViewModel
 import app.myspoti.engine.R
 import kotlinx.coroutines.delay
@@ -321,88 +344,204 @@ private fun rememberLyricsClock(playing: Boolean, position: () -> Long): Mutable
     return clock
 }
 
+private const val CLASSIC_STAGGER_STEPS = 4
+private const val CLASSIC_STAGGER_FRACTION = 0.065f
+
+/** Tracks a single spring scroll handover so rows can stagger softly behind the focal line. */
+private class ClassicScrollRun(val id: Int, val delta: Float, val durationMs: Int)
+
+private fun isRtlText(text: String): Boolean {
+    var rtl = 0
+    var ltr = 0
+    for (ch in text) {
+        if (ch.code in 0xFB1D..0xFB4F) return true
+        when (Character.getDirectionality(ch)) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> rtl++
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> ltr++
+        }
+    }
+    return rtl > ltr
+}
+
+private fun toBackingSwept(line: LyricLine, nextLineMs: Long?): SweptLine? {
+    val words = line.backgroundWords.orEmpty()
+        .map { it.copy(text = it.text.replace("(", "").replace(")", "")) }
+        .filter { it.text.isNotBlank() }
+    if (words.isEmpty()) return null
+    val text = words.joinToString("") { it.text }.trim()
+    return LyricLine(words.first().startMs, text, words).toSwept(nextLineMs).takeIf { it.isWordSynced }
+}
+
+/** Look-ahead index so scrolling begins slightly before the next line lands. */
+private fun focusIndexFor(lyrics: Lyrics, positionMs: Long): Int {
+    if (!lyrics.synced) return -1
+    var lo = 0
+    var hi = lyrics.lines.size - 1
+    var found = -1
+    val target = positionMs + LINE_LEAD_MS + 160L
+    while (lo <= hi) {
+        val mid = (lo + hi) ushr 1
+        if (lyrics.lines[mid].timeMs <= target) { found = mid; lo = mid + 1 } else hi = mid - 1
+    }
+    return found
+}
+
 /**
- * Keeps the active line centered around a third down the view with a smooth spring.
- * A manual scroll pauses the follow for 3 s.
+ * Keeps the active line centered around a third down the view using a critically-damped spring
+ * and publishes each scroll run so neighboring rows stagger gently into focus.
  */
 @Composable
-private fun AutoFollow(listState: LazyListState, activeIndex: Int, offsetPx: Int, enabled: Boolean) {
+private fun AutoFollow(
+    listState: LazyListState,
+    activeIndex: Int,
+    offsetPx: Int,
+    enabled: Boolean,
+    reduceMotion: Boolean,
+    onBrowsingChange: (Boolean) -> Unit,
+    onScrollRun: (ClassicScrollRun) -> Unit,
+) {
     var userScrollAt by remember { mutableLongStateOf(0L) }
+    var browsing by remember { mutableStateOf(false) }
+    var runId by remember { mutableLongStateOf(0L) }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect {
-            if (it is DragInteraction.Start || it is DragInteraction.Stop) userScrollAt = System.currentTimeMillis()
+            if (it is DragInteraction.Start) {
+                userScrollAt = System.currentTimeMillis()
+                browsing = true
+                onBrowsingChange(true)
+            } else if (it is DragInteraction.Stop || it is DragInteraction.Cancel) {
+                userScrollAt = System.currentTimeMillis()
+            }
+        }
+    }
+    LaunchedEffect(browsing, listState.isScrollInProgress) {
+        if (browsing && !listState.isScrollInProgress) {
+            val wait = (3000L - (System.currentTimeMillis() - userScrollAt)).coerceAtLeast(350L)
+            delay(wait)
+            browsing = false
+            onBrowsingChange(false)
         }
     }
     var placed by remember { mutableStateOf(false) }
-    LaunchedEffect(activeIndex, enabled) {
-        if (!enabled || activeIndex < 0) return@LaunchedEffect
+    LaunchedEffect(activeIndex, enabled, browsing) {
+        if (!enabled || browsing || activeIndex < 0) return@LaunchedEffect
         if (!placed) { placed = true; listState.scrollToItem(activeIndex, -offsetPx); return@LaunchedEffect }
         val wait = 3000 - (System.currentTimeMillis() - userScrollAt)
         if (wait > 0) delay(wait)
         val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }
         if (visible != null) {
-            listState.animateScrollBy(
-                value = (visible.offset - offsetPx).toFloat(),
-                animationSpec = spring(dampingRatio = 0.88f, stiffness = 220f),
-            )
+            val delta = (visible.offset - offsetPx).toFloat()
+            if (!reduceMotion && abs(delta) > 1f) {
+                runId++
+                onScrollRun(ClassicScrollRun(runId.toInt(), delta, LYRIC_SETTLE_MS))
+                listState.animateScrollBy(
+                    value = delta,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 240f),
+                )
+            } else if (abs(delta) > 1f) {
+                listState.scrollToItem(activeIndex, -offsetPx)
+            }
+        } else if (reduceMotion) {
+            listState.scrollToItem(activeIndex, -offsetPx)
         } else {
             listState.animateScrollToItem(activeIndex, -offsetPx)
         }
     }
 }
 
-/** Animated three-dot vocal/interlude indicator for instrumental gaps > 4 s. */
+/**
+ * Pill-shaped three-dot animated progress bubble for intros > 4 s and instrumental gaps > 4 s.
+ * Dots scale and illuminate sequentially across the gap's progress.
+ */
 @Composable
 private fun InterludeDots(
     startMs: Long,
     endMs: Long,
     clock: MutableLongState,
     color: Color,
+    glowColor: Color,
     alignEnd: Boolean,
+    collapsible: Boolean = true,
     onTap: (() -> Unit)? = null,
 ) {
-    val active = clock.longValue in startMs..endMs
-    val swell by animateFloatAsState(if (active) 1f else 0.55f, tween(320), label = "interludeSwell")
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val active by remember(startMs, endMs, clock) {
+        derivedStateOf(structuralEqualityPolicy()) { clock.longValue in startMs..endMs }
+    }
+    val reduceMotion = rememberReduceMotion()
+    val swell by animateFloatAsState(
+        targetValue = when {
+            active -> 1f
+            collapsible -> 0f
+            else -> 0.72f
+        },
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 280f),
+        label = "interludeSwell",
+    )
+    if (collapsible && swell <= 0.01f) return
+    val rowHeight = if (collapsible) 48.dp * swell else 48.dp
+    Box(
+        contentAlignment = if (alignEnd) Alignment.CenterEnd else Alignment.CenterStart,
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onTap != null) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap) else Modifier)
-            .padding(vertical = 8.dp),
+            .height(rowHeight)
+            .clipToBounds()
+            .padding(horizontal = GLOW_ROOM)
+            .then(if (onTap != null) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap) else Modifier),
     ) {
-        if (alignEnd) Spacer(Modifier.weight(1f))
-        Canvas(modifier = Modifier.size(width = 48.dp, height = 16.dp).graphicsLayer { scaleX = swell; scaleY = swell }) {
-            val span = (endMs - startMs).coerceAtLeast(1L)
-            val through = ((clock.longValue - startMs).toFloat() / span).coerceIn(0f, 1f)
-            val radius = 5.dp.toPx()
-            val stride = 16.dp.toPx()
-            val wavePhase = (clock.longValue % 1_800L) / 1_800f * (2f * kotlin.math.PI.toFloat())
-            repeat(3) { dot ->
-                val lit = (through * 3f - dot).coerceIn(0f, 1f)
-                val wave = if (active) kotlin.math.sin(wavePhase - dot * 0.9f).toFloat() else 0f
-                val pulse = 1f + 0.24f * kotlin.math.sin(lit * kotlin.math.PI).toFloat() + 0.12f * wave
-                val center = Offset(radius + dot * stride, size.height / 2f - wave * 2.dp.toPx())
-                if (active && lit > 0.05f) {
+        val pillShape = RoundedCornerShape(50)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(width = 78.dp, height = 34.dp)
+                .graphicsLayer {
+                    val s = 0.82f + 0.18f * swell
+                    scaleX = s
+                    scaleY = s
+                    alpha = swell
+                    transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
+                }
+                .clip(pillShape)
+                .background(color.copy(alpha = if (active) 0.14f else 0.08f))
+                .border(1.dp, color.copy(alpha = if (active) 0.26f else 0.12f), pillShape),
+        ) {
+            Canvas(modifier = Modifier.size(width = 52.dp, height = 18.dp)) {
+                val span = (endMs - startMs).coerceAtLeast(1L)
+                val through = ((clock.longValue - startMs).toFloat() / span).coerceIn(0f, 1f)
+                val baseRadius = 4.6.dp.toPx()
+                val stride = 17.dp.toPx()
+                val startX = (size.width - stride * 2f) / 2f
+                val wavePhase = if (reduceMotion) 0f else (clock.longValue % 1_800L) / 1_800f * (2f * PI.toFloat())
+                repeat(3) { dot ->
+                    val lit = (through * 3f - dot).coerceIn(0f, 1f)
+                    val wave = if (active && !reduceMotion) sin(wavePhase - dot * 0.9f).toFloat() else 0f
+                    val scale = 0.78f + 0.34f * lit + 0.10f * sin(lit * PI).toFloat() + 0.08f * wave
+                    val center = Offset(startX + dot * stride, size.height / 2f - wave * 1.6.dp.toPx())
+                    if (active && lit > 0.05f) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(glowColor.copy(alpha = 0.36f * lit), Color.Transparent),
+                                center = center,
+                                radius = baseRadius * scale * 2.1f,
+                            ),
+                            radius = baseRadius * scale * 2.1f,
+                            center = center,
+                        )
+                    }
                     drawCircle(
-                        color = color.copy(alpha = 0.22f * lit),
-                        radius = radius * pulse * 1.65f,
+                        color = color.copy(alpha = 0.28f + 0.72f * lit),
+                        radius = baseRadius * scale,
                         center = center,
                     )
                 }
-                drawCircle(
-                    color = color.copy(alpha = 0.28f + 0.72f * lit),
-                    radius = radius * pulse,
-                    center = center,
-                )
             }
         }
     }
 }
 
 /**
- * One lyric line. Word-synced lines fill word by word; others switch colour as a
- * whole when they become current.
+ * One lyric line. Word-synced lines lift & bloom word by word; line-synced lines sweep
+ * progressively across their duration so every synced song feels alive.
  */
 @Composable
 private fun LyricLineText(
@@ -431,53 +570,95 @@ private fun LyricLineText(
     clock: MutableLongState? = null,
     /** Whether to apply subtle distance scale/blur falloff (full-screen mode). */
     depthFalloff: Boolean = true,
+    /** Tint for starlight/accent bloom and backing vocals. */
+    glowColor: Color = lerp(palette.highlight, Color.White, 0.35f),
+    /** True while user is manually scrolling so lines sharpen cleanly for reading. */
+    browsing: Boolean = false,
+    /** Total song duration for the final line's illumination window. */
+    songDurationMs: Long = 0L,
+    /** Staggered scroll state for cascading row motion. */
+    scrollRun: ClassicScrollRun? = null,
+    scrollSince: FloatState? = null,
+    lineIndex: Int = 0,
+    focusIndex: Int = -1,
 ) {
     val target = when (state) {
         1 -> palette.text
         else -> palette.highlight
     }
     val color by animateColorAsState(target, tween(220), label = "lyricColor")
-    // Explained by Genius: a light dotted line under each row of the text.
     var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
-    var pressAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    val swept = remember(line, nextLineMs) { line.toSwept(nextLineMs) }
+    var pressAt by remember { mutableStateOf(Offset.Zero) }
+    val effectiveEndMs = remember(line, nextLineMs, songDurationMs) {
+        nextLineMs ?: songDurationMs.takeIf { it > line.timeMs } ?: (line.timeMs + (line.text.length * 90L).coerceIn(2_500L, 6_000L))
+    }
+    val swept = remember(line, effectiveEndMs) {
+        line.toSwept(effectiveEndMs).let {
+            if (it.words.isEmpty() && effectiveEndMs > line.timeMs) it.copy(sungUntilMs = effectiveEndMs) else it
+        }
+    }
+    val backingSwept = remember(line, effectiveEndMs) { toBackingSwept(line, effectiveEndMs) }
     val picked by animateFloatAsState(if (selected) 1f else 0f, tween(180), label = "lyricPicked")
     val isSynced = state != 2
     val isActive = state == 0
     val falloffStep = distance.coerceIn(0, LINE_FALLOFF_ALPHA.lastIndex)
     val lineScale by animateFloatAsState(
-        targetValue = if (!isSynced || !depthFalloff || selected) 1f else scaleForDistance(falloffStep),
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f),
+        targetValue = if (!isSynced || !depthFalloff || selected || browsing) 1f else scaleForDistance(falloffStep),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 260f),
         label = "classicScale",
     )
     val lineAlpha by animateFloatAsState(
-        targetValue = if (!isSynced || !depthFalloff || isActive || selected) 1f else LINE_FALLOFF_ALPHA[falloffStep],
-        animationSpec = tween(320),
+        targetValue = when {
+            !isSynced || !depthFalloff || isActive || selected -> 1f
+            browsing -> 0.80f
+            else -> LINE_FALLOFF_ALPHA[falloffStep]
+        },
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 260f),
         label = "classicAlpha",
     )
     val lineBlur by animateDpAsState(
-        targetValue = if (!isSynced || !depthFalloff || isActive || selected || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) 0.dp else LINE_FALLOFF_BLUR[falloffStep],
-        animationSpec = tween(220),
+        targetValue = if (!isSynced || !depthFalloff || isActive || selected || browsing || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) 0.dp else LINE_FALLOFF_BLUR[falloffStep],
+        animationSpec = tween(220, easing = LYRIC_EASING),
         label = "classicBlur",
     )
-    // Duet: the second voice at the end of the row (right in left-to-right), the first and the
-    // lines sung together at the start. The text fills the row so its wrapped rows align as one block.
-    val align = if (duet && line.voice == 2) TextAlign.End else TextAlign.Start
+    // Opposite-aligned duets: lead (voice 1 or null or 0) aligns left, voice 2 or > 1 aligns right.
+    val isOppositeVoice = duet && (line.voice ?: 1) > 1
+    val laneLocked = duet && (line.voice == null || line.voice >= 1)
+    val align = if (isOppositeVoice) TextAlign.End else if (!laneLocked && isRtlText(line.text)) TextAlign.End else TextAlign.Start
+    val originX = if (isOppositeVoice || (!laneLocked && isRtlText(line.text))) 1f else 0f
+    val usesSwept = isSynced && clock != null && (line.words != null || swept.endMs > swept.timeMs)
+    val roomDp = if (usesSwept && depthFalloff) GLOW_ROOM else 0.dp
+    val roomPx = with(LocalDensity.current) { roomDp.toPx() }
     val lineModifier = modifier
         .fillMaxWidth()
+        .padding(
+            start = if (duet && isOppositeVoice) 24.dp else 0.dp,
+            end = if (duet && !isOppositeVoice && laneLocked) 24.dp else 0.dp,
+        )
         .graphicsLayer {
             scaleX = lineScale
             scaleY = lineScale
-            transformOrigin = TransformOrigin(if (duet && line.voice == 2) 1f else 0f, 0.5f)
+            transformOrigin = TransformOrigin(originX, 0.5f)
             alpha = lineAlpha
+            if (scrollRun != null && scrollSince != null && depthFalloff && focusIndex >= 0) {
+                val behind = if (scrollRun.delta >= 0f) lineIndex - focusIndex else focusIndex - lineIndex
+                val staggerDelay = behind.coerceIn(0, CLASSIC_STAGGER_STEPS) * CLASSIC_STAGGER_FRACTION * scrollRun.durationMs
+                if (staggerDelay > 0f) {
+                    val elapsed = scrollSince.floatValue
+                    translationY = scrollRun.delta * (
+                        LYRIC_EASING.transform((elapsed / scrollRun.durationMs).coerceIn(0f, 1f)) -
+                            LYRIC_EASING.transform(((elapsed - staggerDelay) / scrollRun.durationMs).coerceIn(0f, 1f))
+                        )
+                }
+            }
             val r = lineBlur.toPx()
             renderEffect = if (r > 0f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) BlurEffect(r, r, TileMode.Decal) else null
         }
         .drawBehind {
             if (picked > 0f) drawRoundRect(
                 palette.highlight.copy(alpha = 0.2f * picked),
-                Offset(-10.dp.toPx(), -5.dp.toPx()),
-                Size(size.width + 20.dp.toPx(), size.height + 10.dp.toPx()),
+                Offset(-6.dp.toPx(), -4.dp.toPx()),
+                Size(size.width + 12.dp.toPx(), size.height + 8.dp.toPx()),
                 CornerRadius(12.dp.toPx()),
             )
         }
@@ -488,7 +669,7 @@ private fun LyricLineText(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onLongClick = onHold,
-                    onClick = { onTap?.invoke(layout?.let { tapTime(swept, it, pressAt) } ?: line.timeMs) },
+                    onClick = { onTap?.invoke(layout?.let { tapTime(swept, it, pressAt - Offset(roomPx, roomPx)) } ?: line.timeMs) },
                 ) else Modifier
         )
     val underline = if (!annotated) Modifier else Modifier.drawBehind {
@@ -496,11 +677,18 @@ private fun LyricLineText(
         val dot = 2.dp.toPx()
         val effect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.01f, dot * 2.5f))
         for (r in 0 until t.lineCount) {
-            val y = t.getLineBaseline(r) + 5.dp.toPx()
-            drawLine(color.copy(alpha = color.alpha * 0.55f), androidx.compose.ui.geometry.Offset(t.getLineLeft(r), y),
-                androidx.compose.ui.geometry.Offset(t.getLineRight(r), y), strokeWidth = dot, cap = androidx.compose.ui.graphics.StrokeCap.Round, pathEffect = effect)
+            val y = t.getLineBaseline(r) + roomPx + 5.dp.toPx()
+            drawLine(
+                color.copy(alpha = color.alpha * 0.55f),
+                Offset(t.getLineLeft(r) + roomPx, y),
+                Offset(t.getLineRight(r) + roomPx, y),
+                strokeWidth = dot,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                pathEffect = effect,
+            )
         }
     }
+    val subPad = if (depthFalloff) Modifier.padding(horizontal = GLOW_ROOM) else Modifier
     Column(lineModifier) {
         val trimmed = line.text.trim()
         if (isSynced && (trimmed.isEmpty() || trimmed == "♪") && clock != null && nextLineMs != null) {
@@ -509,31 +697,39 @@ private fun LyricLineText(
                 endMs = nextLineMs,
                 clock = clock,
                 color = palette.highlight,
-                alignEnd = duet && line.voice == 2,
+                glowColor = glowColor,
+                alignEnd = isOppositeVoice,
+                collapsible = false,
                 onTap = onTap?.let { { it(line.timeMs) } },
             )
             return@Column
         }
-        if (isSynced && clock != null && (line.words != null || swept.endMs > swept.timeMs)) {
+        if (usesSwept && clock != null) {
             val baseStyle = androidx.compose.ui.text.TextStyle(
                 fontSize = fontSize,
                 lineHeight = fontSize * 1.25f,
                 fontWeight = FontWeight.Bold,
                 textAlign = align,
             )
+            val dimAlpha = when (state) {
+                -1 -> SUNG_ALPHA
+                0 -> UNSUNG_ALPHA
+                else -> 0.90f
+            }
             SweptLyricLine(
                 line = swept,
                 clock = clock,
                 style = baseStyle,
-                dimAlpha = if (state == -1) SUNG_ALPHA else UNSUNG_ALPHA,
-                glowAlpha = if (isActive) GLOW_ALPHA else 0f,
-                glowRoom = if (depthFalloff) GLOW_ROOM else 0.dp,
+                dimAlpha = dimAlpha,
+                glowAlpha = if (isActive && !browsing) GLOW_ALPHA else 0f,
+                glowRoom = roomDp,
                 feather = isActive,
                 rise = line.words != null,
-                alignEnd = duet && line.voice == 2,
-                laneLocked = duet && (line.voice == 1 || line.voice == 2),
+                alignEnd = isOppositeVoice,
+                laneLocked = laneLocked,
                 color = palette.highlight,
-                glowColor = lerp(palette.highlight, Color.White, 0.35f),
+                glowColor = glowColor,
+                onTextLayout = { layout = it },
                 modifier = Modifier.fillMaxWidth().then(underline),
             )
         } else {
@@ -545,27 +741,39 @@ private fun LyricLineText(
                 fontWeight = FontWeight.Bold,
                 textAlign = align,
                 onTextLayout = { layout = it },
-                modifier = Modifier.fillMaxWidth().then(underline),
+                modifier = Modifier.fillMaxWidth().then(subPad).then(underline),
             )
         }
-        // Under the line, smaller and dimmer: its backing vocals, the romanization, the translation.
-        // They take the line's colour, so they light with it. The romanization is set in italics, as a
-        // transliteration is, and the translation a little apart: one says how the line sounds, the
-        // other what it means.
-        AnimatedVisibility(
-            visible = !line.background.isNullOrBlank(),
-            enter = expandVertically(tween(260)) + fadeIn(tween(260)),
-            exit = shrinkVertically(tween(260)) + fadeOut(tween(260)),
-        ) {
-            Text(
-                text = line.background.orEmpty(),
-                color = color.copy(alpha = color.alpha * 0.56f),
-                fontSize = (fontSize.value * 0.68f).sp,
+        // Under the line: smaller, italicized, softly tinted backing vocals, then romanization, then translation.
+        if (!line.background.isNullOrBlank()) {
+            val backingColor = lerp(color, glowColor, 0.42f).copy(alpha = color.alpha * 0.66f)
+            val backingStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = (fontSize.value * 0.66f).sp,
+                lineHeight = (fontSize.value * 0.86f).sp,
                 fontWeight = FontWeight.Medium,
                 fontStyle = FontStyle.Italic,
                 textAlign = align,
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
             )
+            if (isSynced && clock != null && backingSwept != null) {
+                SweptLyricLine(
+                    line = backingSwept,
+                    clock = clock,
+                    style = backingStyle,
+                    dimAlpha = if (state == 0) UNSUNG_ALPHA else 0.85f,
+                    rise = false,
+                    alignEnd = isOppositeVoice,
+                    laneLocked = laneLocked,
+                    color = backingColor,
+                    modifier = Modifier.fillMaxWidth().then(subPad).padding(top = 2.dp),
+                )
+            } else {
+                Text(
+                    text = line.background.orEmpty(),
+                    style = backingStyle,
+                    color = backingColor,
+                    modifier = Modifier.fillMaxWidth().then(subPad).padding(top = 2.dp),
+                )
+            }
         }
         AnimatedVisibility(
             visible = !romanization.isNullOrBlank(),
@@ -579,7 +787,7 @@ private fun LyricLineText(
                 fontWeight = FontWeight.Normal,
                 fontStyle = FontStyle.Italic,
                 textAlign = align,
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier.fillMaxWidth().then(subPad).padding(top = 2.dp),
             )
         }
         AnimatedVisibility(
@@ -593,7 +801,7 @@ private fun LyricLineText(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Normal,
                 textAlign = align,
-                modifier = Modifier.fillMaxWidth().padding(top = if (romanization.isNullOrBlank()) 2.dp else 8.dp),
+                modifier = Modifier.fillMaxWidth().then(subPad).padding(top = if (romanization.isNullOrBlank()) 2.dp else 8.dp),
             )
         }
     }
@@ -617,6 +825,124 @@ private fun Modifier.revealIn(reveal: (() -> Float)?, start: Float, riseDp: Floa
         translationY = (1f - a) * riseDp.dp.toPx()
     }
 
+/**
+ * Multi-blob slowly drifting Kawarp-style mesh backdrop extracted from the track's cover colors,
+ * overridden by [SpicyThemePreset] when active, or layered gently over [StarryNightBackdrop]
+ * when Starry Night is enabled.
+ */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun SpicyLyricsBackdrop(
+    coverUri: String,
+    meshColors: List<Color>,
+    baseColor: Color,
+    customSpicy: Boolean,
+    starryActive: Boolean,
+    oledBlack: Boolean,
+    reduceMotion: Boolean,
+    reveal: (() -> Float)?,
+) {
+    val animatedColors = (0 until 4).map { idx ->
+        animateColorAsState(
+            targetValue = meshColors.getOrElse(idx) { baseColor },
+            animationSpec = tween(1_100),
+            label = "kawarpBlob$idx",
+        ).value
+    }
+    val animatedBase by animateColorAsState(
+        targetValue = if (oledBlack) Color.Black else baseColor,
+        animationSpec = tween(900),
+        label = "kawarpBase",
+    )
+    val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "spicyMesh").animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
+        label = "meshPhase",
+    ).value
+
+    Box(Modifier.fillMaxSize()) {
+        if (starryActive) {
+            StarryNightBackdrop(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (reveal == null) 1f else (reveal() / 0.12f).coerceIn(0f, 1f) },
+            )
+        } else {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        val a = if (reveal == null) 1f else (reveal() / 0.08f).coerceIn(0f, 1f)
+                        drawRect(animatedBase, alpha = a)
+                    },
+            )
+            if (!customSpicy && !oledBlack && coverUri.isNotBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                GlideImage(
+                    model = coverUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = (if (reveal == null) 1f else (reveal() / 0.15f).coerceIn(0f, 1f)) * 0.22f
+                        }
+                        .blur(68.dp),
+                )
+            }
+        }
+
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val a = if (reveal == null) 1f else (reveal() / 0.10f).coerceIn(0f, 1f)
+                    val blobStrength = when {
+                        oledBlack -> 0.14f
+                        starryActive -> 0.24f
+                        else -> 0.42f
+                    }
+                    val anchors = arrayOf(
+                        Offset(0.20f, 0.22f),
+                        Offset(0.82f, 0.26f),
+                        Offset(0.76f, 0.78f),
+                        Offset(0.24f, 0.74f),
+                    )
+                    val speeds = floatArrayOf(1f, -0.75f, 0.85f, -1.1f)
+                    for (i in 0 until 4) {
+                        val angle = meshPhase * speeds[i] + i * 1.55f
+                        val center = Offset(
+                            size.width * (anchors[i].x + 0.14f * cos(angle)),
+                            size.height * (anchors[i].y + 0.12f * sin(angle * 0.9f)),
+                        )
+                        val radius = size.maxDimension * (0.64f + 0.06f * (i % 2))
+                        val alpha = blobStrength * (if (i % 2 == 0) 1f else 0.78f) * a
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(animatedColors[i].copy(alpha = alpha), Color.Transparent),
+                                center = center,
+                                radius = radius,
+                            ),
+                            radius = radius,
+                            center = center,
+                        )
+                    }
+                    if (!starryActive && !oledBlack) {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    animatedBase.copy(alpha = 0.30f * a),
+                                    Color.Transparent,
+                                    animatedBase.copy(alpha = 0.56f * a),
+                                ),
+                            ),
+                        )
+                    }
+                },
+        )
+    }
+}
+
 /** Full-screen lyrics (Spotify's "Lyrics" view). [reveal] drives the staggered entrance, null = all shown. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -629,26 +955,71 @@ fun LyricsScreen(
     reveal: (() -> Float)? = null,
 ) {
     val context = LocalContext.current
+    remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); true }
     val vm: LyricsViewModel = viewModel()
     val state = rememberLyricsState(vm, title, artist)
     val lyrics = (state as? LyricsViewModel.State.Loaded)?.lyrics
-    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
-    val customSpicy = spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT
-    val effectiveAccent = if (customSpicy) Color(spicyPreset.accentHex) else accentColor
-    val palette = paletteFor(lyrics, effectiveAccent).let { base ->
-        if (customSpicy) LyricsPalette(
-            background = Color(spicyPreset.bgBottomHex),
-            text = base.text,
-            highlight = Color(spicyPreset.accentHex),
-        ) else base
+    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val artworkPalette = rememberArtworkColors(coverUri.takeIf { it.isNotBlank() })
+    val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
+    val themeMode by AstralThemePref.themeMode.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val oledBlack = EnergySettings.oledBlack
+    val customSpicy = spicyPreset != SpicyThemePreset.ASTRAL_DEFAULT
+    val starryActive = !customSpicy && starryEnabled && themeMode == AstralThemeMode.STARRY_NIGHT && !oledBlack
+    val reduceMotion = rememberReduceMotion()
+
+    val effectiveAccent = if (customSpicy) Color(spicyPreset.accentHex)
+    else artworkPalette.colors.firstOrNull() ?: accentColor
+
+    val palette = remember(lyrics, effectiveAccent, spicyPreset, customSpicy, starryActive, oledBlack) {
+        if (customSpicy) {
+            LyricsPalette(
+                background = Color(spicyPreset.bgBottomHex),
+                text = Color.White.copy(alpha = 0.80f),
+                highlight = Color(spicyPreset.accentHex),
+            )
+        } else if (starryActive) {
+            LyricsPalette(
+                background = Color(0xFF0A1422),
+                text = Color.White.copy(alpha = 0.80f),
+                highlight = Color.White,
+            )
+        } else {
+            val base = paletteFor(lyrics, effectiveAccent)
+            val darkBase = if (oledBlack) Color.Black else lerp(effectiveAccent, Color.Black, 0.78f)
+            val bg = if (lyrics?.colors != null && !oledBlack) lerp(base.background, Color.Black, 0.45f) else darkBase
+            val hi = if (contrast(base.highlight, bg) >= MIN_CONTRAST) base.highlight else Color.White
+            LyricsPalette(
+                background = bg,
+                text = Color.White.copy(alpha = 0.80f),
+                highlight = hi,
+            )
+        }
     }
-    val spicyGlow = if (customSpicy) Color(spicyPreset.glowHex) else palette.highlight
-    val spicyTopBg = if (customSpicy) Color(spicyPreset.bgTopHex) else palette.background
-    val bg by animateColorAsState(palette.background, tween(300), label = "lyricsBg")
+    val spicyGlow = when {
+        customSpicy -> Color(spicyPreset.glowHex)
+        starryActive -> artworkPalette.colors.firstOrNull()?.let { lerp(it, StarryAccent, 0.45f) } ?: StarryAccent
+        else -> lerp(artworkPalette.colors.getOrElse(1) { effectiveAccent }, Color.White, 0.28f)
+    }
+    val meshColors = remember(customSpicy, spicyPreset, artworkPalette, effectiveAccent, spicyGlow) {
+        if (customSpicy) {
+            listOf(
+                Color(spicyPreset.accentHex),
+                Color(spicyPreset.glowHex),
+                Color(spicyPreset.bgBottomHex),
+                lerp(Color(spicyPreset.bgTopHex), Color(spicyPreset.accentHex), 0.40f),
+            )
+        } else {
+            (artworkPalette.colors + listOf(effectiveAccent, spicyGlow, palette.background)).take(4)
+        }
+    }
+    val meshBase = if (customSpicy) lerp(Color(spicyPreset.bgTopHex), Color(spicyPreset.bgBottomHex), 0.5f) else palette.background
+
     val playing = com.music.spotui.di.Graph.currentSongState.playingState.value
     val position = rememberPosition(playing)
     val clock = rememberLyricsClock(playing, position)
-    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val songDurationMs = SongPlayer.getDuration().coerceAtLeast(0L)
     KeepScreenOnForLyrics(playing && lyrics != null)
     val targetLanguage = getLyricTranslateLang(context).ifBlank { Locale.getDefault().language.ifBlank { "en" } }
     var menu by remember { mutableStateOf(false) }
@@ -658,8 +1029,6 @@ fun LyricsScreen(
     val picked by vm.picked.collectAsState()
     androidx.activity.compose.BackHandler(enabled = selecting) { vm.stopSelecting() }
     DisposableEffect(Unit) { onDispose { vm.stopSelecting() } }
-    // What the song means, from Genius: asked once the lyrics are there; the button shows only when it says something.
-    // Looked up when the song started (App.kt): here at once, and still here on coming back.
     val lang = com.music.spotui.ui.components.readerLanguage()
     val trackId = SongPlayer.nowPlaying.value.uri.substringAfterLast(':')
     val meaning = com.music.spotui.data.api.GeniusMeaning.currentFor(trackId)
@@ -669,7 +1038,6 @@ fun LyricsScreen(
     val hintPrefs = remember { context.getSharedPreferences("lyrics", android.content.Context.MODE_PRIVATE) }
     var hintSeen by remember { mutableStateOf(hintPrefs.getBoolean("genius_hold_hint_seen", false)) }
     LaunchedEffect(trackId, title, artist) {
-        // Opened before the look-up began (or it failed): asked now.
         if (meaning == null) com.music.spotui.data.api.GeniusMeaning.prefetch(trackId, title, artist, lang)
     }
 
@@ -678,93 +1046,75 @@ fun LyricsScreen(
             .fillMaxSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
     ) {
-        // Dynamic blurred + mesh album art backdrop behind the lyrics.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    val a = if (reveal == null) 1f else (reveal() / 0.08f).coerceIn(0f, 1f)
-                    drawRect(bg, alpha = a)
-                },
-        ) {
-            if (coverUri.isNotBlank()) {
-                GlideImage(
-                    model = coverUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = (if (reveal == null) 1f else (reveal() / 0.15f).coerceIn(0f, 1f)) * 0.34f
-                        }
-                        .then(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(64.dp) else Modifier),
-                )
-            }
-            val reduceMotion = com.music.spotui.ui.look.rememberReduceMotion()
-            val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "spicyMesh").animateFloat(
-                initialValue = 0f,
-                targetValue = (2f * kotlin.math.PI).toFloat(),
-                animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart),
-                label = "meshPhase",
-            ).value
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .drawBehind {
-                        val a = if (reveal == null) 1f else (reveal() / 0.08f).coerceIn(0f, 1f)
-                        val cx1 = size.width * (0.24f + 0.10f * kotlin.math.cos(meshPhase))
-                        val cy1 = size.height * (0.24f + 0.08f * kotlin.math.sin(meshPhase))
-                        val cx2 = size.width * (0.78f - 0.12f * kotlin.math.sin(meshPhase * 0.8f))
-                        val cy2 = size.height * (0.74f + 0.08f * kotlin.math.cos(meshPhase * 0.7f))
-                        drawRect(
-                            brush = Brush.radialGradient(
-                                colors = listOf(effectiveAccent.copy(alpha = 0.28f * a), spicyTopBg.copy(alpha = 0.68f * a)),
-                                center = Offset(cx1, cy1),
-                                radius = size.maxDimension * 0.85f,
-                            ),
-                        )
-                        drawRect(
-                            brush = Brush.radialGradient(
-                                colors = listOf(spicyGlow.copy(alpha = 0.16f * a), Color.Transparent),
-                                center = Offset(cx2, cy2),
-                                radius = size.maxDimension * 0.7f,
-                            ),
-                        )
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(spicyTopBg.copy(alpha = 0.35f * a), Color.Transparent, bg.copy(alpha = 0.58f * a)),
-                            ),
-                        )
-                    },
-            )
-        }
+        SpicyLyricsBackdrop(
+            coverUri = coverUri,
+            meshColors = meshColors,
+            baseColor = meshBase,
+            customSpicy = customSpicy,
+            starryActive = starryActive,
+            oledBlack = oledBlack,
+            reduceMotion = reduceMotion,
+            reveal = reveal,
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-        // ── Header: close, title / artist, more ──
+        // ── Spicy-style song header: close, cover thumbnail + title / artist, meaning, more ──
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp).revealIn(reveal, 0.3f, 8f),
+            modifier = Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 6.dp).revealIn(reveal, 0.3f, 8f),
         ) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(48.dp).clickable(
+                modifier = Modifier.size(44.dp).clickable(
                     interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose,
                 ),
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.lyrics_fullscreen_close_button_readout_value), tint = palette.highlight, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.lyrics_fullscreen_close_button_readout_value), tint = palette.highlight, modifier = Modifier.size(30.dp))
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Text(title, color = palette.highlight, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(artist, color = palette.highlight.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+            ) {
+                GlideImage(
+                    model = coverUri.ifBlank { null },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    loading = placeholder(R.drawable.placeholder),
+                    failure = placeholder(R.drawable.placeholder),
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        color = palette.highlight,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.titleMarquee(),
+                    )
+                    Text(
+                        text = artist,
+                        color = palette.highlight.copy(alpha = 0.72f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             meaning?.takeIf { !it.about.isNullOrBlank() }?.let { m ->
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(48.dp).clickable(
+                    modifier = Modifier.size(44.dp).clickable(
                         interactionSource = remember { MutableInteractionSource() }, indication = null,
                     ) { meaningOpen = true },
                 ) {
@@ -775,7 +1125,7 @@ fun LyricsScreen(
             Box {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(48.dp).clickable(
+                    modifier = Modifier.size(44.dp).clickable(
                         interactionSource = remember { MutableInteractionSource() }, indication = null,
                     ) { menu = true },
                 ) {
@@ -812,47 +1162,61 @@ fun LyricsScreen(
                 }
             is LyricsViewModel.State.Loaded -> {
                 val l = state.lyrics
-                // Lines Genius explains: lightly underlined, held to read the explanation.
-                val notes = remember(l, meaning) { meaning?.let { m -> com.music.spotui.ui.components.notesByLine(m, l.lines.map { it.text }) }.orEmpty() }
                 val m = meaning
                 noteOpen?.let { n -> if (m != null) com.music.spotui.ui.components.NoteSheet(m, n, palette.background) { noteOpen = null } }
-                // Translation is requested by onTranslate; do not upload lyrics on screen entry.
-                val active by remember(l) { derivedStateOf { activeIndexFor(l, position()) } }
-                // Other lyrics for the same song (Spotify's lines, then the word-timed ones; or the
-                // setting changed): the new ones fade in over the old, already on the line being
-                // sung, instead of the list jumping.
+                val activeForShare by remember(l) { derivedStateOf { activeIndexFor(l, position()) } }
                 androidx.compose.animation.Crossfade(
                     targetState = l, animationSpec = tween(450), label = "lyricsSwap",
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) { l ->
                 val active by remember(l) { derivedStateOf { activeIndexFor(l, position()) } }
+                val focus by remember(l) { derivedStateOf { focusIndexFor(l, position()) } }
+                val focusLine = if (focus >= 0) focus else active
                 val notes = remember(l, meaning) { meaning?.let { m -> com.music.spotui.ui.components.notesByLine(m, l.lines.map { it.text }) }.orEmpty() }
                 val listState = rememberLazyListState()
-                val duet = l.hasDuet
+                val duet = remember(l) { l.hasDuet || l.lines.any { (it.voice ?: 0) > 1 } }
                 val romanizing = LyricsRomanizationPref.on && l.hasRomanization
-                // Lines near the current one rise in one after the other, the first just
-                // above it; the rest of the screen's lines have no visible entrance.
                 val staggerBase = remember(l) { (active - 4).coerceAtLeast(0) }
                 val firstSung = remember(l) { l.lines.firstOrNull { it.text.isNotBlank() && it.text.trim() != "♪" } }
                 val hasIntro = l.synced && firstSung != null && firstSung.timeMs > 4_000L
                 val headerCount = (if (notes.isNotEmpty() && !hintSeen) 1 else 0) +
                     (if (!l.synced) 1 else 0) +
                     (if (hasIntro) 1 else 0)
-                val scrollTarget = if (active < 0) -1 else active + headerCount
+                val scrollTarget = if (focusLine < 0) -1 else focusLine + headerCount
+                var browsing by remember { mutableStateOf(false) }
+                var scrollRun by remember { mutableStateOf(ClassicScrollRun(0, 0f, LYRIC_SETTLE_MS)) }
+                val scrollSince = remember { mutableFloatStateOf(0f) }
+                LaunchedEffect(scrollRun.id) {
+                    if (scrollRun.id == 0) return@LaunchedEffect
+                    animate(
+                        initialValue = 0f,
+                        targetValue = scrollRun.durationMs.toFloat(),
+                        animationSpec = tween(scrollRun.durationMs, easing = LinearEasing),
+                    ) { value, _ -> scrollSince.floatValue = value }
+                }
+                val hPad = (24.dp - GLOW_ROOM).coerceAtLeast(0.dp)
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val offsetPx = with(LocalDensity.current) { (maxHeight * 0.34f).roundToPx() }
-                    AutoFollow(listState, scrollTarget, offsetPx, enabled = l.synced && !selecting)
+                    AutoFollow(
+                        listState = listState,
+                        activeIndex = scrollTarget,
+                        offsetPx = offsetPx,
+                        enabled = l.synced && !selecting,
+                        reduceMotion = reduceMotion,
+                        onBrowsingChange = { browsing = it },
+                        onScrollRun = { scrollRun = it },
+                    )
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(24.dp, 8.dp, 24.dp, 48.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(hPad, 8.dp, hPad, 48.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         if (notes.isNotEmpty() && !hintSeen) item(key = "genius-hint") {
                             Text(
                                 stringResource(R.string.lyrics_meaning_hint),
                                 color = palette.highlight.copy(alpha = 0.8f), fontSize = 13.sp,
-                                modifier = Modifier.padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
+                                modifier = Modifier.padding(horizontal = GLOW_ROOM).padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
                             )
                         }
                         if (!l.synced) item {
@@ -860,7 +1224,7 @@ fun LyricsScreen(
                                 stringResource(R.string.lyrics_fullscreen_unsynced),
                                 color = palette.highlight.copy(alpha = 0.8f),
                                 fontSize = 13.sp,
-                                modifier = Modifier.padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
+                                modifier = Modifier.padding(horizontal = GLOW_ROOM).padding(bottom = 8.dp).revealIn(reveal, 0.35f, 22f),
                             )
                         }
                         if (hasIntro && firstSung != null) item(key = "intro-countdown") {
@@ -869,7 +1233,9 @@ fun LyricsScreen(
                                 endMs = firstSung.timeMs,
                                 clock = clock,
                                 color = palette.highlight,
-                                alignEnd = duet && firstSung.voice == 2,
+                                glowColor = spicyGlow,
+                                alignEnd = duet && (firstSung.voice ?: 1) > 1,
+                                collapsible = true,
                                 onTap = if (!selecting) ({ jumpTo(0L) }) else null,
                             )
                         }
@@ -886,12 +1252,10 @@ fun LyricsScreen(
                                     translation = if (state.showTranslation) state.translations?.getOrNull(i) else null,
                                     romanization = if (romanizing) line.romanization?.trim()?.takeIf { it.isNotEmpty() && !it.equals(line.text.trim(), ignoreCase = true) } else null,
                                     duet = duet,
-                                    // Picking lines: a tap selects instead of seeking.
                                     onTap = if (selecting) ({ _ ->
                                         if (!vm.pick(i)) android.widget.Toast.makeText(context, context.getString(R.string.lyrics_select_max, LyricsViewModel.MAX_SHARED_LINES), android.widget.Toast.LENGTH_SHORT).show()
                                     }) else if (l.synced) ({ jumpTo(it) }) else null,
                                     annotated = i in notes,
-                                    // A line Genius explains opens its note; any other starts picking lines to share.
                                     onHold = if (selecting) null else notes[i]?.let { n -> {
                                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                         noteOpen = n
@@ -905,31 +1269,41 @@ fun LyricsScreen(
                                     nextLineMs = nextLineMs,
                                     clock = clock,
                                     depthFalloff = true,
+                                    glowColor = spicyGlow,
+                                    browsing = browsing || selecting,
+                                    songDurationMs = songDurationMs,
+                                    scrollRun = scrollRun,
+                                    scrollSince = scrollSince,
+                                    lineIndex = i,
+                                    focusIndex = active,
                                     modifier = Modifier.revealIn(reveal, 0.35f + 0.045f * (i - staggerBase).coerceIn(0, 8), 22f),
                                 )
                                 val lastWordEnd = line.words?.lastOrNull()?.endMs
-                                val nextText = l.lines.getOrNull(i + 1)?.text?.trim().orEmpty()
+                                val nextLine = l.lines.getOrNull(i + 1)
+                                val nextText = nextLine?.text?.trim().orEmpty()
                                 if (l.synced && lastWordEnd != null && nextLineMs != null && nextLineMs - lastWordEnd > 4_000L && nextText.isNotEmpty() && nextText != "♪") {
+                                    val gapVoice = nextLine?.voice ?: line.voice
                                     InterludeDots(
                                         startMs = lastWordEnd + 200L,
                                         endMs = nextLineMs,
                                         clock = clock,
                                         color = palette.highlight,
-                                        alignEnd = duet && line.voice == 2,
+                                        glowColor = spicyGlow,
+                                        alignEnd = duet && (gapVoice ?: 1) > 1,
+                                        collapsible = true,
                                         onTap = if (!selecting) ({ jumpTo(lastWordEnd + 200L) }) else null,
                                     )
                                 }
                             }
                         }
-                        l.provider?.let { p ->
+                        l.provider?.takeIf { it.isNotBlank() }?.let { p ->
                             item(key = "provider-credit") {
                                 Text(
                                     "Lyrics by $p",
                                     color = palette.highlight.copy(alpha = 0.65f),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    // With the lines, in and out: alone it stayed up through the close, then vanished.
-                                    modifier = Modifier.padding(top = 24.dp).revealIn(reveal, 0.71f, 22f),
+                                    modifier = Modifier.padding(horizontal = GLOW_ROOM).padding(top = 24.dp).revealIn(reveal, 0.71f, 22f),
                                 )
                             }
                         }
@@ -952,7 +1326,7 @@ fun LyricsScreen(
                     showRomanize = l.hasRomanization,
                     romanizationActive = LyricsRomanizationPref.on,
                     onRomanize = { LyricsRomanizationPref.set(context, !LyricsRomanizationPref.on) },
-                    onShare = { shareLyrics(context, title, artist, l.lines.getOrNull(active)?.text) },
+                    onShare = { shareLyrics(context, title, artist, l.lines.getOrNull(activeForShare)?.text) },
                     modifier = Modifier.revealIn(reveal, 0.5f, 16f, span = 0.5f),
                 )
             }
@@ -1220,6 +1594,8 @@ fun InlineLyrics(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().height(CARD_LINES_HEIGHT),
         ) {
+            val inlineDuet = remember(l) { l.hasDuet || l.lines.any { (it.voice ?: 0) > 1 } }
+            val songDurationMs = SongPlayer.getDuration().coerceAtLeast(0L)
             itemsIndexed(l.lines, key = { i, _ -> i }) { i, line ->
                 LyricLineText(
                     line = line,
@@ -1229,11 +1605,12 @@ fun InlineLyrics(
                     position = position,
                     translation = null,
                     onTap = null,
-                    duet = l.hasDuet,
+                    duet = inlineDuet,
                     distance = if (active < 0) 0 else abs(i - active),
                     nextLineMs = l.lines.getOrNull(i + 1)?.timeMs,
                     clock = clock,
                     depthFalloff = false,
+                    songDurationMs = songDurationMs,
                 )
             }
         }

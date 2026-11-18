@@ -563,7 +563,7 @@ private fun InstallButtons(onRepo: (() -> Unit)?, onFile: () -> Unit, onUrl: () 
 @Composable
 internal fun GuideLink(modifier: Modifier = Modifier, label: @Composable (String) -> Unit) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    Box(modifier.clip(RoundedCornerShape(8.dp)).clickable { runCatching { uriHandler.openUri("https://github.com/kota-zo/myspoti/blob/main/docs/extensions/GUIDE.md") } }.padding(vertical = 6.dp)) {
+    Box(modifier.clip(RoundedCornerShape(8.dp)).clickable { runCatching { uriHandler.openUri("https://github.com/Martinikaws/Astral/blob/main/FEED-EXTENSIONS.md") } }.padding(vertical = 6.dp)) {
         label(stringResource(R.string.extensions_guide))
     }
 }

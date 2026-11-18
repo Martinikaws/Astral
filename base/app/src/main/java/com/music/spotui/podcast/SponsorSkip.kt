@@ -154,7 +154,7 @@ object SponsorSkip {
             .addQueryParameter("categories", categories)
             .addQueryParameter("actionTypes", "[\"skip\"]")
             .build()
-        val request = Request.Builder().url(url).header("X-CLIENT-NAME", "Myspoti").build()
+        val request = Request.Builder().url(url).header("X-CLIENT-NAME", "Astral").build()
         return http.newCall(request).execute().use { r ->
             when {
                 // No segment for any id of that prefix.

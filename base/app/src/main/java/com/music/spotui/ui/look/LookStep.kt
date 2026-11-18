@@ -4,12 +4,14 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,20 +19,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,29 +53,45 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.LookPref
-import com.music.spotui.ui.theme.AppBackground
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.theme.AppAccent
+import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppSans
+import com.music.spotui.ui.theme.GlassifyBackground
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.LiquidMusicAccent
+import com.music.spotui.ui.theme.LiquidMusicBackground
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
+import com.music.spotui.ui.theme.SpotifusionBackground
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.theme.StarryAccent
+import com.music.spotui.ui.theme.StarryBlue
 import kotlin.math.abs
 
 /** Set when the step is the "new look" popup shown to existing users: its own title, buttons and note. */
 class LookOffer(val onKeep: () -> Unit)
 
 /**
- * Onboarding, the look: two segments over a live preview that plays the demo song in the chosen
- * look. The choice is saved as soon as a segment is touched, and the page itself takes the look
- * (its backdrop, type and button), so the difference shows twice.
+ * Onboarding / Settings Look chooser: all 5 unified Looks ([Look.entries]) over a live preview
+ * that plays the demo song in the chosen look. Saved immediately when tapped or swiped.
  */
 @Composable
 fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
     val context = LocalContext.current
     val look = LocalLook.current
-    val immersive = look == Look.IMMERSIVE
+    val immersive = look.isImmersive()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val starryActive = starryEnabled &&
+        !app.myspoti.power.EnergySettings.oledBlack &&
+        com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
     val reduceMotion = rememberReduceMotion()
     var paused by remember { mutableStateOf(false) }
     val clock = rememberDemoClock(running = !paused && !reduceMotion)
@@ -70,34 +100,69 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
     val text = TextStyle(fontFamily = family, color = Color.White)
     val dim = Color.White.copy(alpha = if (immersive) 0.72f else 1f)
     val subtle = if (immersive) Color.White.copy(alpha = 0.7f) else Color(0xFFB3B3B3)
+    val buttonColor = when (look) {
+        Look.SPOTIFUSION -> SpotifusionGreen
+        Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.GLASSIFY -> StarryBlue
+        Look.IMMERSIVE -> Color.White
+        Look.CLASSIC -> AppAccent
+    }
+    val buttonInk = if (buttonColor.luminance() > 0.45f) Color.Black else Color.White
 
     Box(Modifier.fillMaxSize()) {
-        Crossfade(look, animationSpec = tween(350), label = "lookBackdrop") {
-            if (it == Look.IMMERSIVE) {
-                MeshGradientBackground(cyclingMeshPalette(LookMeshPalettes), colorFadeMillis = MESH_CYCLE_MILLIS)
-            } else {
-                Box(Modifier.fillMaxSize().background(AppBackground))
+        Crossfade(look to starryActive, animationSpec = tween(350), label = "lookBackdrop") { (activeLook, starry) ->
+            when {
+                starry -> {
+                    val accentWash = activeLook.swatchColor()
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.radialGradient(
+                                colors = listOf(accentWash.copy(alpha = 0.14f), Color.Transparent),
+                            ),
+                        ),
+                    )
+                }
+                activeLook == Look.IMMERSIVE ->
+                    MeshGradientBackground(cyclingMeshPalette(LookMeshPalettes), colorFadeMillis = MESH_CYCLE_MILLIS)
+                activeLook == Look.GLASSIFY -> Box(
+                    Modifier.fillMaxSize().background(GlassifyBackground).background(
+                        Brush.radialGradient(colors = listOf(StarryBlue.copy(alpha = 0.28f), Color.Transparent)),
+                    ),
+                )
+                activeLook == Look.LIQUID_MUSIC -> Box(
+                    Modifier.fillMaxSize().background(LiquidMusicBackground).background(
+                        Brush.radialGradient(colors = listOf(LiquidMusicAccent.copy(alpha = 0.26f), Color.Transparent)),
+                    ),
+                )
+                activeLook == Look.SPOTIFUSION -> Box(Modifier.fillMaxSize().background(SpotifusionBackground))
+                else -> Box(Modifier.fillMaxSize().background(AppBackground))
             }
         }
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(stringResource(if (offer != null) R.string.look_offer_title else R.string.setup_look_title), style = text, fontSize = 26.sp,
-                fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold)
+            Text(
+                stringResource(if (offer != null) R.string.look_offer_title else R.string.setup_look_title),
+                style = text,
+                fontSize = 26.sp,
+                fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold,
+            )
             Text(stringResource(R.string.setup_look_subtitle), style = text, color = subtle, fontSize = 14.sp)
-            LookSegments(look, immersive, family, choose)
+            LookSegments(look, family, choose)
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                val description = stringResource(R.string.setup_look_preview, stringResource(look.nameRes()))
+                val description = stringResource(R.string.setup_look_preview, look.label)
                 if (reduceMotion) {
                     LookStills(look, subtle, Modifier.fillMaxSize().semantics { contentDescription = description })
                 } else {
                     PhoneFrame(Modifier.fillMaxSize().semantics { contentDescription = description }) {
-                        Crossfade(look, animationSpec = tween(350), label = "lookPreview") { LookDemo(it, clock) }
+                        Crossfade(look, animationSpec = tween(350), label = "lookPreview") {
+                            LookStepDemo(it, clock, still = false)
+                        }
                     }
                 }
                 // Above the preview, so nothing in it reacts: a tap pauses or resumes, a swipe
-                // changes the look.
+                // cycles through all 5 Looks.
                 Box(Modifier.matchParentSize().pointerInput(look) {
                     val swipe = 56.dp.toPx()
                     awaitEachGesture {
@@ -111,80 +176,234 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                             if (abs(dx) > viewConfiguration.touchSlop || abs(change.position.y - down.position.y) > viewConfiguration.touchSlop) moved = true
                             change.consume()
                         }
+                        val all = Look.entries
+                        val idx = all.indexOf(look).coerceAtLeast(0)
                         when {
                             !moved -> paused = !paused
-                            dx < -swipe -> choose(Look.IMMERSIVE)
-                            dx > swipe -> choose(Look.CLASSIC)
+                            dx < -swipe -> choose(all[(idx + 1) % all.size])
+                            dx > swipe -> choose(all[(idx - 1 + all.size) % all.size])
                         }
                     }
                 })
             }
             Text(
+                "${look.label} — ${look.detail}",
+                style = text,
+                color = Color.White.copy(alpha = 0.88f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
                 stringResource(if (reduceMotion) R.string.setup_look_still_hint else R.string.setup_look_tap_hint),
-                style = text, color = dim.copy(alpha = 0.6f), fontSize = 12.sp, textAlign = TextAlign.Center,
+                style = text, color = dim.copy(alpha = 0.6f), fontSize = 11.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(
                 onClick = onNext,
-                shape = if (immersive) RoundedCornerShape(14.dp) else ButtonDefaults.shape,
+                shape = when (look) {
+                    Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+                    Look.IMMERSIVE, Look.GLASSIFY -> RoundedCornerShape(14.dp)
+                    else -> ButtonDefaults.shape
+                },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (immersive) Color.White else AppAccent,
-                    contentColor = Color.Black,
+                    containerColor = buttonColor,
+                    contentColor = buttonInk,
                 ),
                 modifier = Modifier.fillMaxWidth().height(50.dp),
             ) {
-                Text(stringResource(if (offer != null) R.string.look_offer_try else R.string.setup_continue), fontFamily = family, fontSize = 16.sp,
-                    fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold)
+                Text(
+                    stringResource(if (offer != null) R.string.look_offer_try else R.string.setup_continue),
+                    fontFamily = family,
+                    fontSize = 16.sp,
+                    fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold,
+                )
             }
             if (offer != null) {
                 TextButton(onClick = offer.onKeep, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.look_offer_keep), color = Color.White, fontFamily = family, fontSize = 15.sp)
                 }
-                Text(stringResource(R.string.look_offer_note), style = text, color = dim.copy(alpha = 0.6f), fontSize = 12.sp,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(
+                    stringResource(R.string.look_offer_note),
+                    style = text,
+                    color = dim.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
 }
 
-private fun Look.nameRes() = if (this == Look.IMMERSIVE) R.string.look_immersive else R.string.look_classic
-private fun Look.detailRes() = if (this == Look.IMMERSIVE) R.string.look_immersive_detail else R.string.look_classic_detail
+private fun Look.swatchColor(): Color = when (this) {
+    Look.CLASSIC -> StarryAccent
+    Look.IMMERSIVE -> Color.White
+    Look.SPOTIFUSION -> SpotifusionGreen
+    Look.GLASSIFY -> StarryBlue
+    Look.LIQUID_MUSIC -> LiquidMusicAccent
+}
 
-/** "Classic | Immersive", each with a line on what it shows; drawn in the chosen look. */
+/** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 5 Looks. */
 @Composable
-private fun LookSegments(look: Look, immersive: Boolean, family: androidx.compose.ui.text.font.FontFamily, choose: (Look) -> Unit) {
-    val outer = if (immersive) RoundedCornerShape(18.dp) else RoundedCornerShape(24.dp)
-    val inner = if (immersive) RoundedCornerShape(14.dp) else RoundedCornerShape(20.dp)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(if (immersive) Color.White.copy(alpha = 0.14f) else Color(0xFF242424), outer)
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
+    val baseLook = if (look.isImmersive()) Look.IMMERSIVE else Look.CLASSIC
+    Box(Modifier.fillMaxSize()) {
+        LookDemo(baseLook, clock, still = still)
+        when (look) {
+            Look.SPOTIFUSION -> {
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(SpotifusionGreen)
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text("SPOTIFUSION 1:1", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Look.GLASSIFY -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(StarryBlue.copy(alpha = 0.22f), Color.Transparent),
+                            ),
+                        )
+                        .border(
+                            2.dp,
+                            Brush.linearGradient(
+                                colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.06f)),
+                                start = Offset.Zero,
+                                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                            ),
+                            RoundedCornerShape(44.dp),
+                        ),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(GlassifyGlassFill)
+                        .border(1.dp, GlassifyBorder, RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text("GLASSIFY", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Look.LIQUID_MUSIC -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .border(2.dp, LiquidMusicBorder, RoundedCornerShape(44.dp)),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 14.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(LiquidMusicSurface)
+                        .border(1.dp, LiquidMusicAccent.copy(alpha = 0.75f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text("LIQUIDMUSIC", color = LiquidMusicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Look.CLASSIC, Look.IMMERSIVE -> Unit
+        }
+    }
+}
+
+/** Horizontally scrollable 5-Look card picker so every Look has room for its title and summary. */
+@Composable
+private fun LookSegments(
+    look: Look,
+    family: androidx.compose.ui.text.font.FontFamily,
+    choose: (Look) -> Unit,
+) {
+    val all = Look.entries
+    val listState = rememberLazyListState()
+    LaunchedEffect(look) {
+        val idx = all.indexOf(look).coerceAtLeast(0)
+        runCatching { listState.animateScrollToItem(idx) }
+    }
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Look.entries.forEach { option ->
+        itemsIndexed(all) { _, option ->
             val selected = option == look
+            val swatch = option.swatchColor()
+            val cardShape = when (option) {
+                Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+                Look.GLASSIFY -> RoundedCornerShape(16.dp)
+                Look.IMMERSIVE -> RoundedCornerShape(14.dp)
+                else -> RoundedCornerShape(12.dp)
+            }
             val fill by animateColorAsState(
                 when {
-                    !selected -> Color.Transparent
-                    immersive -> Color.White.copy(alpha = 0.92f)
-                    else -> AppAccent
+                    selected && option == Look.SPOTIFUSION -> SpotifusionGreen
+                    selected && option == Look.IMMERSIVE -> Color.White.copy(alpha = 0.92f)
+                    selected && option == Look.GLASSIFY -> GlassifyGlassFill
+                    selected && option == Look.LIQUID_MUSIC -> LiquidMusicSurface
+                    selected -> AppAccent
+                    option == Look.GLASSIFY -> GlassifyGlassFill
+                    option == Look.LIQUID_MUSIC -> LiquidMusicSurface.copy(alpha = 0.65f)
+                    else -> Color(0xCC182234)
                 },
-                label = "segmentFill",
+                label = "lookCardFill",
             )
-            val ink = if (selected) Color.Black else Color.White
+            val ink = when {
+                selected && (option == Look.SPOTIFUSION || option == Look.IMMERSIVE || option == Look.CLASSIC) ->
+                    if (fill.luminance() > 0.45f) Color.Black else Color.White
+                else -> Color.White
+            }
+            val borderColor = when {
+                selected && option == Look.LIQUID_MUSIC -> LiquidMusicAccent
+                selected && option == Look.GLASSIFY -> GlassifyBorder
+                selected -> swatch
+                else -> Color.White.copy(alpha = 0.12f)
+            }
             Column(
                 Modifier
-                    .weight(1f)
-                    .background(fill, inner)
+                    .width(164.dp)
+                    .clip(cardShape)
+                    .background(fill, cardShape)
+                    .border(if (selected) 1.5.dp else 1.dp, borderColor, cardShape)
                     .clickable { choose(option) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(stringResource(option.nameRes()), color = ink, fontFamily = family, fontSize = 15.sp,
-                    fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold)
-                Text(stringResource(option.detailRes()), color = ink.copy(alpha = 0.72f), fontFamily = family, fontSize = 11.sp,
-                    lineHeight = 14.sp, textAlign = TextAlign.Center, minLines = 2, maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (selected && ink == Color.Black) Color.Black else swatch))
+                    Text(
+                        option.label,
+                        color = ink,
+                        fontFamily = family,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    option.detail,
+                    color = ink.copy(alpha = 0.76f),
+                    fontFamily = family,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -197,7 +416,7 @@ private fun LookStills(look: Look, caption: Color, modifier: Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DemoScript.stills.forEachIndexed { index, ms ->
             Column(Modifier.weight(1f).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                PhoneFrame(Modifier.fillMaxWidth().weight(1f)) { LookDemo(look, rememberStillClock(ms), still = true) }
+                PhoneFrame(Modifier.fillMaxWidth().weight(1f)) { LookStepDemo(look, rememberStillClock(ms), still = true) }
                 Spacer(Modifier.height(6.dp))
                 Text(stringResource(captions[index]), color = caption, fontSize = 12.sp, maxLines = 1)
             }

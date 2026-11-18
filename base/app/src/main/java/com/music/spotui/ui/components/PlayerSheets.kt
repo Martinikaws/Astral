@@ -581,7 +581,7 @@ fun QueueSheet(contextName: String, onDismiss: () -> Unit) {
                                 Icon(
                                     if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (playing) stringResource(R.string.content_description_pause_button) else stringResource(R.string.content_description_play_button),
-                                    tint = com.music.spotui.ui.theme.AppBackground, modifier = Modifier.size(22.dp),
+                                    tint = Color(0xFF0A1422), modifier = Modifier.size(22.dp),
                                 )
                             }
                         }, onClick = {})

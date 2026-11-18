@@ -10,6 +10,7 @@
  */
 package com.music.spotui.ui.look
 
+import android.os.Build
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -43,6 +45,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.sin
 
 /** Returns true if most of the strongly directional characters in [text] are right-to-left. */
 private fun isRtl(text: String): Boolean {
@@ -74,12 +79,12 @@ const val SUNG_ALPHA = 0.78f
 /**
  * The bloom behind the line being sung, at its very strongest.
  */
-const val GLOW_ALPHA = 0.72f
+const val GLOW_ALPHA = 0.78f
 
 /**
  * How far the bloom spreads off a letter.
  */
-private val GLOW_RADIUS = 8.dp
+private val GLOW_RADIUS = 10.dp
 
 /**
  * Room reserved inside each copy of a line for the halo to spread into.
@@ -89,7 +94,7 @@ private val GLOW_RADIUS = 8.dp
  * inset so they still lay out identically, and the list gives the width back
  * by taking it off its own padding and row spacing.
  */
-val GLOW_ROOM = 10.dp
+val GLOW_ROOM = 12.dp
 
 /** Where a lyric line is in its own animation; see [SweptLyricLine]. */
 private const val PHASE_BEFORE = 0
@@ -104,15 +109,27 @@ private const val PHASE_AFTER = 2
  * sung. Feathering it over roughly a character and a half is what turns the
  * cut back into a wavefront.
  */
-private val WIPE_FEATHER = 30.dp
+private val WIPE_FEATHER = 32.dp
 
 /**
  * How far the word being sung lifts off the line.
  */
 private val WORD_RISE = 3.dp
 
-/** Subtle kinetic scale-up on active sung words. */
-private const val ACTIVE_WORD_SCALE = 1.05f
+/** Subtle kinetic scale-up on ordinary active words. */
+private const val ACTIVE_WORD_SCALE = 1.035f
+
+/** Peak swell on emphasized/held words (> 600 ms). */
+private const val HELD_WORD_SCALE = 1.06f
+
+/** Duration threshold above which a sung word earns held-word swell & bloom. */
+private const val HELD_WORD_THRESHOLD_MS = 600L
+
+/** Duration over which a lifted word settles smoothly back onto the baseline (fits within [SweptLine.animatesUntilMs]). */
+private const val WORD_SETTLE_MS = 650f
+
+/** Line-synced vocal sweep ceiling when a huge gap precedes the next line. */
+private const val LINE_SWEEP_GAP_THRESHOLD_MS = 7_500L
 
 /**
  * How much further up a row is opened when it holds a word being animated
@@ -123,11 +140,11 @@ private const val GROW_HEADROOM = 3f
 
 /**
  * How the stack falls away either side of the line being sung, indexed by
- * distance from it. The two lines around the playing one stay legible so you
- * can read ahead and behind; the last entry stands for everything further out.
+ * distance from it. Neighboring lines fade smoothly from 0.42f down to 0.22f
+ * so focus locks onto the active lyric cleanly.
  */
-val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.72f, 0.52f, 0.36f, 0.24f)
-val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.2.dp, 2.dp, 2.8.dp, 3.6.dp)
+val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.42f, 0.34f, 0.27f, 0.22f)
+val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.4.dp, 2.3.dp, 3.1.dp, 3.8.dp)
 
 /** The playing line sits at 1; the rest scale down subtly with distance. */
 const val INACTIVE_SCALE = 0.94f
@@ -136,8 +153,7 @@ const val INACTIVE_SCALE = 0.94f
 fun scaleForDistance(distance: Int): Float = when (distance) {
     0 -> 1f
     1 -> 0.96f
-    2 -> 0.94f
-    else -> 0.92f
+    else -> INACTIVE_SCALE
 }
 
 /**
@@ -147,6 +163,62 @@ fun scaleForDistance(distance: Int): Float = when (distance) {
  */
 val LYRIC_EASING = CubicBezierEasing(0.41f, 0f, 0.12f, 0.99f)
 const val LYRIC_SETTLE_MS = 400
+
+/** Critically-damped spring unit response for [t] in 0..1 (zero overshoot, silky landing). */
+private fun criticallyDamped(t: Float): Float {
+    val u = t.coerceIn(0f, 1f)
+    return ((1f - (1f + 6f * u) * exp(-6f * u)) / 0.98265f).coerceIn(0f, 1f)
+}
+
+/** Smoothly eased 0..1 curve for line-synced progressive sweep pacing. */
+private fun smoothstep(t: Float): Float {
+    val u = t.coerceIn(0f, 1f)
+    return u * u * (3f - 2f * u)
+}
+
+/**
+ * Critically-damped spring lift (0..1) for [word] at [positionMs].
+ * Rises swiftly as the word begins and settles gently back over [WORD_SETTLE_MS].
+ */
+private fun springWordLift(word: SweptWord, positionMs: Long): Float {
+    if (positionMs <= word.startMs || positionMs >= word.endMs + WORD_SETTLE_MS.toLong()) return 0f
+    val duration = (word.endMs - word.startMs).coerceAtLeast(1L).toFloat()
+    val riseWindow = duration.coerceIn(220f, 520f)
+    val rise = criticallyDamped((positionMs - word.startMs) / riseWindow)
+    val settle = 1f - criticallyDamped((positionMs - word.endMs) / WORD_SETTLE_MS)
+    val heldRamp = ((duration - 140f) / 460f).coerceIn(0f, 1f)
+    val amplitude = 0.38f + 0.62f * smoothstep(heldRamp)
+    return amplitude * minOf(rise, settle)
+}
+
+/** Kinetic scale for [word] given its current [lift], peaking at [HELD_WORD_SCALE] on held notes > 600 ms. */
+private fun wordScaleFor(word: SweptWord, lift: Float): Float {
+    if (lift <= 0.001f) return 1f
+    val held = word.endMs - word.startMs
+    val peak = if (held > HELD_WORD_THRESHOLD_MS) {
+        val t = ((held - HELD_WORD_THRESHOLD_MS).toFloat() / 420f).coerceIn(0f, 1f)
+        1.045f + (HELD_WORD_SCALE - 1.045f) * smoothstep(t)
+    } else {
+        val t = (held.toFloat() / HELD_WORD_THRESHOLD_MS).coerceIn(0f, 1f)
+        1.018f + (ACTIVE_WORD_SCALE - 1.018f) * smoothstep(t)
+    }
+    return 1f + (peak - 1f) * lift
+}
+
+/**
+ * Progressive illumination fraction (0..1) for a line-synced lyric without word timings
+ * across its duration (`nextLineStartMs - lineStartMs`).
+ */
+private fun lineSyncedProgress(line: SweptLine, positionMs: Long): Float {
+    val rawSpan = (line.endMs - line.timeMs).coerceAtLeast(1L)
+    val sweepSpan = if (rawSpan > LINE_SWEEP_GAP_THRESHOLD_MS) {
+        minOf(rawSpan, maxOf(3_600L, line.text.length * 100L))
+    } else {
+        rawSpan
+    }
+    val linear = ((positionMs - line.timeMs).toFloat() / sweepSpan.coerceAtLeast(1L)).coerceIn(0f, 1f)
+    return (0.84f * linear + 0.16f * smoothstep(linear)).coerceIn(0f, 1f)
+}
 
 /** Clips to the box, then draws [block] moved down by [dy]. */
 private fun DrawScope.clipShiftedDown(
@@ -201,6 +273,8 @@ fun SweptLyricLine(
     color: Color = Color.White,
     /** Tint of the starlight/accent bloom behind active words. */
     glowColor: Color = color,
+    /** Optional layout callback for tap-to-seek and annotations. */
+    onTextLayout: ((TextLayoutResult) -> Unit)? = null,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -216,12 +290,6 @@ fun SweptLyricLine(
     // draw passes below read the clock only while it says moving; on either
     // side they draw a position that looks identical to any other there (see
     // [SweptLine.animatesFromMs]), so a line nobody is singing never redraws.
-    //
-    // Read in draw, every line on screen used to redraw on every frame of
-    // playback, and each line away from the playing one sits under a blur
-    // that then had to be worked out again — most of the panel's frame, for a
-    // picture that had not changed. Paused, nothing moved, which is why the
-    // panel was smooth paused and slow playing.
     val phase = remember(line, clock) {
         derivedStateOf(structuralEqualityPolicy()) {
             val now = clock.longValue
@@ -240,28 +308,8 @@ fun SweptLyricLine(
         }
     }
 
-    // Carried by every copy: identical insets keep them laying out identically,
-    // and the inset is what gives the blurred copy's layer somewhere to put the
-    // halo. Sits inside the blur and outside the draw lambdas, so text-layout
-    // coordinates and draw coordinates still agree.
-    //
-    // Off unless asked for. Only the full panel can afford it — it takes the
-    // space back off its own row spacing and content padding. Handed to the
-    // one-line strip above the scrubber, where there is no glow to make room
-    // for and nothing paying the space back, it just left the line sitting in
-    // a pocket of air with the chevron pushed off it.
     val room = if (glowRoom > 0.dp) Modifier.padding(glowRoom) else Modifier
 
-    // Sits outside [room] and outside the sweep, so what it moves is the
-    // finished picture of the word — dim tail, lit head and all — rather than
-    // one copy sliding out from under another. Carried by both copies from the
-    // same arithmetic, which is what keeps them on top of each other.
-    //
-    // Off for the one-line strip above the scrubber ([rise] = false). The lift
-    // belongs to a page of lyrics, where a word rising out of the line it sits
-    // in is the thing being read; on a single line pinned between the credits
-    // and the slider it has nothing to rise away from and reads as the strip
-    // itself twitching.
     val riseAgainst: (Modifier) -> Modifier = { inner ->
         if (!rise) {
             inner
@@ -289,20 +337,13 @@ fun SweptLyricLine(
     val sweep = Modifier.drawWithContent {
         val position = drawnAt()
         when {
-            // Sung and done with: all of it is lit. Checked first so the lines
-            // above and below the playing one — which are in this same state
-            // for minutes at a time — cost a comparison per frame rather than
-            // a walk of their words.
             position >= line.endMs -> drawContent()
-            // Not started: nothing lit, the dim copy is the whole of it.
             position <= line.timeMs -> Unit
             else -> layout?.let {
                 val revealed = if (line.words.isNotEmpty()) {
                     line.revealedChars(position)
                 } else if (line.endMs > line.timeMs) {
-                    val span = (line.endMs - line.timeMs).coerceAtLeast(1L)
-                    val through = ((position - line.timeMs).toFloat() / span).coerceIn(0f, 1f)
-                    through * line.text.length
+                    lineSyncedProgress(line, position) * line.text.length
                 } else {
                     line.revealedChars(position)
                 }
@@ -311,9 +352,25 @@ fun SweptLyricLine(
         }
     }
 
+    val auraModifier = if (glowAlpha > 0.01f) {
+        Modifier.drawBehind {
+            val measured = layout ?: return@drawBehind
+            drawAmbientBloom(
+                layout = measured,
+                line = line,
+                positionMs = drawnAt(),
+                inset = glowRoom.toPx(),
+                peak = WORD_RISE.toPx(),
+                glowColor = glowColor,
+                glowAlpha = glowAlpha,
+                blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+            )
+        }
+    } else Modifier
+
     val right = alignsRight(line.text, alignEnd, laneLocked)
     Box(
-        modifier,
+        modifier.then(auraModifier),
         contentAlignment = if (right) AbsoluteAlignment.TopRight else AbsoluteAlignment.TopLeft,
     ) {
         Text(
@@ -322,10 +379,13 @@ fun SweptLyricLine(
             color = color.copy(alpha = dimAlpha),
             maxLines = maxLines,
             overflow = overflow,
-            onTextLayout = { layout = it },
+            onTextLayout = {
+                layout = it
+                onTextLayout?.invoke(it)
+            },
             modifier = riseAgainst(room),
         )
-        if (glowAlpha > 0.01f) {
+        if (glowAlpha > 0.01f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Text(
                 text = line.text,
                 style = style,
@@ -335,17 +395,10 @@ fun SweptLyricLine(
                 modifier = Modifier
                     .graphicsLayer { alpha = glowAlpha }
                     .blur(glowRadius, BlurredEdgeTreatment.Unbounded)
-                    .then(room)
-                    // Each letter is masked to its own brightness with DstIn,
-                    // which needs a layer of its own to erase into — against the
-                    // backdrop it would take the artwork with it.
+                    // Offscreen wraps glowGrown + room so DstIn erases only inside this layer
+                    // and clip/text coordinates both share the same [glowRoom] inset.
                     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                     .drawWithContent {
-                        // Deliberately not the shared sweep: that lights
-                        // everything sung so far, and this lights only the words
-                        // being held. Most lines draw nothing here at all, which
-                        // is the whole difference between this and a halo
-                        // travelling under the highlight.
                         val measured = layout ?: return@drawWithContent
                         glowGrown(
                             layout = measured,
@@ -355,7 +408,8 @@ fun SweptLyricLine(
                             peak = WORD_RISE.toPx(),
                             growth = growth,
                         )
-                    },
+                    }
+                    .then(room),
             )
         }
         Text(
@@ -364,10 +418,6 @@ fun SweptLyricLine(
             color = color,
             maxLines = maxLines,
             overflow = overflow,
-            // The feather erases into this layer, so the layer has to exist —
-            // and only while it is being drawn. Every line carrying one would
-            // put the whole panel through an offscreen buffer to soften an edge
-            // that at most two of them have.
             modifier = riseAgainst(
                 Modifier
                     .graphicsLayer {
@@ -385,19 +435,85 @@ fun SweptLyricLine(
 }
 
 /**
+ * Draws a soft radial starlight/accent bloom behind active or held words (and traveling along
+ * active line-synced phrases). Acts as a subtle atmospheric aura on API 31+ and as a crisp,
+ * ghost-free fallback glow on Android versions where [Modifier.blur] is unsupported.
+ */
+private fun DrawScope.drawAmbientBloom(
+    layout: TextLayoutResult,
+    line: SweptLine,
+    positionMs: Long,
+    inset: Float,
+    peak: Float,
+    glowColor: Color,
+    glowAlpha: Float,
+    blurSupported: Boolean,
+) {
+    if (positionMs < line.timeMs || positionMs > line.animatesUntilMs) return
+    val textLen = layout.layoutInput.text.length
+    if (textLen <= 0 || layout.lineCount <= 0) return
+    val baseStrength = if (blurSupported) 0.18f else 0.34f
+
+    if (line.words.isEmpty()) {
+        if (positionMs !in line.timeMs..line.endMs) return
+        val through = lineSyncedProgress(line, positionMs)
+        val charIdx = (through * (textLen - 1)).toInt().coerceIn(0, textLen - 1)
+        val vl = layout.getLineForOffset(charIdx)
+        val left = layout.getLineLeft(vl) + inset
+        val right = layout.getLineRight(vl) + inset
+        val cx = left + (right - left) * ((through * layout.lineCount) - vl).coerceIn(0f, 1f)
+        val cy = (layout.getLineTop(vl) + layout.getLineBottom(vl)) / 2f + inset
+        val radius = maxOf((layout.getLineBottom(vl) - layout.getLineTop(vl)) * 1.45f, 36.dp.toPx())
+        val pulse = sin(through * PI).toFloat().coerceIn(0f, 1f)
+        val alpha = (glowAlpha * baseStrength * (0.4f + 0.6f * pulse)).coerceIn(0f, 1f)
+        if (alpha > 0.01f) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(glowColor.copy(alpha = alpha), Color.Transparent),
+                    center = Offset(cx, cy),
+                    radius = radius,
+                ),
+                radius = radius,
+                center = Offset(cx, cy),
+            )
+        }
+        return
+    }
+
+    for (i in line.words.indices) {
+        val w = line.words[i]
+        val lift = springWordLift(w, positionMs)
+        if (lift <= 0.02f) continue
+        val heldBonus = if (w.endMs - w.startMs > HELD_WORD_THRESHOLD_MS) 1.35f else 0.72f
+        val span = line.wordSpans.getOrNull(i) ?: continue
+        val first = span.first.coerceIn(0, textLen - 1)
+        val last = span.last.coerceIn(first, textLen - 1)
+        val vl = layout.getLineForOffset(first)
+        val from = layout.xOn(first, vl, inset)
+        val to = layout.xOn(minOf(last + 1, layout.getLineEnd(vl, visibleEnd = true)), vl, inset)
+        if (to <= from) continue
+        val cy = (layout.getLineTop(vl) + layout.getLineBottom(vl)) / 2f + inset - lift * peak
+        val cx = (from + to) / 2f
+        val radius = maxOf((to - from) * 0.85f, (layout.getLineBottom(vl) - layout.getLineTop(vl)) * 1.15f)
+        val alpha = (glowAlpha * baseStrength * heldBonus * lift).coerceIn(0f, 0.6f)
+        if (alpha > 0.01f) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(glowColor.copy(alpha = alpha), Color.Transparent),
+                    center = Offset(cx, cy),
+                    radius = radius,
+                ),
+                radius = radius,
+                center = Offset(cx, cy),
+            )
+        }
+    }
+}
+
+/**
  * Draws this text clipped to the letters of the words being held, each at its
  * own brightness — the light the singing is actually giving off, rather than a
  * band of it dragged along behind the highlight.
- *
- * Nothing at all on a line of ordinary syllables: the words that light up are
- * the ones held long enough to have earned it, so a verse of patter is simply
- * dark and costs one comparison to establish. That selectiveness is the point.
- * A glow present on every word is a property of the highlight; a glow that
- * arrives only when a note is carried is a property of the voice.
- *
- * Each letter is masked to its own bloom rather than drawn at it, because the
- * caller's layer is what this erases into — see [SweptLyricLine]. The mask
- * lands before the blur, so what spreads is already the right brightness.
  */
 private fun ContentDrawScope.glowGrown(
     layout: TextLayoutResult,
@@ -407,28 +523,43 @@ private fun ContentDrawScope.glowGrown(
     peak: Float,
     growth: CharGrowth,
 ) {
-    // Line-level fallback glow while the line is active.
+    val length = layout.layoutInput.text.length
+    if (length <= 0) return
+
+    // Line-synced lyrics: bloom tracks the progressive illumination wavefront smoothly.
     if (line.words.isEmpty()) {
         if (positionMs in line.timeMs..line.endMs) {
-            drawContent()
-            drawRect(color = Color.White.copy(alpha = 0.32f), blendMode = BlendMode.DstIn)
+            val through = lineSyncedProgress(line, positionMs)
+            val revealed = through * line.text.length
+            val waveAlpha = (0.18f + 0.34f * sin(through * PI).toFloat()).coerceIn(0f, 1f)
+            sweepTo(layout, revealed, emptyList(), feather = true, inset = inset)
+            drawRect(color = Color.White.copy(alpha = waveAlpha), blendMode = BlendMode.DstIn)
         }
         return
     }
-    // Subtle glow on any currently active word so even non-held words shimmer softly.
+
     val growingIndices = if (line.isGrowing(positionMs)) {
         line.growingWords.filter { positionMs in it.startMs..it.restsAtMs }.map { it.index }.toSet()
     } else emptySet()
-    val length = layout.layoutInput.text.length
+
     for (i in line.words.indices) {
         if (i in growingIndices) continue
         val w = line.words[i]
-        if (positionMs < w.startMs || positionMs > w.endMs) continue
+        val lift = springWordLift(w, positionMs)
+        if (positionMs < w.startMs && lift <= 0.01f) continue
+        if (positionMs > w.endMs && lift <= 0.01f) continue
         val span = line.wordSpans.getOrNull(i) ?: continue
         val first = span.first.coerceIn(0, length - 1)
         val last = span.last.coerceIn(first, length - 1)
         val startLine = layout.getLineForOffset(first)
         val endLine = layout.getLineForOffset(last)
+        val wordScale = wordScaleFor(w, lift)
+        val dy = -lift * peak
+        val isHeld = w.endMs - w.startMs > HELD_WORD_THRESHOLD_MS
+        val wordDur = (w.endMs - w.startMs).coerceAtLeast(1L).toFloat()
+        val wordProg = ((positionMs - w.startMs) / wordDur).coerceIn(0f, 1f)
+        val heldPeak = if (isHeld) 0.42f + 0.56f * sin(wordProg * PI).toFloat().coerceAtLeast(0f) else 0.36f
+        val liftGlow = (heldPeak * (0.45f + 0.55f * lift)).coerceIn(0f, 1f)
         for (vl in startLine..endLine) {
             val lStart = maxOf(first, layout.getLineStart(vl))
             val lEnd = minOf(last + 1, layout.getLineEnd(vl, visibleEnd = true))
@@ -436,11 +567,20 @@ private fun ContentDrawScope.glowGrown(
             val from = layout.xOn(lStart, vl, inset)
             val to = layout.xOn(lEnd, vl, inset)
             if (to <= from) continue
-            val top = layout.getLineTop(vl) + inset - peak
+            val top = layout.getLineTop(vl) + inset
             val bottom = layout.getLineBottom(vl) + inset
-            val liftGlow = (0.28f + 0.50f * line.wordLift(i, positionMs)).coerceIn(0f, 1f)
-            clipRect(left = from, top = top, right = to, bottom = bottom) {
-                this@glowGrown.drawContent()
+            val overhang = (to - from) * (wordScale - 1f) / 2f
+            clipRect(
+                left = from - overhang,
+                top = top - peak * GROW_HEADROOM,
+                right = to + overhang,
+                bottom = bottom,
+            ) {
+                translate(top = dy) {
+                    scale(wordScale, wordScale, Offset((from + to) / 2f, (top + bottom) / 2f)) {
+                        this@glowGrown.drawContent()
+                    }
+                }
                 drawRect(color = Color.White.copy(alpha = liftGlow), blendMode = BlendMode.DstIn)
             }
         }
@@ -450,12 +590,13 @@ private fun ContentDrawScope.glowGrown(
     for (word in line.growingWords) {
         if (positionMs < word.startMs || positionMs > word.restsAtMs) continue
         val span = line.wordSpans[word.index]
-        val fall = line.wordFall(word.index, positionMs)
+        val fall = if (positionMs <= word.endMs) 1f else {
+            1f - criticallyDamped(((positionMs - word.endMs) / WORD_SETTLE_MS).coerceIn(0f, 1f))
+        }
         for (char in span.first..minOf(span.last, length - 1)) {
             word.sampleInto(char - span.first, positionMs, growth)
             if (growth.bloom <= 0.01f) continue
             val visualLine = layout.getLineForOffset(char)
-            // Row-aware, for the same reason the sweep is; see [xOn].
             val from = layout.xOn(char, visualLine, inset)
             val to = layout.xOn(char + 1, visualLine, inset)
             if (to <= from) continue
@@ -479,9 +620,6 @@ private fun ContentDrawScope.glowGrown(
                         this@glowGrown.drawContent()
                     }
                 }
-                // Scoped to this letter's own clip, so it takes this letter's
-                // brightness down and leaves its neighbours — which have their
-                // own, a beat behind — where they are.
                 drawRect(
                     color = Color.White.copy(alpha = growth.bloom),
                     blendMode = BlendMode.DstIn,
@@ -494,15 +632,6 @@ private fun ContentDrawScope.glowGrown(
 /**
  * Redraws this row with the word being sung lifted off the line, and the ones
  * behind it settling back down.
- *
- * The line is cut at word boundaries and each piece replayed at its own
- * height, which is what CSS gets for free by making every syllable its own
- * box. Cutting between words rather than inside one means no glyph is ever
- * sliced, and the pieces that are on the floor — which is most of them, most
- * of the time — are one replay between them rather than one each.
- *
- * Costs nothing at all until something is off the floor: a line with no lift
- * on it draws exactly once, the same as it did before any of this.
  */
 private fun ContentDrawScope.riseWith(
     layout: TextLayoutResult,
@@ -520,11 +649,6 @@ private fun ContentDrawScope.riseWith(
     for (visualLine in 0 until layout.lineCount) {
         val lineStart = layout.getLineStart(visualLine)
         val lineEnd = layout.getLineEnd(visualLine, visibleEnd = true)
-        // The row's own box. Anything standing still is clipped to exactly
-        // this: a band opened upwards would take in the bottom of the row
-        // above and draw it a second time, and two passes of a half-transparent
-        // line do not add up to the same line. That doubled sliver along every
-        // row is what read as the lines overlapping.
         val top = layout.getLineTop(visualLine) + inset
         val bottom = layout.getLineBottom(visualLine) + inset
         var at = lineStart
@@ -534,23 +658,13 @@ private fun ContentDrawScope.riseWith(
             val start = maxOf(span.first, lineStart)
             val end = minOf(span.last + 1, lineEnd)
             if (start >= end) continue
-            // Only while it is actually moving. Once the last letter has come to
-            // rest the word is back to being an ordinary sung word settling
-            // down, and the two agree exactly at the handover — a letter rests
-            // at precisely the lift [SweptLine.wordLift] would give it — so the
-            // cheaper single slice takes over without a step.
             val held = line.growingAt(index)?.takeIf { positionMs in it.startMs..it.restsAtMs }
-            val lift = line.wordLift(index, positionMs)
-            // A word with nothing happening to it is left to the flat run,
-            // which is the whole of the line for all but a syllable of it.
+            val word = line.words[index]
+            val lift = springWordLift(word, positionMs)
             if (held == null && lift <= 0.01f) continue
             val from = layout.xOn(start, visualLine, inset)
             val to = layout.xOn(end, visualLine, inset)
-            // Nothing to cut. Left where it is rather than stepped over, so the
-            // flat run still has it and the row keeps its words.
             if (to <= from) continue
-            // Everything between the last risen word and this one is flat, and
-            // goes down in a single piece however many words that spans.
             if (start > at) sliceRisen(edge, top, from, bottom, 0f)
             if (held != null) {
                 growEach(
@@ -558,7 +672,7 @@ private fun ContentDrawScope.riseWith(
                     start, end, top, bottom, inset, peak, em, growth,
                 )
             } else {
-                val wordScale = 1f + (ACTIVE_WORD_SCALE - 1f) * lift
+                val wordScale = wordScaleFor(word, lift)
                 val overhang = (to - from) * (wordScale - 1f) / 2f
                 clipShiftedDown(
                     left = from - overhang,
@@ -581,20 +695,6 @@ private fun ContentDrawScope.riseWith(
     }
 }
 
-/**
- * Redraws one held word a letter at a time, each at its own swell and height.
- *
- * The word is cut between characters rather than between words, so a letter can
- * be scaled about its own centre without the ones either side of it coming
- * along. Each piece is clipped to where its letter is *going* rather than where
- * it sits: a glyph grown about its middle reaches past the box it was laid out
- * in, and clipping to that box would shave both sides off it as it swells.
- *
- * The overlap that buys — a letter's clip reaching a pixel or so into its
- * neighbour's — is why this is only ever run on a word that has earned it. Two
- * copies of a glyph edge a pixel apart is nothing on a letter mid-swell and
- * would be an obvious double image across a whole line.
- */
 @Suppress("LongParameterList")
 private fun ContentDrawScope.growEach(
     layout: TextLayoutResult,
@@ -611,13 +711,10 @@ private fun ContentDrawScope.growEach(
     em: Float,
     growth: CharGrowth,
 ) {
-    // The settle is shared with every other word: a letter comes to rest at the
-    // same small lift, and then goes down with the rest of the line.
-    val fall = line.wordFall(word.index, positionMs)
+    val fall = if (positionMs <= word.endMs) 1f else {
+        1f - criticallyDamped(((positionMs - word.endMs) / WORD_SETTLE_MS).coerceIn(0f, 1f))
+    }
     val first = line.wordSpans[word.index].first
-    // Room to swell into, above the row rather than inside it. The pivot stays
-    // on the row's own middle: scaling about the middle of the *band* would
-    // walk every letter downwards as it grew.
     val ceiling = top - peak * GROW_HEADROOM
     val middle = (top + bottom) / 2f
     for (char in start until end) {
@@ -744,6 +841,7 @@ private fun horizontalAt(
     val here = layout.xOn(index, visualLine, 0f)
     val rawNext = index + 1
     val textLen = layout.layoutInput.text.length
+    if (textLen <= 0) return here
     val spills: Boolean = layout.getLineForOffset(rawNext.coerceIn(0, textLen)) != visualLine
     val next: Float = if (spills) {
         // Spilled to the next visual line: use this line's far edge as the
@@ -790,60 +888,36 @@ private fun ContentDrawScope.sweepTo(
     revealedChars: Float,
     spans: List<IntRange>,
     feather: Boolean,
+    inset: Float = 0f,
 ) {
     if (revealedChars <= 0f) return
     val textLen = layout.layoutInput.text.length
+    if (textLen <= 0) return
     if (revealedChars >= textLen) {
         drawContent()
         return
     }
-    // Derive RTL from the layout's own resolved paragraph direction, not from
-    // text heuristics.  This keeps geometry in lock-step with how Compose
-    // actually laid out the glyphs — critical when a translation line (Hebrew)
-    // sits under an English lead and both get different text-analysis results.
-    val offset = layout.getLineStart(0).coerceIn(0, (layout.layoutInput.text.length - 1).coerceAtLeast(0))
+    val offset = layout.getLineStart(0).coerceIn(0, textLen - 1)
     val rtl = layout.getParagraphDirection(offset) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
 
     for (visualLine in 0 until layout.lineCount) {
         val lineStart = layout.getLineStart(visualLine)
-        val lineEndVisible = layout.getLineEnd(visualLine, visibleEnd = true)
         val lineEndAll = layout.getLineEnd(visualLine, visibleEnd = false)
 
-        // Lines whose character-range start is past the sweep boundary have
-        // nothing lit; lines after that too.  Use `>` (not `>=`) so a line
-        // whose *first* char is exactly at the boundary still gets drawn —
-        // it is the boundary line and must show the feather edge.
         if (revealedChars <= lineStart) return
 
         val cut = revealedChars < lineEndAll
-        val charPos = if (cut) {
+        val charPos = inset + if (cut) {
             horizontalAt(layout, revealedChars, visualLine, spans)
         } else {
-            // The sweep has passed this entire visual line.  Its boundary is
-            // the *far* edge: right edge for RTL (lineLeft), left edge for LTR.
             if (rtl) layout.getLineLeft(visualLine) else layout.getLineRight(visualLine)
         }
 
-        val lineLeft = layout.getLineLeft(visualLine)
-        val lineRight = layout.getLineRight(visualLine)
+        val lineLeft = layout.getLineLeft(visualLine) + inset
+        val lineRight = layout.getLineRight(visualLine) + inset
 
-        // Clamp the sweep boundary so the clip rect is always valid and never
-        // inverted near the line ends.  For RTL the revealed prefix [0,k) must
-        // occupy [x(k), lineRight], with x(k) clamped inside [lineLeft, lineRight].
         val safeCharPos = charPos.coerceIn(lineLeft, lineRight)
 
-        // The feather runs *ahead* of the boundary, into what is still to be
-        // sung: lit solid up to now, fading out over the next [WIPE_FEATHER].
-        // Trailing behind it instead, the letter being sung right now was the
-        // dimmest part of the lit copy, and the line ran out of time with a
-        // faded tail still on it and then snapped to full — which read as the
-        // highlight being late. Ahead of it, the fade runs off the end of the
-        // text as the last letter is reached, and the line finishes already
-        // whole.
-        //
-        // Grown in over the first [WIPE_FEATHER] of each row rather than
-        // opened at full width, or the first letter of every row would pop in
-        // half-lit the frame the sweep reached it.
         val featherPx = if (feather && cut) {
             minOf(
                 WIPE_FEATHER.toPx(),
@@ -858,20 +932,16 @@ private fun ContentDrawScope.sweepTo(
             (safeCharPos + featherPx).coerceAtMost(lineRight)
         }
 
-        // For RTL lines the sweep fills right-to-left: clip from the line's
-        // right edge down to the feather's leading edge.  For LTR it fills
-        // left-to-right as before.
         val (clipLeft, clipRight) = if (rtl) {
             lead to lineRight
         } else {
             lineLeft to lead
         }
 
-        // Guard: an empty or inverted clip is a no-op; skip it cleanly.
         if (clipLeft >= clipRight) continue
 
-        val top = layout.getLineTop(visualLine)
-        val bottom = layout.getLineBottom(visualLine)
+        val top = layout.getLineTop(visualLine) + inset
+        val bottom = layout.getLineBottom(visualLine) + inset
         clipRect(
             left = clipLeft,
             top = top,
@@ -881,17 +951,8 @@ private fun ContentDrawScope.sweepTo(
             this@sweepTo.drawContent()
         }
 
-        // Only the visual line holding the boundary has an edge to soften; a
-        // line revealed to its end runs into the wrap, which is not an edge.
         if (featherPx < 0.5f) continue
 
-        // Scoped to this line's band so the mask cannot reach the lines above
-        // and below it: DstIn erases whatever the source does not cover, and
-        // outside the clip there is no source at all, so they are left alone.
-        // Within it the brush clamps — opaque up to the boundary, gone past
-        // the feather. The gradient keeps its full width even where the clip
-        // is cut short by the end of the row, so the last letters keep fading
-        // up instead of being cut off.
         clipRect(top = top, bottom = bottom) {
             drawRect(
                 brush = Brush.horizontalGradient(

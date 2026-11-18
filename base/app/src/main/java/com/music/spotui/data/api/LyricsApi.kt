@@ -31,7 +31,7 @@ import java.net.URLEncoder
  */
 object LyricsApi {
     private const val LRCLIB = "https://lrclib.net/api"
-    private const val UA = "Myspoti (https://github.com/)"
+    private const val UA = "Astral (https://github.com/)"
 
     /** What the resolver needs to know about a track. */
     data class Track(

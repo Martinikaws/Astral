@@ -31,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -97,7 +99,8 @@ internal fun AvatarDisc(
                 border = false,
             )
         } else {
-            Text(text = initial, style = Immersive.BodyStrong.copy(color = Immersive.Page, fontWeight = FontWeight.Bold))
+            val ink = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
+            Text(text = initial, style = Immersive.BodyStrong.copy(color = ink, fontWeight = FontWeight.Bold))
         }
     }
 }

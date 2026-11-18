@@ -5,75 +5,103 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.music.spotui.data.preferences.AstralThemeMode
-import com.music.spotui.data.preferences.AstralThemePref
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.LookPref
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.look.ImmersiveDisplay
 import com.music.spotui.ui.look.ImmersiveSans
 import com.music.spotui.ui.theme.AstralLavender
 import com.music.spotui.ui.theme.AstralTrailLight
-import com.music.spotui.ui.theme.AstralTrailMid
+import com.music.spotui.ui.theme.GlassifyBackground
 import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
 import com.music.spotui.ui.theme.GlassifySurface
+import com.music.spotui.ui.theme.LiquidMusicAccent
 import com.music.spotui.ui.theme.LiquidMusicBackground
 import com.music.spotui.ui.theme.LiquidMusicBorder
 import com.music.spotui.ui.theme.LiquidMusicSurface
+import com.music.spotui.ui.theme.SpotifusionBackground
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
 import com.music.spotui.ui.theme.StarryAccent
 import com.music.spotui.ui.theme.StarryBlue
+import com.music.spotui.ui.theme.StarryCard
+import com.music.spotui.ui.theme.StarryCardOpaque
 import com.music.spotui.ui.theme.StarrySubtext
+import com.music.spotui.ui.theme.dynamicCoverAccent
+import com.music.spotui.ui.theme.starryNightRevision
 
 /*
- * The Immersive look's tokens, shared by every Immersive screen so they read as one app:
- * StarryNight `[Base]` night sky, Glassify frosted glass, or LiquidMusic dynamic refraction,
- * Inter, large bold titles, rounded covers, translucent "glass" bars and warm starlight /
- * dynamic accent.
+ * The Immersive / Interactive looks' tokens, shared by every interactive screen so they read as
+ * one shell: StarryNight transparency when enabled, Glassify specular frosted glass, or
+ * LiquidMusic 20dp iOS refraction panels.
  */
 object Immersive {
     // Colours.
-    /** Active Astral theme sky/surface, or an extension's look background (unless the AMOLED setting is on). */
-    val Page: Color get() = if (app.myspoti.power.EnergySettings.oledBlack) Color.Black
+    /** Transparent when Starry Night is active so the root StarryNightBackdrop shines through cleanly. */
+    val Page: Color get() {
+        @Suppress("UNUSED_EXPRESSION")
+        starryNightRevision
+        return if (app.myspoti.power.EnergySettings.oledBlack) Color.Black
         else com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND)
-            ?: when (AstralThemePref.themeMode.value) {
-                AstralThemeMode.STARRY_NIGHT -> Color(0xB80A1422)
-                AstralThemeMode.GLASSIFY -> GlassifySurface
-                AstralThemeMode.LIQUID_MUSIC -> LiquidMusicBackground
+            ?: if (StarryNightPref.enabled.value) Color.Transparent
+            else when (LookPref.look) {
+                Look.CLASSIC, Look.IMMERSIVE -> Color(0xFF0A1422)
+                Look.SPOTIFUSION -> SpotifusionBackground
+                Look.GLASSIFY -> GlassifyBackground
+                Look.LIQUID_MUSIC -> LiquidMusicBackground
             }
-    val Raised: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE)
-        ?: when (AstralThemePref.themeMode.value) {
-            AstralThemeMode.STARRY_NIGHT -> Color(0xCC152238)
-            AstralThemeMode.GLASSIFY -> GlassifySurface
-            AstralThemeMode.LIQUID_MUSIC -> LiquidMusicSurface
-        }
+    }
+    /** Non-transparent card & panel fill so text stays legible over Starry Night and ambient layers. */
+    val Raised: Color get() {
+        @Suppress("UNUSED_EXPRESSION")
+        starryNightRevision
+        return com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.SURFACE)
+            ?: when (LookPref.look) {
+                Look.SPOTIFUSION -> SpotifusionCard
+                Look.GLASSIFY -> GlassifySurface
+                Look.LIQUID_MUSIC -> LiquidMusicSurface
+                Look.CLASSIC, Look.IMMERSIVE -> if (StarryNightPref.enabled.value) StarryCard else StarryCardOpaque
+            }
+    }
     val Separator = AstralTrailLight.copy(alpha = 0.14f)
     val Text = Color.White
     val TextSecondary = StarrySubtext
     val TextTertiary = AstralLavender.copy(alpha = 0.50f)
-    /** Theme-aware accent (StarryNight warm starlight, Glassify sky-blue/dynamic, LiquidMusic dynamic album-art/Material You). */
+    /** Look-aware accent (StarryNight warm starlight, Glassify cover accent / sky-blue, LiquidMusic cover accent / #FA2D48). */
     val Accent: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.ACCENT)
-        ?: when (AstralThemePref.themeMode.value) {
-            AstralThemeMode.LIQUID_MUSIC ->
-                com.music.spotui.data.preferences.DynamicColorPref.accent()
-                    ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else AstralTrailMid }
-            AstralThemeMode.GLASSIFY ->
-                com.music.spotui.data.preferences.DynamicColorPref.accent()
-                    ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryBlue }
-            AstralThemeMode.STARRY_NIGHT ->
+        ?: when (LookPref.look) {
+            Look.SPOTIFUSION -> SpotifusionGreen
+            Look.GLASSIFY -> dynamicCoverAccent
+                ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryBlue }
+            Look.LIQUID_MUSIC -> dynamicCoverAccent
+                ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else LiquidMusicAccent }
+            Look.IMMERSIVE ->
                 com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else StarryAccent }
+            Look.CLASSIC ->
+                com.music.spotui.data.preferences.DynamicColorPref.accent()
+                    ?: com.music.spotui.data.api.SupportReminder.accentColor
         }
-    val GlassFill: Color get() = when (AstralThemePref.themeMode.value) {
-        AstralThemeMode.STARRY_NIGHT -> Color(0xD9152238)
-        AstralThemeMode.GLASSIFY -> GlassifySurface
-        AstralThemeMode.LIQUID_MUSIC -> Color(0x99152238)
+    val GlassFill: Color get() = when (LookPref.look) {
+        Look.GLASSIFY -> GlassifyGlassFill
+        Look.LIQUID_MUSIC -> LiquidMusicSurface
+        Look.SPOTIFUSION -> SpotifusionCard
+        Look.CLASSIC, Look.IMMERSIVE -> StarryCard
     }
-    val GlassEdge: Color get() = when (AstralThemePref.themeMode.value) {
-        AstralThemeMode.STARRY_NIGHT -> Color.White.copy(alpha = 0.14f)
-        AstralThemeMode.GLASSIFY -> GlassifyBorder
-        AstralThemeMode.LIQUID_MUSIC -> LiquidMusicBorder
+    val GlassEdge: Color get() = when (LookPref.look) {
+        Look.GLASSIFY -> GlassifyBorder
+        Look.LIQUID_MUSIC -> LiquidMusicBorder
+        Look.SPOTIFUSION -> Color.White.copy(alpha = 0.10f)
+        Look.CLASSIC, Look.IMMERSIVE -> Color.White.copy(alpha = 0.14f)
     }
     /** The red of a destructive swipe, menu entry or confirmation (Leave, Remove, an error). */
     val Destructive = Color(0xFFFF453A)
@@ -82,8 +110,12 @@ object Immersive {
     val CoverSmall: Shape = RoundedCornerShape(6.dp)
     val CoverMedium: Shape = RoundedCornerShape(10.dp)
     val CoverLarge: Shape = RoundedCornerShape(14.dp)
-    val Card: Shape = RoundedCornerShape(14.dp)
-    val Button: Shape = RoundedCornerShape(14.dp)
+    val Card: Shape get() = when (LookPref.look) {
+        Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+        Look.GLASSIFY -> RoundedCornerShape(16.dp)
+        else -> RoundedCornerShape(14.dp)
+    }
+    val Button: Shape get() = if (LookPref.look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else RoundedCornerShape(14.dp)
 
     // Type (Inter, or the phone's system font when chosen in the settings: AppFontPref).
     private class Type(val sans: androidx.compose.ui.text.font.FontFamily, display: androidx.compose.ui.text.font.FontFamily) {
@@ -123,4 +155,23 @@ object Immersive {
 
 /** A translucent bar or capsule (tab bar, mini player, menus). */
 fun Modifier.glass(shape: Shape = CircleShape): Modifier =
-    this.background(Immersive.GlassFill, shape).border(1.dp, Immersive.GlassEdge, shape)
+    if (LookPref.look == Look.GLASSIFY) {
+        this
+            .shadow(10.dp, shape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.45f))
+            .background(GlassifyGlassFill, shape)
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.24f),
+                        Color.White.copy(alpha = 0.10f),
+                        Color.White.copy(alpha = 0.04f),
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                ),
+                shape = shape,
+            )
+    } else {
+        this.background(Immersive.GlassFill, shape).border(1.dp, Immersive.GlassEdge, shape)
+    }

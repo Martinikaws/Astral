@@ -43,7 +43,7 @@ import java.util.Locale
  */
 object CatalogRuntime {
     /** A generic name with a contact, as MusicBrainz asks; nothing about the user. */
-    const val USER_AGENT = "NewMyspoti/0.1 (https://github.com/kota-zo/myspoti)"
+    const val USER_AGENT = "Astral/0.1 (https://github.com/Martinikaws/Astral)"
 
     /** The url of a song of another provider in the UI's lists ([com.music.spotui.data.entity.SongsModel.url]). */
     const val PLAY_PREFIX = "catalog:"

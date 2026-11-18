@@ -101,20 +101,29 @@ fun MainBottomNavigation(navController: NavHostController) {
         enter = androidx.compose.animation.EnterTransition.None,
         exit = androidx.compose.animation.ExitTransition.None,
         content = {
+            val look = com.music.spotui.ui.look.LocalLook.current
+            val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+            val starryActive = starryEnabled &&
+                !app.myspoti.power.EnergySettings.oledBlack &&
+                com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+            val spotifusion = look == com.music.spotui.data.preferences.Look.SPOTIFUSION
+            val barBg = when {
+                starryActive -> Color(0xCC0D1829)
+                spotifusion -> Color(0xFF121212)
+                else -> AppShade
+            }
             Box(
                 contentAlignment = Alignment.BottomCenter,
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Settings, Display: the fade over the list (the default), or solid black (from #15).
+                    // Settings, Display: solid bar or vertical gradient fade over scrolled content.
                     .then(
-                        if (com.music.spotui.data.preferences.SolidNavBar.on) Modifier.background(AppShade)
-                        // Like the official bar: clear above the mini player, near-opaque by the tab icons,
-                        // so covers scrolling underneath never compete with the labels.
+                        if (com.music.spotui.data.preferences.SolidNavBar.on) Modifier.background(barBg)
                         else Modifier.background(Brush.verticalGradient(
                             0f to Color.Transparent,
-                            0.3f to AppShade.copy(alpha = 0.7f),
-                            0.6f to AppShade.copy(alpha = 0.92f),
-                            1f to AppShade,
+                            0.3f to barBg.copy(alpha = barBg.alpha * 0.7f),
+                            0.6f to barBg.copy(alpha = barBg.alpha * 0.92f),
+                            1f to barBg,
                         ))
                     )
             ) {
@@ -160,6 +169,7 @@ fun MainBottomNavigation(navController: NavHostController) {
                                 iconRes = item.icon,
                                 label = if (item.labelRes != 0) stringResource(item.labelRes) else item.label,
                                 selected = tabs.selected == item.route,
+                                spotifusion = spotifusion,
                                 onClick = { tabs.open(item) },
                             )
                         }
@@ -239,11 +249,22 @@ fun MainNavigationRail(navController: NavHostController) {
     val modulesEnabled by ModulesPref.enabled.collectAsState()
     val tabItems = remember(modulesEnabled) { getTabItems(modulesEnabled) }
     val tabs = rememberTabNavigation(navController, tabItems)
+    val look = com.music.spotui.ui.look.LocalLook.current
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val starryActive = starryEnabled &&
+        !app.myspoti.power.EnergySettings.oledBlack &&
+        com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+    val spotifusion = look == com.music.spotui.data.preferences.Look.SPOTIFUSION
+    val railBg = when {
+        starryActive -> Color(0xCC0D1829)
+        spotifusion -> Color(0xFF121212)
+        else -> AppShade
+    }
     Column(
         modifier = Modifier
             .fillMaxHeight()
             .width(88.dp)
-            .background(AppShade)
+            .background(railBg)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(top = 24.dp),
@@ -256,6 +277,7 @@ fun MainNavigationRail(navController: NavHostController) {
                     iconRes = item.icon,
                     label = if (item.labelRes != 0) stringResource(item.labelRes) else item.label,
                     selected = tabs.selected == item.route,
+                    spotifusion = spotifusion,
                     onClick = { tabs.open(item) },
                 )
             }
@@ -277,10 +299,15 @@ private fun RowScope.NavBarTab(
     iconRes: Int,
     label: String,
     selected: Boolean,
+    spotifusion: Boolean = false,
     onClick: () -> Unit,
 ) {
-    // Spotify's idle grey, lighter than Color.Gray which read as "disabled".
-    val tint = if (selected) AppText else AppMuted
+    val tint = when {
+        spotifusion && selected -> Color.White
+        spotifusion -> Color(0xFFB3B3B3)
+        selected -> AppText
+        else -> AppMuted
+    }
     Box(
         modifier = Modifier
             .weight(1f)
@@ -294,6 +321,16 @@ private fun RowScope.NavBarTab(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        if (spotifusion && selected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 2.dp)
+                    .width(22.dp)
+                    .height(2.5.dp)
+                    .background(com.music.spotui.ui.theme.SpotifusionGreen, androidx.compose.foundation.shape.RoundedCornerShape(50)),
+            )
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -311,7 +348,7 @@ private fun RowScope.NavBarTab(
                 color = tint,
                 fontSize = 11.sp,
                 lineHeight = 12.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = if (spotifusion && selected) FontWeight.Bold else FontWeight.Medium,
                 letterSpacing = 0.2.sp,
                 maxLines = 1,
                 // Four tabs: a long label (Bibliothèque, with large text) shrinks a little instead of being cut.

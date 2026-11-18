@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,7 +28,7 @@ fun ErrorRetry(message: String, modifier: Modifier = Modifier, onRetry: () -> Un
     Column(modifier.fillMaxWidth().padding(24.dp, 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(message, color = AppText, fontSize = 15.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(14.dp))
-        Text(stringResource(R.string.retry_button), color = com.music.spotui.ui.theme.AppBackground, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+        Text(stringResource(R.string.retry_button), color = Color(0xFF0A1422), fontSize = 14.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.clip(RoundedCornerShape(50)).background(AppText)
                 .pressable(0.96f) { onRetry() }.padding(horizontal = 22.dp, vertical = 10.dp))
     }

@@ -67,7 +67,7 @@ object RadioBrowserApi {
         "https://at1.api.radio-browser.info",
     )
     private const val CURATED_PREFIX = "curated-"
-    private const val USER_AGENT = "Myspoti/1.0 (Live Radio module; +https://github.com/kota-zo/myspoti)"
+    private const val USER_AGENT = "Astral/1.0 (Live Radio module; +https://github.com/Martinikaws/Astral)"
     private val UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
     private val json = Json { ignoreUnknownKeys = true }

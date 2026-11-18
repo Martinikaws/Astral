@@ -477,14 +477,19 @@ fun SettingsScreen(navController: NavController) {
                 checked = com.music.spotui.data.preferences.HideDjPref.on,
                 onChecked = { com.music.spotui.data.preferences.HideDjPref.set(ctx, it) },
             )
-            // Material You: the wallpaper's accent (Android 12+), in place of the one picked below.
-            if (com.music.spotui.data.preferences.DynamicColorPref.available) OptionRow(
+            val currentLook = com.music.spotui.ui.look.LocalLook.current
+            // Material You: the wallpaper's accent (Android 12+), in place of the one picked below (Astral Basic only).
+            if (currentLook == com.music.spotui.data.preferences.Look.CLASSIC &&
+                com.music.spotui.data.preferences.DynamicColorPref.available
+            ) OptionRow(
                 label = stringResource(R.string.settings_dynamic_color_title),
                 detail = stringResource(R.string.settings_dynamic_color_detail),
                 checked = com.music.spotui.data.preferences.DynamicColorPref.on,
                 onChecked = { com.music.spotui.data.preferences.DynamicColorPref.set(ctx, it) },
             )
-            if (!com.music.spotui.data.preferences.DynamicColorPref.active) AccentRow(com.music.spotui.data.preferences.Look.CLASSIC)
+            if (currentLook == com.music.spotui.data.preferences.Look.CLASSIC &&
+                !com.music.spotui.data.preferences.DynamicColorPref.active
+            ) AccentRow(com.music.spotui.data.preferences.Look.CLASSIC)
             OptionRow(
                 label = stringResource(R.string.settings_system_font_title),
                 detail = stringResource(R.string.settings_system_font_detail),
@@ -492,9 +497,7 @@ fun SettingsScreen(navController: NavController) {
                 onChecked = { com.music.spotui.data.preferences.AppFontPref.set(ctx, it) },
             )
             LookRow()
-            AppThemeRow()
             SpicyThemeRow()
-            PageStyleRow()
             OrientationRow()
             LanguageRow()
             }
@@ -643,15 +646,15 @@ internal fun Section(title: Int) {
 @Composable
 private fun Divider() = HorizontalDivider(color = tone(0xFF2A2A2A), modifier = Modifier.padding(top = 8.dp))
 
-/** Classic or Immersive: the choice made in the onboarding, changeable here. */
+/** Unified 5-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic). */
 @Composable
 private fun LookRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val current = com.music.spotui.data.preferences.LookPref.look
+    val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
         Text(stringResource(R.string.settings_look_title), color = AppText, fontSize = 16.sp)
         for (l in com.music.spotui.data.preferences.Look.entries) {
-            val classic = l == com.music.spotui.data.preferences.Look.CLASSIC
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -661,11 +664,19 @@ private fun LookRow() {
             ) {
                 androidx.compose.material3.RadioButton(selected = current == l, onClick = null)
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text(stringResource(if (classic) R.string.look_classic else R.string.look_immersive), color = AppText, fontSize = 15.sp)
-                    Text(stringResource(if (classic) R.string.look_classic_detail else R.string.look_immersive_detail), color = AppMuted, fontSize = 12.sp)
+                    Text(l.label, color = AppText, fontSize = 15.sp)
+                    Text(l.detail, color = AppMuted, fontSize = 12.sp)
                 }
             }
         }
+    }
+    if (current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC) {
+        OptionRow(
+            label = "LiquidMusic Glass Mode",
+            detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
+            checked = liquidRefraction,
+            onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
+        )
     }
 }
 
@@ -697,30 +708,6 @@ private fun <T> RadioOptionGroup(
 }
 
 @Composable
-private fun AppThemeRow() {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val current by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsStateWithLifecycle()
-    val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsStateWithLifecycle()
-    val options = remember {
-        com.music.spotui.data.preferences.AstralThemeMode.entries.map { Triple(it, it.label, it.detail) }
-    }
-    RadioOptionGroup(
-        title = "App Theme",
-        current = current,
-        options = options,
-        onSelect = { com.music.spotui.data.preferences.AstralThemePref.setThemeMode(ctx, it) },
-    )
-    if (current == com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC) {
-        OptionRow(
-            label = "LiquidMusic Glass Mode",
-            detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
-            checked = liquidRefraction,
-            onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
-        )
-    }
-}
-
-@Composable
 private fun SpicyThemeRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val current by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsStateWithLifecycle()
@@ -732,26 +719,6 @@ private fun SpicyThemeRow() {
         current = current,
         options = options,
         onSelect = { com.music.spotui.data.preferences.AstralThemePref.setSpicyTheme(ctx, it) },
-    )
-}
-
-/** Playlist / Album / Artist page style (Orpheon Basic, Orpheon Interactive Glass, Spotifusion 1:1). */
-@Composable
-private fun PageStyleRow() {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val current = com.music.spotui.data.preferences.PageStylePref.style
-    val options = remember {
-        listOf(
-            Triple(com.music.spotui.data.preferences.PageStyle.ORPHEON_BASIC, "Astral Basic", "Clean, lightweight layout with fast scrolling."),
-            Triple(com.music.spotui.data.preferences.PageStyle.ORPHEON_GLASS, "Astral Interactive (Glass)", "Translucent frosted cards with dynamic cover glow."),
-            Triple(com.music.spotui.data.preferences.PageStyle.SPOTIFUSION, "Spotifusion 1:1", "Classic Spotify-faithful header, track rows, and action bar."),
-        )
-    }
-    RadioOptionGroup(
-        title = "Playlist / Album / Artist Page Style",
-        current = current,
-        options = options,
-        onSelect = { com.music.spotui.data.preferences.PageStylePref.set(ctx, it) },
     )
 }
 

@@ -41,7 +41,7 @@ import com.music.spotui.data.api.SupportReminder
 import com.music.spotui.ui.theme.AppAccent
 
 const val DISCORD_URL = "https://discord.gg/jXKnGVFnGS"
-private val repo get() = BuildConfig.UPDATE_REPO.ifBlank { "kota-zo/myspoti" }
+private val repo get() = BuildConfig.UPDATE_REPO.ifBlank { "Martinikaws/Astral" }
 
 private fun openUrl(context: Context, url: String) {
     runCatching {

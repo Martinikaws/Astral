@@ -145,6 +145,9 @@ class MainActivity : AppCompatActivity() {
                             signedIn, accountChosen, com.music.spotui.data.preferences.AccountProviderPref.id,
                             setupNeeded, connecting, choosingAccount, tv,
                         )
+                        if (entry != com.music.spotui.ui.screens.Entry.APP || showLook) {
+                            com.music.spotui.ui.components.StarryNightBackdrop(androidx.compose.ui.Modifier.fillMaxSize())
+                        }
                         when {
                             showLook -> com.music.spotui.ui.look.LookStep(onNext = {
                                 com.music.spotui.data.preferences.LookPref.setChosen(this@MainActivity); showLook = false
@@ -177,11 +180,11 @@ class MainActivity : AppCompatActivity() {
                                 else -> com.music.spotui.ui.components.LoginHelpButton()
                             }
                         }
-                        // Existing users, once, right after the update: the new look, live. Never after the
+                        // Existing users, once, right after the update: the new looks, live. Never after the
                         // onboarding, whose look step asked it already (LookPref.offered, read live).
                         if (com.music.spotui.ui.screens.Onboarding.lookOfferShown(
                                 entry, showLook, showingLogin, inPip, com.music.spotui.data.preferences.LookPref.offered, tv)) {
-                            if (com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.IMMERSIVE) {
+                            if (com.music.spotui.data.preferences.LookPref.look != com.music.spotui.data.preferences.Look.CLASSIC) {
                                 androidx.compose.runtime.LaunchedEffect(Unit) {
                                     com.music.spotui.data.preferences.LookPref.setOffered(this@MainActivity)
                                 }
@@ -195,10 +198,13 @@ class MainActivity : AppCompatActivity() {
                                     onDismissRequest = keep,
                                     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
                                 ) {
-                                    com.music.spotui.ui.look.LookStep(
-                                        onNext = { close(com.music.spotui.data.preferences.Look.IMMERSIVE) },
-                                        offer = com.music.spotui.ui.look.LookOffer(onKeep = keep),
-                                    )
+                                    Box(Modifier.fillMaxSize()) {
+                                        com.music.spotui.ui.components.StarryNightBackdrop(Modifier.fillMaxSize())
+                                        com.music.spotui.ui.look.LookStep(
+                                            onNext = { close(com.music.spotui.data.preferences.LookPref.look) },
+                                            offer = com.music.spotui.ui.look.LookOffer(onKeep = keep),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -734,10 +740,12 @@ class MainActivity : AppCompatActivity() {
 /** Shown between Spotify's login page and the first screen. */
 @androidx.compose.runtime.Composable
 private fun ConnectingScreen() {
+    val bg = com.music.spotui.ui.theme.AppBackground
     androidx.compose.foundation.layout.Box(
-        androidx.compose.ui.Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground),
+        androidx.compose.ui.Modifier.fillMaxSize().then(if (bg == Color.Transparent) androidx.compose.ui.Modifier else androidx.compose.ui.Modifier.background(bg)),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
+        if (bg == Color.Transparent) com.music.spotui.ui.components.StarryNightBackdrop(androidx.compose.ui.Modifier.fillMaxSize())
         androidx.compose.material3.CircularProgressIndicator(color = com.music.spotui.ui.theme.AppAccent)
         // Reported: a loading that never ends after the sign-in. Past a long wait, a way to a report.
         var long by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -750,23 +758,27 @@ private fun ConnectingScreen() {
 /** The sign-in page did not come (or the player did not start after it): what happened, and a way to go again. */
 @androidx.compose.runtime.Composable
 private fun LoginProblemScreen(onRetry: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground).systemBarsPadding().padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(stringResource(R.string.login_failed_title), color = com.music.spotui.ui.theme.AppText, fontFamily = com.music.spotui.ui.theme.AppSans,
-            fontWeight = FontWeight.Bold, fontSize = 20.sp, textAlign = TextAlign.Center)
-        Text(stringResource(R.string.login_failed_detail), color = com.music.spotui.ui.theme.AppText.copy(alpha = 0.6f), fontFamily = com.music.spotui.ui.theme.AppSans,
-            fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp, bottom = 28.dp))
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(50))
-                .background(com.music.spotui.ui.theme.AppAccent).clickable(onClick = onRetry),
+    val bg = com.music.spotui.ui.theme.AppBackground
+    Box(Modifier.fillMaxSize().then(if (bg == Color.Transparent) Modifier else Modifier.background(bg))) {
+        if (bg == Color.Transparent) com.music.spotui.ui.components.StarryNightBackdrop(Modifier.fillMaxSize())
+        Column(
+            Modifier.fillMaxSize().systemBarsPadding().padding(28.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(stringResource(R.string.retry_button), color = Color.Black, fontFamily = com.music.spotui.ui.theme.AppSans,
-                fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(stringResource(R.string.login_failed_title), color = com.music.spotui.ui.theme.AppText, fontFamily = com.music.spotui.ui.theme.AppSans,
+                fontWeight = FontWeight.Bold, fontSize = 20.sp, textAlign = TextAlign.Center)
+            Text(stringResource(R.string.login_failed_detail), color = com.music.spotui.ui.theme.AppText.copy(alpha = 0.6f), fontFamily = com.music.spotui.ui.theme.AppSans,
+                fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp, bottom = 28.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(50))
+                    .background(com.music.spotui.ui.theme.AppAccent).clickable(onClick = onRetry),
+            ) {
+                Text(stringResource(R.string.retry_button), color = Color.Black, fontFamily = com.music.spotui.ui.theme.AppSans,
+                    fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+            com.music.spotui.ui.components.LoginReportLink(Modifier.padding(top = 12.dp))
         }
-        com.music.spotui.ui.components.LoginReportLink(Modifier.padding(top = 12.dp))
     }
 }

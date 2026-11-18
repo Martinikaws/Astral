@@ -16,9 +16,10 @@ private const val PREF = "settings_prefs"
 private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
 /**
- * "Dynamic colors (Material You)": the Classic look's accent taken from the wallpaper (Android 12
- * and later), in place of the accent chosen in the settings. Off by default. The Immersive look
- * keeps its own colours, taken from the playing cover.
+ * "Dynamic colors (Material You)": the Astral Basic ([Look.CLASSIC]) look's accent taken from the
+ * wallpaper (Android 12 and later), in place of the accent chosen in the settings. Off by default.
+ * Spotifusion keeps Spotify green, Immersive keeps album colours, and Glassify / LiquidMusic keep
+ * dynamic cover accents.
  */
 object DynamicColorPref {
     private const val KEY = "dynamic_color"
@@ -45,8 +46,9 @@ object DynamicColorPref {
     fun refresh() { cached = null }
 
     /**
-     * The wallpaper's accent for the Classic look, or null (off, Immersive, before Android 12). The
-     * same tone Material's dynamic dark scheme gives its primary colour (system_accent1_200).
+     * The wallpaper's accent for the [Look.CLASSIC] look, or null (off, interactive/themed looks,
+     * before Android 12). The same tone Material's dynamic dark scheme gives its primary colour
+     * (system_accent1_200).
      */
     fun accent(): Color? {
         if (!on || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || LookPref.look != Look.CLASSIC) return null

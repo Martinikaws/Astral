@@ -355,7 +355,7 @@ object Extensions {
         origin: app.myspoti.extensions.Origin? = null, accepted: Boolean = true,
     ) = withContext(Dispatchers.IO) {
         val id = p.manifest.id
-        ExtensionUpdates.blocked(id, p.sha256)?.let { throw ExtensionException("blocked by Myspoti: ${it.reason.ifBlank { "no reason given" }}") }
+        ExtensionUpdates.blocked(id, p.sha256)?.let { throw ExtensionException("blocked by Astral: ${it.reason.ifBlank { "no reason given" }}") }
         // Under the extension's start lock: a start racing this update never sees the new package
         // beside the old entry (it read as "changed on the phone" and turned the extension off).
         val (e, before) = synchronized(startLocks.getOrPut(id) { Any() }) {
@@ -417,7 +417,7 @@ object Extensions {
     fun setEnabled(id: String, on: Boolean, clashes: List<Clash> = emptyList(), keepNew: (Clash) -> Boolean = { true }) = scope.launch {
         val e = _registry.value.find(id) ?: return@launch
         if (on) {
-            ExtensionUpdates.blocked(id, e.sha256)?.let { return@launch disable(id, "blocked by Myspoti: ${it.reason.ifBlank { "no reason given" }}") }
+            ExtensionUpdates.blocked(id, e.sha256)?.let { return@launch disable(id, "blocked by Astral: ${it.reason.ifBlank { "no reason given" }}") }
             // The user kept the one it conflicts with: it stays off.
             if (Clashes.apply(_registry.value, id, clashes, keepNew).second) return@launch
             update { Clashes.apply(it, id, clashes, keepNew).first }
@@ -1446,7 +1446,7 @@ object Extensions {
         if (com.music.spotui.data.DataSaver.active) throw ExtensionException("the data saver is on")
         val c = uri.toURL().openConnection() as HttpURLConnection
         c.connectTimeout = 15_000; c.readTimeout = 20_000; c.useCaches = false
-        c.setRequestProperty("User-Agent", "Myspoti-Extensions/1")
+        c.setRequestProperty("User-Agent", "Astral-Extensions/1")
         c.setRequestProperty("Cache-Control", "no-cache"); c.setRequestProperty("Pragma", "no-cache")
         try {
             if (c.responseCode !in 200..299) throw ExtensionException("the server answered ${c.responseCode}")
@@ -1492,7 +1492,7 @@ object Extensions {
         if (runtimes.containsKey(e.id)) { if (runningSha[e.id] == e.sha256) return else stop(e.id) }
         val p = pkg(e.id) ?: return disable(e.id, "its package is missing")
         if (p.sha256 != e.sha256) return disable(e.id, "its package changed on the phone")
-        ExtensionUpdates.blocked(e.id, e.sha256)?.let { return disable(e.id, "blocked by Myspoti: ${it.reason.ifBlank { "no reason given" }}") }
+        ExtensionUpdates.blocked(e.id, e.sha256)?.let { return disable(e.id, "blocked by Astral: ${it.reason.ifBlank { "no reason given" }}") }
         // Unticked back when the prompt allowed it: it waits for the user's OK on its page.
         if (Grants.refused(e, p.manifest).isNotEmpty()) return disable(e.id, "it waits for your OK on its page")
         var rt = ExtensionRuntime(p.manifest, p.script, AndroidHost, e.granted)
@@ -1695,7 +1695,7 @@ object Extensions {
             }
             // Myspoti's own listen sync has the page already ("Count extension plays on Spotify"): it wins.
             if (com.music.spotui.di.AccountSync.holdsSpotify) {
-                val why = "setLocalMute: Myspoti already plays this song on Spotify (Count extension plays on Spotify)"
+                val why = "setLocalMute: Astral already plays this song on Spotify (Count extension plays on Spotify)"
                 Extensions.log(extensionId, "refused: $why"); throw IllegalStateException(why)
             }
             if (!arbitrate(extensionId, "setLocalMute")) return "null"

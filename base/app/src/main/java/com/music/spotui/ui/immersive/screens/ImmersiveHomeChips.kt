@@ -6,6 +6,7 @@
 package com.music.spotui.ui.immersive.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,14 +25,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.music.spotui.data.preferences.Look
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.look.LocalLook
 
 /** Rounded, but well short of a capsule: the corner reads as a cut, not a curve. */
-private val ChipShape = RoundedCornerShape(12.dp)
+private val ChipShape @Composable get() = if (LocalLook.current == Look.LIQUID_MUSIC) RoundedCornerShape(16.dp) else RoundedCornerShape(12.dp)
 
 /**
  * Filter pills rather than a tab row: squarish rounded rectangles, the selected one inverted.
@@ -64,10 +68,17 @@ internal fun ImmersiveChip(
     onClick: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val look = LocalLook.current
+    val borderMod = if (!selected && (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC)) {
+        Modifier.border(1.dp, Immersive.GlassEdge, shape)
+    } else {
+        Modifier
+    }
     Box(
         modifier = Modifier
             .clip(shape)
             .background(if (selected) Immersive.Text else Immersive.Raised)
+            .then(borderMod)
             // Only a pill that is not already selected has anything to report: re-tapping the
             // current one changes nothing, so buzzing for it would be feedback for a no-op.
             .clickable(role = Role.Button) {
@@ -79,7 +90,7 @@ internal fun ImmersiveChip(
         Text(
             text = label,
             style = Immersive.Subhead.copy(
-                color = if (selected) Immersive.Page else Immersive.Text,
+                color = if (selected) Color(0xFF0A1422) else Immersive.Text,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             ),
             maxLines = 1,

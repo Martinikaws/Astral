@@ -287,7 +287,7 @@ object AccountSync {
 
         override fun syncRunning(on: Boolean) {
             // An extension's own mute of Spotify's page (playback.mirror) gives way: two would fight over the page.
-            if (on && provider == AccountProviders.SPOTIFY) com.music.spotui.extensions.Extensions.mirrorReset("Myspoti plays the song on Spotify itself")
+            if (on && provider == AccountProviders.SPOTIFY) com.music.spotui.extensions.Extensions.mirrorReset("Astral plays the song on Spotify itself")
             // The mirror is the page's (the engine off or left aside): a running engine leaves the
             // account's devices first, or the page's play landed on it (Connect's active device),
             // heard, and it took the audio focus from the extension's player (the song stopped and

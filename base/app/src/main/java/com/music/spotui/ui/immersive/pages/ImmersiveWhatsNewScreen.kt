@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -183,7 +184,7 @@ private fun WhatsNewRow(item: WhatsNewItem, onClick: () -> Unit) {
                     Icon(
                         if (playback.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                         contentDescription = stringResource(if (playback.playing) R.string.immersive_player_pause else R.string.immersive_player_play),
-                        tint = Immersive.Page,
+                        tint = Color(0xFF0A1422),
                         modifier = Modifier.size(24.dp),
                     )
                 }

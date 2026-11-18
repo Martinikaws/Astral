@@ -5,6 +5,7 @@
  */
 package com.music.spotui.ui.immersive.shell
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -26,6 +28,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -38,9 +43,12 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.music.spotui.data.preferences.AstralThemePref
+import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.ModulesPref
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.look.ImmersiveSans
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.look.rememberReduceMotion
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.TabReselect
@@ -142,15 +150,48 @@ internal fun TabBarContent(
     val context = LocalContext.current
     LaunchedEffect(Unit) { ModulesPref.init(context) }
     val modulesEnabled by ModulesPref.enabled.collectAsState()
+    val look = LocalLook.current
+    val liquidRefraction by AstralThemePref.liquidGlassRefraction.collectAsState()
+    val accent = Immersive.Accent
     val pillTabs = remember(modulesEnabled) {
         if (modulesEnabled) listOf(Routes.Home, Routes.Library, Routes.Modules)
         else listOf(Routes.Home, Routes.Library)
     }
-    val pillShape = remember { RoundedCornerShape(percent = 50) }
+    val pillShape = remember(look) {
+        if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else RoundedCornerShape(percent = 50)
+    }
+    val standaloneShape = remember(look) {
+        if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else CircleShape
+    }
     val reduceMotion = rememberReduceMotion()
 
-    // A factory, not a value: each of the two surfaces gets its own glass modifier.
-    val glassSurface: @Composable () -> Modifier = { Modifier.immersiveGlassSurface(pillShape) }
+    // A factory, not a value: each surface gets its own glass modifier styled for the active Look.
+    val glassSurface: @Composable () -> Modifier = {
+        when (look) {
+            Look.GLASSIFY -> Modifier
+                .shadow(10.dp, pillShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.45f))
+                .immersiveGlassSurface(pillShape)
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.24f),
+                            Color.White.copy(alpha = 0.10f),
+                            Color.White.copy(alpha = 0.04f),
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                    ),
+                    shape = pillShape,
+                )
+            else -> Modifier.immersiveGlassSurface(pillShape)
+        }
+    }
+    val indicatorColor = when (look) {
+        Look.LIQUID_MUSIC -> accent.copy(alpha = 0.22f)
+        Look.GLASSIFY -> Color.White.copy(alpha = 0.16f)
+        else -> Color.White.copy(alpha = 0.12f)
+    }
 
     Box(modifier = modifier, contentAlignment = Alignment.BottomCenter) {
         FloatingTabBar(
@@ -159,18 +200,23 @@ internal fun TabBarContent(
             tabBarContentModifier = glassSurface,
             colors = FloatingTabBarDefaults.colors(
                 backgroundColor = Color.Transparent,
-                indicatorColor = Color.White.copy(alpha = 0.12f),
+                indicatorColor = indicatorColor,
+            ),
+            shapes = FloatingTabBarDefaults.shapes(
+                tabBarShape = pillShape,
+                tabShape = pillShape,
+                standaloneTabShape = standaloneShape,
             ),
             sizes = FloatingTabBarDefaults.sizes(
                 tabBarContentPadding = PaddingValues(PILL_INSET),
                 tabExpandedContentPadding = PaddingValues(vertical = TAB_VERTICAL_PADDING),
             ),
             reduceMotion = reduceMotion,
-            contentKey = selectedTab to modulesEnabled,
+            contentKey = listOf(selectedTab, modulesEnabled, look, accent.value, liquidRefraction),
         ) {
-            // Search is the odd one out: a circle of its own beside the pill.
+            // Search is the odd one out: a circle/pill of its own beside the pill.
             pillTabs.forEach { item ->
-                val tint = if (selectedTab == item.route) Immersive.Accent else Immersive.Text.copy(alpha = 0.65f)
+                val tint = if (selectedTab == item.route) accent else Immersive.Text.copy(alpha = 0.65f)
                 tab(
                     key = item.route,
                     icon = { TabIcon(item, tint) },
@@ -195,7 +241,7 @@ internal fun TabBarContent(
                 icon = {
                     TabIcon(
                         Routes.Search,
-                        if (selectedTab == Routes.Search.route) Immersive.Accent else Immersive.Text.copy(alpha = 0.65f),
+                        if (selectedTab == Routes.Search.route) accent else Immersive.Text.copy(alpha = 0.65f),
                     )
                 },
                 onClick = { currentOnTabClick(Routes.Search) },

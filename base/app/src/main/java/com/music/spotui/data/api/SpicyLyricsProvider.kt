@@ -25,7 +25,7 @@ object SpicyLyricsProvider {
     private const val ENDPOINT = "https://api.spicylyrics.org/v1/lyrics/"
     private const val PREF_KEY = "spicy_lyrics_api_key"
     private const val TIMEOUT_MS = 5_000
-    private const val UA = "Myspoti (https://github.com/)"
+    private const val UA = "Astral (https://github.com/)"
 
     /** Fetches lyrics for [trackId] from Spicy Lyrics, or returns null on miss/auth/network failure. */
     fun fetch(context: Context?, trackId: String, durationMs: Long = 0L): Lyrics? {

@@ -124,7 +124,8 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
         )
     }
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
+    val pageBg = AppBackground
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(
             contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
             modifier = Modifier.fillMaxSize(),
@@ -498,7 +499,7 @@ private fun EpisodeRow(
                 com.music.spotui.ui.components.PlayPauseIcon(
                     playing = playing,
                     contentDescription = stringResource(R.string.episode_play),
-                    tint = com.music.spotui.ui.theme.AppBackground,
+                    tint = Color(0xFF0A1422),
                     modifier = Modifier.size(20.dp),
                 )
             }

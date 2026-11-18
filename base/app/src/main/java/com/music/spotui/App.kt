@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.compose.material3.Scaffold
@@ -99,25 +101,44 @@ fun App() {
     val shareTarget by com.music.spotui.ui.components.SpotifyCode.request.collectAsState()
     shareTarget?.let { t -> com.music.spotui.ui.components.SpotifyCodeSheet(t) { com.music.spotui.ui.components.SpotifyCode.request.value = null } }
 
-    // The look (Settings > Display) switches the shell live. The nav host keeps one place in the
-    // tree in both looks, so a switch keeps the back stack, the pages' state and the playback.
+    // The unified 5-Look selector switches the shell live. The nav host keeps one place in the
+    // tree in all looks, so a switch keeps the back stack, the pages' state and the playback.
+    val look = com.music.spotui.ui.look.LocalLook.current
     val immersive = com.music.spotui.ui.navigation.isImmersive()
     val haze = com.music.spotui.ui.immersive.shell.rememberImmersiveHazeState()
-    // Liquid Glass (Settings > Display) & LiquidMusic Glass Mode:
-    // When LIQUID_MUSIC is active, liquidGlassRefraction == true enables LayerBackdrop + Lens refraction,
-    // while false switches to frostPage (Frosted Glass blur) on Android 12+.
+    // Liquid Glass & LiquidMusic Glass Mode:
+    // Both IMMERSIVE and LIQUID_MUSIC wire LayerBackdrop + Lens refraction (when liquidGlassRefraction == true
+    // for LIQUID_MUSIC, or LiquidGlassPref for IMMERSIVE), and fall back to frostPage Frosted Glass blur on Android 12+.
+    // GLASSIFY uses frostPage frosted glass + a heavily blurred album-art ambient layer.
     val glassPage = com.music.spotui.ui.immersive.shell.rememberImmersiveBackdrop()
-    val themeMode by com.music.spotui.data.preferences.AstralThemePref.themeMode.collectAsState()
     val liquidRefraction by com.music.spotui.data.preferences.AstralThemePref.liquidGlassRefraction.collectAsState()
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
     val baseLiquidGlass = com.music.spotui.ui.immersive.shell.rememberLiquidGlassActive()
-    val liquidGlass = immersive && when (themeMode) {
-        com.music.spotui.data.preferences.AstralThemeMode.LIQUID_MUSIC ->
-            liquidRefraction && com.music.spotui.ui.immersive.shell.liquidGlassAvailability() == com.music.spotui.ui.immersive.shell.LiquidGlassAvailability.AVAILABLE
-        else -> baseLiquidGlass
+    val liquidAvailable = com.music.spotui.ui.immersive.shell.liquidGlassAvailability() ==
+        com.music.spotui.ui.immersive.shell.LiquidGlassAvailability.AVAILABLE
+    val liquidGlass = when (look) {
+        com.music.spotui.data.preferences.Look.LIQUID_MUSIC -> liquidRefraction && liquidAvailable
+        com.music.spotui.data.preferences.Look.IMMERSIVE -> baseLiquidGlass
+        else -> false
     }
-    // Without it (Android 12+), the frost blurs the same recording, which follows page and tab
-    // transitions frame by frame where Haze lagged behind.
-    val frostPage = immersive && !liquidGlass && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    val frostPage = immersive && !liquidGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+    // Glassify & LiquidMusic dynamic cover accent extraction (contrast-adjusted against dark surfaces).
+    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(coverUri, look) {
+        if (coverUri.isBlank() ||
+            (look != com.music.spotui.data.preferences.Look.GLASSIFY &&
+                look != com.music.spotui.data.preferences.Look.LIQUID_MUSIC)
+        ) {
+            com.music.spotui.ui.theme.dynamicCoverAccent = null
+        } else {
+            com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, coverUri) { extracted ->
+                com.music.spotui.ui.theme.dynamicCoverAccent = extracted
+            }
+        }
+    }
+
     // The floating chrome's fold (iOS 26): pages scroll it through immersiveChromeScroll().
     val chrome = com.music.spotui.ui.immersive.shell.rememberImmersiveChromeState()
     androidx.compose.runtime.CompositionLocalProvider(
@@ -131,24 +152,35 @@ fun App() {
     // the side (at the bottom they took a third of a landscape phone's height); Immersive lays out
     // its own bar (ImmersiveBottomChrome). Portrait phones keep the bottom bars.
     val rail = com.music.spotui.ui.components.windowSize().navigationRail
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+    val extBg = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND)
+    val oled = app.myspoti.power.EnergySettings.oledBlack
+    val starryActive = starryEnabled && !oled && extBg == null
+    val rootFill = when {
+        oled -> androidx.compose.ui.graphics.Color.Black
+        extBg != null -> extBg
+        starryActive -> androidx.compose.ui.graphics.Color.Transparent
+        immersive -> com.music.spotui.ui.immersive.Immersive.Page
+        else -> com.music.spotui.ui.theme.AppBackground
+    }
+    androidx.compose.foundation.layout.Box(
+        Modifier.fillMaxSize().then(if (rootFill == androidx.compose.ui.graphics.Color.Transparent) Modifier else Modifier.background(rootFill)),
+    ) {
       com.music.spotui.ui.components.StarryNightBackdrop(Modifier.fillMaxSize())
+      if (look == com.music.spotui.data.preferences.Look.GLASSIFY && !oled && extBg == null) {
+          GlassifyAmbientBackdrop(coverUri = coverUri, starryActive = starryActive, modifier = Modifier.fillMaxSize())
+      }
       androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
         // Before the Scaffold, in a group of its own: the nav host keeps its place when the
         // window grows or shrinks past the threshold (back stack and pages kept).
         if (rail && !immersive) com.music.spotui.ui.navigation.MainNavigationRail(navController)
         Scaffold(
             modifier = Modifier.weight(1f),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
             bottomBar = {
                 if (!immersive) MainBottomNavigation(navController)
             }
         ) {
-            MyNavHost(
-                navHostController = navController,
-                // Immersive: each page marks its own list as what the glass bars blur (a source on
-                // the whole host would hold the pages' own top bars too).
-                modifier = if (immersive) Modifier.background(com.music.spotui.ui.immersive.Immersive.Page) else Modifier,
-            )
+            MyNavHost(navHostController = navController)
         }
       }
         if (immersive) ImmersiveShell(navController)
@@ -163,6 +195,62 @@ fun App() {
 }
 
 
+
+/**
+ * Glassify (`spicetify-glassify`) heavily blurred album-art ambient layer behind the interactive shell.
+ * Stays translucent over [com.music.spotui.ui.components.StarryNightBackdrop] when Starry Night is active.
+ */
+@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
+@Composable
+private fun GlassifyAmbientBackdrop(
+    coverUri: String,
+    starryActive: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val accent = com.music.spotui.ui.theme.dynamicCoverAccent ?: com.music.spotui.ui.theme.StarryBlue
+    androidx.compose.foundation.layout.Box(modifier) {
+        if (coverUri.isNotBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            com.bumptech.glide.integration.compose.GlideImage(
+                model = coverUri,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(72.dp)
+                    .graphicsLayer {
+                        alpha = if (starryActive) 0.30f else 0.52f
+                        scaleX = 1.25f
+                        scaleY = 1.25f
+                    },
+            )
+        } else {
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                accent.copy(alpha = if (starryActive) 0.24f else 0.36f),
+                                androidx.compose.ui.graphics.Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
+        }
+        androidx.compose.foundation.layout.Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.16f else 0.42f),
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.28f else 0.65f),
+                        ),
+                    ),
+                ),
+        )
+    }
+}
 
 /**
  * The Immersive look's floating chrome: the mini player capsule over the tab bar (both hidden

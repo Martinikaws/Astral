@@ -89,6 +89,20 @@ import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.ui.theme.AppSans
+import com.music.spotui.ui.theme.GlassifyBackground
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.GlassifySurface
+import com.music.spotui.ui.theme.LiquidMusicAccent
+import com.music.spotui.ui.theme.LiquidMusicBackground
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
+import com.music.spotui.ui.theme.SpotifusionBackground
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.theme.StarryAccent
+import com.music.spotui.ui.theme.StarryBlue
+import com.music.spotui.ui.theme.StarryCardOpaque
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -173,8 +187,11 @@ fun PhoneFrame(modifier: Modifier = Modifier, content: @Composable BoxScope.() -
 @Composable
 fun LookDemo(look: Look, clock: DemoClock, still: Boolean = false) {
     when (look) {
-        Look.CLASSIC -> ClassicDemo(clock)
-        Look.IMMERSIVE -> ImmersiveDemo(clock, still)
+        Look.CLASSIC -> ClassicDemo(clock, spotifusion = false)
+        Look.SPOTIFUSION -> ClassicDemo(clock, spotifusion = true)
+        Look.IMMERSIVE -> ImmersiveDemo(clock, still, Look.IMMERSIVE)
+        Look.GLASSIFY -> ImmersiveDemo(clock, still, Look.GLASSIFY)
+        Look.LIQUID_MUSIC -> ImmersiveDemo(clock, still, Look.LIQUID_MUSIC)
     }
 }
 
@@ -258,15 +275,16 @@ private val ClassicTop = Color(0xFF9A2A5C)
 private val ClassicBottom = Color(0xFF2A0A1B)
 
 @Composable
-private fun ClassicDemo(clock: DemoClock) {
+private fun ClassicDemo(clock: DemoClock, spotifusion: Boolean) {
     val phases = rememberPhases(clock)
     val open by phases.open
     val lyrics by phases.lyrics
     val playing by phases.playing
     val mini = CoverRect(16f, 642f, 40f)
     val big = CoverRect(24f, 100f, 312f)
-    Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
-        ClassicHome()
+    val bgColor = if (spotifusion) SpotifusionBackground else Color(0xFF0A1422)
+    Box(Modifier.fillMaxSize().background(bgColor)) {
+        ClassicHome(spotifusion)
         ClassicMini(playing, phases.progress, Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 70.dp))
         ClassicTabs(Modifier.align(Alignment.BottomCenter))
         if (open > 0f) ClassicPlayer(playing, phases, Modifier.graphicsLayer { translationY = (1f - open) * size.height })
@@ -275,16 +293,20 @@ private fun ClassicDemo(clock: DemoClock) {
     }
 }
 
-/** A home page like today's: filter chips, eight shortcuts, a shelf of covers. */
+/** A home page for Classic (Astral Basic) and Spotifusion 1:1: filter chips, eight shortcuts, a shelf of covers. */
 @Composable
-private fun ClassicHome() {
+private fun ClassicHome(spotifusion: Boolean) {
+    val activeChip = if (spotifusion) SpotifusionGreen else StarryAccent
+    val activeChipInk = if (spotifusion) Color.Black else Color(0xFF0A1422)
+    val tileFill = if (spotifusion) SpotifusionCard else StarryCardOpaque
+    val tileCorner = if (spotifusion) 4.dp else 8.dp
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(32.dp).background(Color(0xFFFF8A65), CircleShape))
             listOf(R.string.look_demo_all, R.string.look_demo_music, R.string.look_demo_podcasts).forEachIndexed { i, label ->
                 Text(
-                    stringResource(label), color = if (i == 0) Color.Black else Color.White, fontSize = 13.sp, fontFamily = AppSans,
-                    modifier = Modifier.background(if (i == 0) ClassicGreen else Color(0xFF2A2A2A), CircleShape).padding(horizontal = 14.dp, vertical = 7.dp),
+                    stringResource(label), color = if (i == 0) activeChipInk else Color.White, fontSize = 13.sp, fontFamily = AppSans,
+                    modifier = Modifier.background(if (i == 0) activeChip else tileFill, CircleShape).padding(horizontal = 14.dp, vertical = 7.dp),
                 )
             }
         }
@@ -294,7 +316,7 @@ private fun ClassicHome() {
                 for (col in 0 until 2) {
                     val i = row * 2 + col
                     Row(
-                        Modifier.weight(1f).height(56.dp).background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)),
+                        Modifier.weight(1f).height(56.dp).background(tileFill, RoundedCornerShape(tileCorner)).clip(RoundedCornerShape(tileCorner)),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         DemoTile(i, Modifier.size(56.dp))
@@ -308,7 +330,7 @@ private fun ClassicHome() {
         Text(stringResource(R.string.look_demo_section), color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, fontFamily = AppSans)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (i in 0 until 3) Column(Modifier.width(140.dp)) {
-                DemoTile(i + 3, Modifier.size(140.dp).clip(RoundedCornerShape(4.dp)))
+                DemoTile(i + 3, Modifier.size(140.dp).clip(RoundedCornerShape(tileCorner)))
                 Text(DemoShelf[(i + 5) % DemoShelf.size], color = ClassicGrey, fontSize = 12.sp, fontFamily = AppSans, maxLines = 1,
                     modifier = Modifier.padding(top = 6.dp))
             }

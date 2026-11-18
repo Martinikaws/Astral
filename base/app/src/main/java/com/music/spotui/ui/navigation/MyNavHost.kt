@@ -316,16 +316,20 @@ fun MyNavHost(
     }
 }
 
-/** Renders Playlist, Album, and Artist pages according to [com.music.spotui.data.preferences.PageStylePref]. */
+/** Renders Playlist, Album, and Artist pages according to the active Look (or explicit [com.music.spotui.data.preferences.PageStylePref] override). */
 @Composable
 private fun PageStyleContent(
     basic: @Composable () -> Unit,
     glass: @Composable () -> Unit,
 ) {
-    when (com.music.spotui.data.preferences.PageStylePref.style) {
-        com.music.spotui.data.preferences.PageStyle.ORPHEON_BASIC -> basic()
-        com.music.spotui.data.preferences.PageStyle.ORPHEON_GLASS -> glass()
-        com.music.spotui.data.preferences.PageStyle.SPOTIFUSION -> SpotifusionWrapper(basic)
+    when {
+        isSpotifusionLook() -> SpotifusionWrapper(basic)
+        isImmersive() -> glass()
+        else -> when (com.music.spotui.data.preferences.PageStylePref.style) {
+            com.music.spotui.data.preferences.PageStyle.ORPHEON_BASIC -> basic()
+            com.music.spotui.data.preferences.PageStyle.ORPHEON_GLASS -> glass()
+            com.music.spotui.data.preferences.PageStyle.SPOTIFUSION -> SpotifusionWrapper(basic)
+        }
     }
 }
 
@@ -333,8 +337,15 @@ private fun PageStyleContent(
 @Composable
 private fun SpotifusionWrapper(content: @Composable () -> Unit) {
     val starryEnabled = com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState().value
-    val surfaceBg = if (starryEnabled) androidx.compose.ui.graphics.Color(0xCC121212) else androidx.compose.ui.graphics.Color(0xFF121212)
-    val boxBg = if (starryEnabled) androidx.compose.ui.graphics.Color(0xB80A1422) else androidx.compose.ui.graphics.Color(0xFF121212)
+    val oled = app.myspoti.power.EnergySettings.oledBlack
+    val extBg = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND)
+    val starryActive = starryEnabled && !oled && extBg == null
+    val surfaceBg = when {
+        oled -> androidx.compose.ui.graphics.Color.Black
+        extBg != null -> extBg
+        starryActive -> androidx.compose.ui.graphics.Color.Transparent
+        else -> androidx.compose.ui.graphics.Color(0xFF121212)
+    }
     val base = androidx.compose.material3.MaterialTheme.colorScheme
     val spotifusionColors = base.copy(
         primary = androidx.compose.ui.graphics.Color(0xFF1DB954),
@@ -343,16 +354,21 @@ private fun SpotifusionWrapper(content: @Composable () -> Unit) {
         onPrimaryContainer = androidx.compose.ui.graphics.Color.Black,
         background = surfaceBg,
         surface = surfaceBg,
+        surfaceDim = surfaceBg,
         surfaceContainerLowest = surfaceBg,
-        surfaceContainerLow = if (starryEnabled) androidx.compose.ui.graphics.Color(0xCC181818) else androidx.compose.ui.graphics.Color(0xFF181818),
-        surfaceContainer = if (starryEnabled) androidx.compose.ui.graphics.Color(0xCC1F1F1F) else androidx.compose.ui.graphics.Color(0xFF1F1F1F),
-        surfaceContainerHigh = if (starryEnabled) androidx.compose.ui.graphics.Color(0xCC282828) else androidx.compose.ui.graphics.Color(0xFF282828),
+        surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF181818),
+        surfaceContainer = androidx.compose.ui.graphics.Color(0xFF1E1E1E),
+        surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF282828),
+        surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF333333),
     )
     androidx.compose.material3.MaterialTheme(
         colorScheme = spotifusionColors,
         typography = androidx.compose.material3.MaterialTheme.typography,
     ) {
-        Box(Modifier.fillMaxSize().background(boxBg)) {
+        Box(
+            Modifier.fillMaxSize()
+                .then(if (surfaceBg == androidx.compose.ui.graphics.Color.Transparent) Modifier else Modifier.background(surfaceBg)),
+        ) {
             content()
         }
     }
@@ -448,10 +464,17 @@ private fun NavGraphBuilder.page(
         // (more columns). The inner box is always there, so a resize never rebuilds the page.
         val capped = com.music.spotui.ui.components.windowSize().large &&
             entry.destination.route?.substringBefore('/')?.substringBefore('?') !in FullWidthRoutes
-        // Immersive look: every page (Classic fallbacks too) sits on its black page colour.
+        val starryEnabled = com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState().value
+        val starryActive = starryEnabled &&
+            !app.myspoti.power.EnergySettings.oledBlack &&
+            com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+        val pageBg = if (starryActive) androidx.compose.ui.graphics.Color.Transparent
+            else if (immersive) com.music.spotui.ui.immersive.Immersive.Page
+            else AppBackground
+        // Only paint an opaque page fill when Starry Night is inactive so the single root backdrop shines through cleanly.
         Box(Modifier.fillMaxSize()
             .then(if (fade == null) Modifier else Modifier.graphicsLayer { this.alpha = fade.value })
-            .background(if (immersive) com.music.spotui.ui.immersive.Immersive.Page else AppBackground)) {
+            .then(if (pageBg == androidx.compose.ui.graphics.Color.Transparent) Modifier else Modifier.background(pageBg))) {
             Box(
                 Modifier.fillMaxHeight().then(
                     if (capped) Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
@@ -478,7 +501,22 @@ val LocalPageSettled = androidx.compose.runtime.staticCompositionLocalOf<android
     androidx.compose.runtime.mutableStateOf(true)
 }
 
-/** The Immersive look is on (Settings > Display, or the onboarding's look step). */
+/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC]). */
 @Composable
 internal fun isImmersive(): Boolean =
-    com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.IMMERSIVE
+    com.music.spotui.ui.look.LocalLook.current.isImmersive()
+
+/** True when the [Look.SPOTIFUSION] (Spotifusion 1:1) look is active. */
+@Composable
+internal fun isSpotifusionLook(): Boolean =
+    com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.SPOTIFUSION
+
+/** True when the [Look.GLASSIFY] look is active. */
+@Composable
+internal fun isGlassifyLook(): Boolean =
+    com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.GLASSIFY
+
+/** True when the [Look.LIQUID_MUSIC] look is active. */
+@Composable
+internal fun isLiquidMusicLook(): Boolean =
+    com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC

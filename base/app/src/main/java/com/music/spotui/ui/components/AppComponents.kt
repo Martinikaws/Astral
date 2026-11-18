@@ -70,7 +70,7 @@ fun Loader(kind: SkeletonKind = SkeletonKind.List) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+            .then(if (AppBackground == Color.Transparent) Modifier else Modifier.background(AppBackground))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         if (shown.value == 0f) return@Column
@@ -442,7 +442,7 @@ fun Snackbar(showMessage : String) {
         Text(
             fontWeight = FontWeight.W500,
             fontSize = 14.sp,
-            color = com.music.spotui.ui.theme.AppBackground,
+            color = Color(0xFF0A1422),
             text = showMessage
         )
     }

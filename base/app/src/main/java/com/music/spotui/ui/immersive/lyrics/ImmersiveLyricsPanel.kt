@@ -30,6 +30,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
@@ -80,10 +81,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -105,11 +109,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.myspoti.engine.R
+import app.myspoti.power.EnergySettings
 import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.Lyrics
+import com.music.spotui.data.preferences.AstralThemeMode
+import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.data.preferences.LyricsRomanizationPref
+import com.music.spotui.data.preferences.SpicyThemePreset
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Graph
 import com.music.spotui.di.SongPlayer
+import com.music.spotui.ui.components.StarryNightBackdrop
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.look.GLOW_ALPHA
 import com.music.spotui.ui.look.GLOW_ROOM
@@ -122,15 +132,20 @@ import com.music.spotui.ui.look.SUNG_ALPHA
 import com.music.spotui.ui.look.SweptLine
 import com.music.spotui.ui.look.SweptLyricLine
 import com.music.spotui.ui.look.UNSUNG_ALPHA
+import com.music.spotui.ui.look.rememberArtworkColors
 import com.music.spotui.ui.look.scaleForDistance
 import com.music.spotui.ui.look.rememberReduceMotion
 import com.music.spotui.ui.look.lastPress
 import com.music.spotui.ui.look.tapTime
 import com.music.spotui.ui.look.toSwept
+import com.music.spotui.ui.theme.StarryAccent
 import com.music.spotui.ui.viewmodel.LyricsViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FormatQuote
@@ -163,25 +178,18 @@ import com.music.spotui.ui.components.shareLyricLines
 @Composable
 fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); true }
     val vm: LyricsViewModel = viewModel()
     val song = Graph.currentSongState
-    // An AutoMix mix or a crossfade: the words of the song going out until half way, at its own
-    // position, as the title and the cover (SongBlend). Switched at the start, the new song's words
-    // ran over the old song still heard for the whole mix (reported, worst with long mixes).
     val blend = com.music.spotui.ui.components.rememberSongBlend()
     val hold = blend?.outgoingWords == true
     val title = song.title.value
     val artist = song.singer.value
-    // currentTrackId is plain data, not Compose state: a skip whose title and artist are the same
-    // (or that reports its id after them) would never re-run this. The playing item's uri is state.
     val playingUri = SongPlayer.nowPlaying.value.uri
-    // Loaded as the Classic look does: read again when the lyrics extensions changed (they finish
-    // starting after the app: the song not found by then stayed so until the panel was reopened).
     val state = com.music.spotui.ui.screens.rememberLyricsState(vm, title, artist, hold)
     com.music.spotui.ui.screens.KeepScreenOnForLyrics(Graph.currentSongState.playingState.value && state is LyricsViewModel.State.Loaded)
     val liveKey = "$playingUri|${SongPlayer.currentTrackId}|$title|$artist"
-    // A plain holder (not state): the key of the words shown before the mix began.
-    val heldKey = androidx.compose.runtime.remember { arrayOf(liveKey) }
+    val heldKey = remember { arrayOf(liveKey) }
     if (!hold) heldKey[0] = liveKey
     val trackKey = if (hold) heldKey[0] else liveKey
     DisposableEffect(hold, blend) {
@@ -190,7 +198,6 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
     }
     val selecting by vm.selecting.collectAsState()
     val picked by vm.picked.collectAsState()
-    // Back and closing the panel end the picking before anything else.
     androidx.activity.compose.BackHandler(enabled = selecting) { vm.stopSelecting() }
     DisposableEffect(vm) { onDispose { vm.stopSelecting() } }
 
@@ -209,78 +216,57 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             )
         }
         is LyricsViewModel.State.Loaded -> {
-            // A new track starts the list over: its scroll position and handover state belong to
-            // the lines they were made for.
             key(trackKey) {
                 val reduceMotion = rememberReduceMotion()
-                val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "immersiveMesh").animateFloat(
-                    initialValue = 0f,
-                    targetValue = (2f * kotlin.math.PI).toFloat(),
-                    animationSpec = infiniteRepeatable(tween(15_000, easing = LinearEasing), RepeatMode.Restart),
-                    label = "meshPhase",
-                ).value
-                Box(
-                    modifier.drawBehind {
-                        val c1 = Offset(
-                            size.width * (0.22f + 0.10f * kotlin.math.cos(meshPhase)),
-                            size.height * (0.25f + 0.08f * kotlin.math.sin(meshPhase)),
+                val coverUri = song.coverUri.value
+                val artworkPalette = rememberArtworkColors(coverUri.takeIf { it.isNotBlank() })
+                val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
+                val themeMode by AstralThemePref.themeMode.collectAsState()
+                val starryEnabled by StarryNightPref.enabled.collectAsState()
+                val oledBlack = EnergySettings.oledBlack
+                val customSpicy = spicyPreset != SpicyThemePreset.ASTRAL_DEFAULT
+                val starryActive = !customSpicy && starryEnabled && themeMode == AstralThemeMode.STARRY_NIGHT && !oledBlack
+
+                val meshColors = remember(customSpicy, spicyPreset, artworkPalette) {
+                    if (customSpicy) {
+                        listOf(
+                            Color(spicyPreset.accentHex),
+                            Color(spicyPreset.glowHex),
+                            Color(spicyPreset.bgBottomHex),
+                            lerp(Color(spicyPreset.bgTopHex), Color(spicyPreset.accentHex), 0.40f),
                         )
-                        val c2 = Offset(
-                            size.width * (0.82f - 0.10f * kotlin.math.sin(meshPhase * 0.8f)),
-                            size.height * (0.76f + 0.08f * kotlin.math.cos(meshPhase * 0.7f)),
-                        )
-                        val c3 = Offset(
-                            size.width * (0.50f + 0.12f * kotlin.math.sin(meshPhase * 0.5f)),
-                            size.height * (0.48f - 0.10f * kotlin.math.cos(meshPhase * 0.6f)),
-                        )
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Immersive.Accent.copy(alpha = 0.20f), Color.Transparent),
-                                center = c1,
-                                radius = size.maxDimension * 0.62f,
-                            ),
-                            radius = size.maxDimension * 0.62f,
-                            center = c1,
-                        )
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Immersive.Accent.copy(alpha = 0.12f), Color.Transparent),
-                                center = c3,
-                                radius = size.maxDimension * 0.52f,
-                            ),
-                            radius = size.maxDimension * 0.52f,
-                            center = c3,
-                        )
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Color.White.copy(alpha = 0.07f), Color.Transparent),
-                                center = c2,
-                                radius = size.maxDimension * 0.52f,
-                            ),
-                            radius = size.maxDimension * 0.52f,
-                            center = c2,
-                        )
-                    },
-                ) {
-                    // Other lyrics for the same song (the line-timed ones shown first, then the
-                    // word-timed ones): each has its own list, opened on the line being sung, and the
-                    // new one fades in over the old. Reported: the lines jumped when the words came,
-                    // the new list starting at its top for a frame before it found its line.
+                    } else {
+                        (artworkPalette.colors + listOf(Immersive.Accent, Color.White)).take(4)
+                    }
+                }
+                val glowTint = when {
+                    customSpicy -> Color(spicyPreset.glowHex)
+                    starryActive -> artworkPalette.colors.firstOrNull()?.let { lerp(it, StarryAccent, 0.45f) } ?: StarryAccent
+                    else -> artworkPalette.colors.firstOrNull()?.let { lerp(it, Immersive.Accent, 0.45f) } ?: Immersive.Accent
+                }
+                val activeColor = if (customSpicy) Color(spicyPreset.accentHex) else Color.White
+
+                Box(modifier) {
+                    SpicyPanelBackdrop(
+                        meshColors = meshColors,
+                        customSpicy = customSpicy,
+                        starryActive = starryActive,
+                        oledBlack = oledBlack,
+                        reduceMotion = reduceMotion,
+                    )
                     androidx.compose.animation.Crossfade(
                         targetState = current.lyrics, animationSpec = tween(LYRICS_SWAP_MS), label = "lyricsSwap",
                         modifier = Modifier.fillMaxSize(),
                     ) { shown ->
                         val live = shown === current.lyrics
-                        // The translation the song options sheet turned on, line for line with the source's.
                         LyricsList(
                             shown, trackKey, Modifier.fillMaxSize(), contentPadding, vm,
                             translations = current.translations.takeIf { live && current.showTranslation },
                             romanizing = LyricsRomanizationPref.on && shown.hasRomanization,
+                            activeColor = activeColor,
+                            glowTint = glowTint,
                         )
                     }
-                    // The romanization, when the lyrics have one, then the Classic screen's translation,
-                    // with its language setting and its service: the lyrics are only sent when it is
-                    // tapped. Not offered for a song already in that language.
                     val target = com.music.spotui.ui.components.readerLanguage()
                     val canRomanize = current.lyrics.hasRomanization
                     val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
@@ -319,6 +305,105 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                 }
             }
         }
+    }
+}
+
+/**
+ * Multi-blob slowly drifting Kawarp-style mesh backdrop extracted from album artwork (or
+ * overridden by [SpicyThemePreset]), blending seamlessly with the surrounding player surface
+ * and letting [StarryNightBackdrop] shine subtly underneath when Starry Night is active.
+ */
+@Composable
+private fun SpicyPanelBackdrop(
+    meshColors: List<Color>,
+    customSpicy: Boolean,
+    starryActive: Boolean,
+    oledBlack: Boolean,
+    reduceMotion: Boolean,
+) {
+    if (oledBlack && !customSpicy) return
+    val animatedColors = (0 until 4).map { idx ->
+        animateColorAsState(
+            targetValue = meshColors.getOrElse(idx) { Immersive.Accent },
+            animationSpec = tween(1_100),
+            label = "panelBlob$idx",
+        ).value
+    }
+    val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "immersiveMesh").animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
+        label = "meshPhase",
+    ).value
+
+    Box(Modifier.fillMaxSize()) {
+        if (starryActive) {
+            StarryNightBackdrop(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = 0.34f
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val fade = 36.dp.toPx()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = 0f,
+                                endY = fade,
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = size.height - fade,
+                                endY = size.height,
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val strength = when {
+                        oledBlack -> 0.14f
+                        customSpicy -> 0.32f
+                        starryActive -> 0.22f
+                        else -> 0.28f
+                    }
+                    val anchors = arrayOf(
+                        Offset(0.22f, 0.24f),
+                        Offset(0.80f, 0.26f),
+                        Offset(0.76f, 0.76f),
+                        Offset(0.26f, 0.72f),
+                    )
+                    val speeds = floatArrayOf(1f, -0.78f, 0.84f, -1.08f)
+                    for (i in 0 until 4) {
+                        val angle = meshPhase * speeds[i] + i * 1.55f
+                        val center = Offset(
+                            size.width * (anchors[i].x + 0.12f * cos(angle)),
+                            size.height * (anchors[i].y + 0.10f * sin(angle * 0.9f)),
+                        )
+                        val radius = size.maxDimension * (0.58f + 0.05f * (i % 2))
+                        val alpha = strength * (if (i % 2 == 0) 1f else 0.76f)
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(animatedColors[i].copy(alpha = alpha), Color.Transparent),
+                                center = center,
+                                radius = radius,
+                            ),
+                            radius = radius,
+                            center = center,
+                        )
+                    }
+                },
+        )
     }
 }
 
@@ -383,41 +468,47 @@ private class PanelLine(
 
 private fun isGapText(text: String): Boolean = text.isBlank() || text.trim() == "♪"
 
-/** Breaks shorter than this before the first line are not worth counting out. */
-private const val INTRO_GAP_MIN_MS = 3_000L
+/** Breaks shorter than or equal to this before the first line are not worth counting out. */
+private const val INTRO_GAP_MIN_MS = 4_000L
 
 /** How long a break at the very end is counted over. */
 private const val TRAILING_GAP_MS = 5_000L
 
-private fun panelLines(lyrics: Lyrics, synced: Boolean): List<PanelLine> {
+private fun panelLines(lyrics: Lyrics, synced: Boolean, songDurationMs: Long): List<PanelLine> {
     val source = lyrics.lines
     val out = ArrayList<PanelLine>(source.size + 1)
     if (synced) {
-        // An intro: the panel counts it out rather than sitting on nothing.
+        // An intro > 4 s: the panel counts it out rather than sitting on nothing.
         val firstSung = source.firstOrNull { !isGapText(it.text) }
-        if (firstSung != null && firstSung.timeMs >= INTRO_GAP_MIN_MS && source.first().timeMs > 0L) {
-            out += PanelLine(0L, "", true, firstSung.timeMs, SweptLine(0L, ""))
+        if (firstSung != null && firstSung.timeMs > INTRO_GAP_MIN_MS && source.first().timeMs > 0L) {
+            out += PanelLine(0L, "", true, firstSung.timeMs, SweptLine(0L, ""), voice = firstSung.voice)
         }
     }
     source.forEachIndexed { index, line ->
         val next = source.getOrNull(index + 1)?.timeMs
         if (synced && isGapText(line.text)) {
-            out += PanelLine(line.timeMs, "", true, next ?: (line.timeMs + TRAILING_GAP_MS), SweptLine(line.timeMs, ""), index)
+            out += PanelLine(line.timeMs, "", true, next ?: (line.timeMs + TRAILING_GAP_MS), SweptLine(line.timeMs, ""), index, voice = line.voice)
         } else {
             val background = line.background?.trim()?.takeIf { it.isNotEmpty() }
             val romanization = line.romanization?.trim()?.takeIf { it.isNotEmpty() && !it.equals(line.text.trim(), ignoreCase = true) }
-            val swept = line.toSwept(next)
+            val effectiveNext = next?.takeIf { it > line.timeMs }
+                ?: songDurationMs.takeIf { it > line.timeMs }
+                ?: (line.timeMs + (line.text.length * 90L).coerceIn(2_500L, 6_000L))
+            val swept = line.toSwept(effectiveNext).let {
+                if (synced && it.words.isEmpty() && effectiveNext > line.timeMs) it.copy(sungUntilMs = effectiveNext) else it
+            }
             out += PanelLine(
                 line.timeMs, line.text, false, 0L, swept, index,
                 voice = line.voice, background = background,
-                backgroundSwept = if (synced && background != null) backgroundSwept(line, next) else null,
+                backgroundSwept = if (synced && background != null) backgroundSwept(line, effectiveNext) else null,
                 romanization = romanization,
             )
             // Insert animated interlude dots when there is an instrumental gap > 4 s after the last word.
             val lastWordEnd = line.words?.lastOrNull()?.endMs
             if (synced && next != null && lastWordEnd != null && next - lastWordEnd > 4_000L && !isGapText(source[index + 1].text)) {
                 val gapStart = lastWordEnd + 200L
-                out += PanelLine(gapStart, "", true, next, SweptLine(gapStart, ""))
+                val gapVoice = source[index + 1].voice ?: line.voice
+                out += PanelLine(gapStart, "", true, next, SweptLine(gapStart, ""), voice = gapVoice)
             }
         }
     }
@@ -435,20 +526,18 @@ private fun backgroundSwept(line: LyricLine, nextLineMs: Long?): SweptLine? {
 }
 
 /**
- * Which end of the row a line sits at in a duet: true the end (the second singer), false the
- * start (the first), null for lines sung together, and for every line when the song is no duet,
- * which then go by their text's direction.
+ * Which end of the row a line sits at in a duet: true the end (second vocalist: voice == 2 or > 1),
+ * false the start (lead: voice == 1 or null), null for lines sung together (voice == 0) or non-duets.
  */
 private fun endLane(row: PanelLine, duet: Boolean): Boolean? =
-    if (duet && (row.voice == 1 || row.voice == 2)) row.voice == 2 else null
+    if (duet && (row.voice == null || row.voice >= 1)) (row.voice ?: 1) > 1 else null
 
 // ─── Constants (BitChord's, at its sizes) ───────────────────────────────────────────────
 
 /** How tall a break stands while it is playing; nothing when it is not. */
-private val GAP_ROW_HEIGHT = 40.dp
-private val GAP_ROW_SPACING = 16.dp
+private val GAP_ROW_HEIGHT = 44.dp
+private val GAP_ROW_SPACING = 14.dp
 
-/** What a line reads at while the list is being scrolled by hand. */
 /** How long other lyrics for the same song take to fade in over the ones shown. */
 private const val LYRICS_SWAP_MS = 350
 
@@ -459,10 +548,10 @@ private const val PRESSED_SCALE = 0.96f
 
 /** The break between verses, counted out rather than marked. */
 private const val GAP_DOTS = 3
-private val GAP_DOT_SIZE = 13.dp
-private val GAP_DOT_GAP = 5.dp
-private const val GAP_DOT_REST = 0.25f
-private const val GAP_REST_SCALE = 0.76f
+private val GAP_DOT_SIZE = 10.dp
+private val GAP_DOT_GAP = 7.dp
+private const val GAP_DOT_REST = 0.28f
+private const val GAP_REST_SCALE = 0.82f
 private const val GAP_RUNNING = -1f
 
 /** How long the panel takes to settle on a new line, and how far ahead it starts. */
@@ -473,8 +562,8 @@ private const val SCROLL_LEAD_MAX_MS = 500L
  * How the rows fan out as the panel moves between lines: each row after the one being
  * scrolled to sets off slightly later than the row before it, up to a few rows back.
  */
-private const val STAGGER_STEPS = 3
-private const val STAGGER_FRACTION = 0.06f
+private const val STAGGER_STEPS = 4
+private const val STAGGER_FRACTION = 0.065f
 
 /** One handover: how far the panel is going, and how long it is taking. */
 private class ScrollRun(val id: Int, val delta: Float, val durationMs: Int) {
@@ -512,14 +601,17 @@ private fun LyricsList(
     translations: List<String>? = null,
     /** Shows the lines' romanization under them. */
     romanizing: Boolean = false,
+    activeColor: Color = Color.White,
+    glowTint: Color = Immersive.Accent,
 ) {
     // Lines picked to share (see ImmersiveLyricsPanel): taps select, the follow waits.
     val selecting by vm.selecting.collectAsState()
     val picked by vm.picked.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val isSynced = remember(lyrics) { lyrics.synced && lyrics.lines.any { it.timeMs > 0L } }
-    val rows = remember(lyrics, isSynced) { panelLines(lyrics, isSynced) }
-    val duet = remember(lyrics) { lyrics.hasDuet }
+    val songDurationMs = SongPlayer.getDuration().coerceAtLeast(0L)
+    val rows = remember(lyrics, isSynced, songDurationMs) { panelLines(lyrics, isSynced, songDurationMs) }
+    val duet = remember(lyrics) { lyrics.hasDuet || lyrics.lines.any { (it.voice ?: 0) > 1 } }
     val playing = Graph.currentSongState.playingState.value
     val wordSynced = remember(lyrics) { lyrics.lines.any { !it.words.isNullOrEmpty() } }
     val head = rememberLyricsPlayhead(trackKey, playing && isSynced, if (wordSynced) LYRICS_WORD_FPS else LYRICS_LINE_FPS)
@@ -646,11 +738,15 @@ private fun LyricsList(
                     } else {
                         listState.animateScrollBy(
                             value = delta,
-                            animationSpec = spring(dampingRatio = 0.9f, stiffness = 220f),
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 240f),
                         )
                     }
                 }
-                else -> listState.animateScrollToItem(focusLine, scrollOffset = centerOffset)
+                else -> if (reduceMotion) {
+                    listState.scrollToItem(focusLine, scrollOffset = centerOffset)
+                } else {
+                    listState.animateScrollToItem(focusLine, scrollOffset = centerOffset)
+                }
             }
         }
     }
@@ -689,7 +785,10 @@ private fun LyricsList(
                 // Reading to pick lines flattens the stack the way reading by hand does.
                 browsing = browsing || selecting,
                 blurOk = blurOk,
-                glowing = blurOk,
+                glowing = !reduceMotion,
+                reduceMotion = reduceMotion,
+                activeColor = activeColor,
+                glowTint = glowTint,
                 clock = clock,
                 noteMeasurer = noteMeasurer,
                 translation = translations?.getOrNull(row.sourceIndex)?.trim()?.takeIf { it.isNotEmpty() && !it.equals(row.text.trim(), ignoreCase = true) },
@@ -721,7 +820,7 @@ private fun LyricsList(
                 },
             )
         }
-        lyrics.provider?.let { p ->
+        lyrics.provider?.takeIf { it.isNotBlank() }?.let { p ->
             item(key = "provider-credit") {
                 Text(
                     text = "Lyrics by $p",
@@ -749,6 +848,9 @@ private fun PanelRow(
     browsing: Boolean,
     blurOk: Boolean,
     glowing: Boolean,
+    reduceMotion: Boolean,
+    activeColor: Color,
+    glowTint: Color,
     clock: MutableLongState,
     noteMeasurer: TextMeasurer,
     /** The line in the reader's language, shown small under it; null when there is none. */
@@ -771,19 +873,12 @@ private fun PanelRow(
         return
     }
 
-    // Off the line being sung, not off the line the panel is heading for. Brightness is what
-    // says "these are the words right now", so it cannot run ahead of them.
+    val lane = endLane(row, duet)
     val offset = if (activeRow < 0) 0 else index - activeRow
     val isActive = synced && index == activeRow
-    // Symmetric either side of the playing line, and shallow: the two rows around it stay
-    // readable, and everything past that recedes to the same floor rather than fading to nothing.
     val step = abs(offset).coerceAtMost(LINE_FALLOFF_ALPHA.lastIndex)
-    // Blur follows the line switch (focusLine), not the first word's start: the new line
-    // clears and the old one blurs back in the same short tween. Reduce motion drops blur.
     val focusStep = (if (focusLine < 0) 0 else abs(index - focusLine))
         .coerceAtMost(LINE_FALLOFF_BLUR.lastIndex)
-    // These three animate on every line change: they are read in the row's layer (see `shape`),
-    // so a line settling redraws the rows it touches without recomposing them and their text.
     val blur = animateDpAsState(
         targetValue = when {
             !synced || !blurOk || browsing || (focusLine >= 0 && index == focusLine) -> 0.dp
@@ -796,16 +891,25 @@ private fun PanelRow(
         targetValue = when {
             !synced -> 0.95f
             isActive || selected -> 1f
-            // Reading by hand is not following along: the stack flattens to one brightness.
             browsing -> BROWSING_ALPHA
             else -> LINE_FALLOFF_ALPHA[step]
         },
-        animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 260f),
         label = "lyricAlpha",
     )
 
     if (row.isGap) {
-        GapRow(row, clock, isActive, blur, lineAlpha, onSeek)
+        GapRow(
+            row = row,
+            clock = clock,
+            isActive = isActive,
+            blur = blur,
+            lineAlpha = lineAlpha,
+            alignEnd = lane == true,
+            glowTint = glowTint,
+            reduceMotion = reduceMotion,
+            onSeek = onSeek,
+        )
         return
     }
 
@@ -814,17 +918,12 @@ private fun PanelRow(
     } else {
         Immersive.Lyric.copy(fontSize = 26.sp, lineHeight = 33.sp)
     }
-    val lane = endLane(row, duet)
     val lineStyle = remember(style, row.text, lane) { voiceStyle(style, row.text, lane) }
-    // The stack sits fractionally back and the playing line comes forward to meet you. Rows
-    // behind the one being scrolled to are the ones that fan out; the ones it is moving away
-    // from arrive together.
     val sung = offset < 0
     val behind = if (run.delta >= 0f) index - focusLine else focusLine - index
     val staggerDelay = behind.coerceIn(0, STAGGER_STEPS) * STAGGER_FRACTION * run.durationMs
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    // Where the finger went down and how wide the row was: a tap plays from the word it hit.
     var pressAt by remember { mutableStateOf(Offset.Zero) }
     var pressWidth by remember { mutableStateOf(0) }
     val density = LocalDensity.current
@@ -837,11 +936,10 @@ private fun PanelRow(
         animationSpec = if (pressed) {
             tween(durationMillis = 120, easing = LYRIC_EASING)
         } else {
-            spring(dampingRatio = 0.85f, stiffness = 260f)
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 260f)
         },
         label = "lyricScale",
     )
-    // The bloom on the line being sung fades in and out with the line rather than switching.
     val glow by animateFloatAsState(
         targetValue = if (isActive && glowing) GLOW_ALPHA else 0f,
         animationSpec = tween(durationMillis = 420),
@@ -851,18 +949,14 @@ private fun PanelRow(
         if (selected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
         tween(180), label = "lyricPicked",
     )
+    val originX = if (lane ?: isRtl(row.text)) 1f else 0f
     val shape = Modifier
         .fillMaxWidth()
         .graphicsLayer {
             scaleX = scale.value
             scaleY = scale.value
-            // Anchored to the left edge (the right one for the second singer), so the words don't
-            // slide sideways under the highlight.
-            transformOrigin = TransformOrigin(if (lane == true) 1f else 0f, 0.5f)
+            transformOrigin = TransformOrigin(originX, 0.5f)
             alpha = lineAlpha.value
-            // Held back against the list's own movement: the list has already taken this row
-            // part of the way, so giving back what it has not earned yet is what leaves it
-            // trailing. Rows with nothing to catch up on never read the clock at all.
             translationY = if (staggerDelay <= 0f) {
                 0f
             } else {
@@ -872,16 +966,12 @@ private fun PanelRow(
                         LYRIC_EASING.transform(((elapsed - staggerDelay) / run.durationMs).coerceIn(0f, 1f))
                     )
             }
-            // What Modifier.blur does, with its radius read here instead of at composition.
             val radius = blur.value.toPx()
-            renderEffect = if (radius > 0f) BlurEffect(radius, radius, TileMode.Decal) else null
+            renderEffect = if (radius > 0f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) BlurEffect(radius, radius, TileMode.Decal) else null
         }
         .clip(RoundedCornerShape(10.dp))
         .background(pickedFill)
         .then(if (onNote != null) Modifier.drawWithCache {
-            // Genius explains this line: each row of its words sits on a faint pill, as Genius
-            // marks the lines it explains. Drawn behind the words, inside the row, so the sweep
-            // and the glow are untouched and the pill dims and blurs with its line.
             val text = measureNoteLine(noteMeasurer, row.text, lineStyle, size.width.toInt(), GLOW_ROOM.roundToPx())
             val room = GLOW_ROOM.toPx()
             val padH = NOTE_PILL_PAD_H.toPx()
@@ -913,54 +1003,68 @@ private fun PanelRow(
         )
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Column(shape) {
-            NoteLayout(
-                text = row.text,
-                style = lineStyle,
-                measurer = noteMeasurer,
-                onNote = onNote,
-            ) {
-                PanelVoice(
-                    row = row,
-                    clock = clock,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = if (duet && lane == true) 24.dp else 0.dp,
+                    end = if (duet && lane == false) 24.dp else 0.dp,
+                ),
+        ) {
+            Column(shape) {
+                NoteLayout(
+                    text = row.text,
                     style = lineStyle,
-                    isActive = isActive,
-                    sung = sung,
-                    synced = synced,
-                    browsing = browsing,
-                    glowAlpha = glow,
-                    room = GLOW_ROOM,
-                    lane = lane,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            // Under the words, smaller and dimmer, and they take the row's blur and brightness with
-            // them: the backing vocals, then the romanization, then the translation. The romanization
-            // in italics and the translation a little apart: one says how the line sounds, the other
-            // what it means.
-            val romanized = row.romanization.takeIf { romanizing }
-            if (row.background != null) {
-                PanelBackground(
-                    row = row, clock = clock, style = secondaryStyle(BACKGROUND_STYLE, lane),
-                    isActive = isActive, sung = sung, synced = synced, lane = lane,
-                    modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (romanized != null || translation != null) 4.dp else GLOW_ROOM),
-                )
-            }
-            if (romanized != null) {
-                Text(
-                    text = romanized,
-                    style = secondaryStyle(ROMANIZATION_STYLE, lane),
-                    color = Immersive.TextSecondary,
-                    modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (translation != null) 10.dp else GLOW_ROOM),
-                )
-            }
-            if (translation != null) {
-                Text(
-                    text = translation,
-                    style = secondaryStyle(TRANSLATION_STYLE, lane),
-                    color = Immersive.TextSecondary,
-                    modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = GLOW_ROOM),
-                )
+                    measurer = noteMeasurer,
+                    onNote = onNote,
+                ) {
+                    PanelVoice(
+                        row = row,
+                        clock = clock,
+                        style = lineStyle,
+                        isActive = isActive,
+                        sung = sung,
+                        synced = synced,
+                        browsing = browsing,
+                        glowAlpha = glow,
+                        room = GLOW_ROOM,
+                        lane = lane,
+                        activeColor = activeColor,
+                        glowTint = glowTint,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                val romanized = row.romanization.takeIf { romanizing }
+                if (row.background != null) {
+                    PanelBackground(
+                        row = row,
+                        clock = clock,
+                        style = voiceStyle(BACKGROUND_STYLE, row.background, lane),
+                        isActive = isActive,
+                        sung = sung,
+                        synced = synced,
+                        lane = lane,
+                        activeColor = activeColor,
+                        glowTint = glowTint,
+                        modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (romanized != null || translation != null) 4.dp else GLOW_ROOM),
+                    )
+                }
+                if (romanized != null) {
+                    Text(
+                        text = romanized,
+                        style = secondaryStyle(ROMANIZATION_STYLE, lane),
+                        color = Immersive.TextSecondary,
+                        modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (translation != null) 10.dp else GLOW_ROOM),
+                    )
+                }
+                if (translation != null) {
+                    Text(
+                        text = translation,
+                        style = secondaryStyle(TRANSLATION_STYLE, lane),
+                        color = Immersive.TextSecondary,
+                        modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = GLOW_ROOM),
+                    )
+                }
             }
         }
     }
@@ -1158,24 +1262,23 @@ private fun PanelVoice(
     room: Dp,
     /** The duet side: see [endLane]. */
     lane: Boolean?,
+    activeColor: Color,
+    glowTint: Color,
     modifier: Modifier = Modifier,
 ) {
-    // The line being sung is white; every other one takes a quieter white. Faded across the
-    // handover rather than cut, so a line warms as it is reached and cools as it is left.
-    // Lyrics with no timing have no line being sung, and stay white throughout.
-    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
-    val customSpicy = spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT
-    val activeColor = if (customSpicy) Color(spicyPreset.accentHex) else Color.White
-    val glowTint = if (customSpicy) Color(spicyPreset.glowHex) else Immersive.Accent
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) activeColor else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = if (isActive || !synced) activeColor else lerp(activeColor, Immersive.TextSecondary, 0.35f),
         label = "lyricLineColor",
     )
     if (synced && (row.isWordSynced || row.swept.endMs > row.timeMs)) {
         // Every synced line goes through SweptLyricLine: word-by-word/syllable sweep when
         // word timings are present, and graceful line-level sweep fallback otherwise.
         val tail by animateFloatAsState(
-            targetValue = if (sung) SUNG_ALPHA else UNSUNG_ALPHA,
+            targetValue = when {
+                isActive -> UNSUNG_ALPHA
+                sung -> SUNG_ALPHA
+                else -> 0.90f
+            },
             label = "lyricTail",
         )
         SweptLyricLine(
@@ -1184,25 +1287,21 @@ private fun PanelVoice(
             style = style,
             dimAlpha = tail,
             modifier = modifier,
-            // Browsing keeps the sweep but skips the bloom: a playback flourish, not a reading aid.
             glowAlpha = if (browsing) 0f else glowAlpha,
             glowRoom = room,
             feather = isActive,
             rise = row.isWordSynced,
             color = color,
-            glowColor = lerp(color, glowTint, if (customSpicy) 0.45f else 0.35f),
+            glowColor = lerp(color, glowTint, 0.45f),
             alignEnd = lane == true,
             laneLocked = lane != null,
         )
     } else {
-        // No word timings, so there is no sweep to light the words as they are sung: the line
-        // lights whole, the moment it starts, and holds itself back at the same dim a swept
-        // line's unsung words sit at until then.
         val lit by animateFloatAsState(
             targetValue = when {
                 !synced || isActive -> 1f
                 sung -> SUNG_ALPHA
-                else -> UNSUNG_ALPHA
+                else -> 0.90f
             },
             label = "lyricLit",
         )
@@ -1217,7 +1316,7 @@ private fun PanelVoice(
 
 /**
  * The backing vocals under a line: swept word by word where the source times them, else lit
- * whole with their line. Smaller than the words and drawn at [BACKGROUND_ALPHA] of them.
+ * whole with their line. Smaller, italicized, and softly tinted beneath the lead lyric.
  */
 @Composable
 private fun PanelBackground(
@@ -1228,32 +1327,39 @@ private fun PanelBackground(
     sung: Boolean,
     synced: Boolean,
     lane: Boolean?,
+    activeColor: Color,
+    glowTint: Color,
     modifier: Modifier = Modifier,
 ) {
-    val spicyPreset by com.music.spotui.data.preferences.AstralThemePref.spicyTheme.collectAsState()
-    val activeColor = if (spicyPreset != com.music.spotui.data.preferences.SpicyThemePreset.ASTRAL_DEFAULT) Color(spicyPreset.accentHex) else Color.White
+    val tinted = lerp(activeColor, glowTint, 0.42f)
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) activeColor else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = if (isActive || !synced) tinted else lerp(tinted, Immersive.TextSecondary, 0.35f),
         label = "lyricBackgroundColor",
     )
     val dimmer = modifier.graphicsLayer { alpha = BACKGROUND_ALPHA }
     val swept = row.backgroundSwept
     if (swept != null && synced) {
-        val tail by animateFloatAsState(if (sung) 1f else UNSUNG_ALPHA, label = "lyricBackgroundTail")
+        val tail by animateFloatAsState(
+            targetValue = when {
+                isActive -> UNSUNG_ALPHA
+                sung -> 1f
+                else -> 0.85f
+            },
+            label = "lyricBackgroundTail",
+        )
         SweptLyricLine(
             line = swept, clock = clock, style = style, dimAlpha = tail, modifier = dimmer,
             rise = false, color = color, alignEnd = lane == true, laneLocked = lane != null,
         )
     } else {
-        val lit by animateFloatAsState(if (!synced || sung || isActive) 1f else UNSUNG_ALPHA, label = "lyricBackgroundLit")
+        val lit by animateFloatAsState(if (!synced || sung || isActive) 1f else 0.85f, label = "lyricBackgroundLit")
         Text(text = row.background.orEmpty(), style = style, color = color.copy(alpha = lit), modifier = dimmer)
     }
 }
 
 /**
- * A break counts itself out rather than being marked: three dots lighting in turn across the
- * interlude, so a long one reads as time running down. The row itself opens and closes with
- * the break, so the list carries no dead space through the verses either side of it.
+ * Pill-shaped three-dot animated progress bubble for intros > 4 s and instrumental gaps > 4 s.
+ * Dots scale and illuminate sequentially across the break while expanding smoothly into view.
  */
 @Composable
 private fun GapRow(
@@ -1262,11 +1368,12 @@ private fun GapRow(
     isActive: Boolean,
     blur: State<Dp>,
     lineAlpha: State<Float>,
+    alignEnd: Boolean,
+    glowTint: Color,
+    reduceMotion: Boolean,
     onSeek: (Long) -> Unit,
 ) {
     val until = row.untilMs
-    // How far through the break the song is, held at 0 before it and 1 after: the dots read
-    // the clock only while it is running, so a break that is not playing never redraws.
     val gapFill = remember(row, until, clock) {
         derivedStateOf(structuralEqualityPolicy()) {
             val now = clock.longValue
@@ -1279,62 +1386,68 @@ private fun GapRow(
     }
     val swell by animateFloatAsState(
         targetValue = if (isActive) 1f else 0f,
-        animationSpec = tween(durationMillis = if (isActive) 400 else 350, easing = LYRIC_EASING),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 280f),
         label = "gapSwell",
     )
+    if (swell <= 0.01f) {
+        Spacer(Modifier.height(0.dp))
+        return
+    }
     val instrumental = stringResource(R.string.immersive_lyrics_instrumental)
+    val pillShape = RoundedCornerShape(50)
     Box(
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = if (alignEnd) Alignment.CenterEnd else Alignment.CenterStart,
         modifier = Modifier
+            .fillMaxWidth()
             .height((GAP_ROW_HEIGHT + GAP_ROW_SPACING) * swell)
+            .padding(horizontal = GLOW_ROOM)
             .clipToBounds(),
     ) {
         Box(
             modifier = Modifier
-                // Its own layer, outside the clip and the grow below: the dots blur at the full
-                // radius and the blur bleeds past the rounded rect, as a sung line's does.
                 .graphicsLayer {
                     val radius = blur.value.toPx()
-                    renderEffect = if (radius > 0f) BlurEffect(radius, radius, TileMode.Decal) else null
-                }
-                .clip(RoundedCornerShape(10.dp))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                    onSeek(row.timeMs)
-                }
-                // Matches the inset every sung line carries, so the rhythm of the list doesn't
-                // break at a break.
-                .padding(GLOW_ROOM)
-                .size(width = GAP_DOT_SIZE * 3 + GAP_DOT_GAP * 2, height = GAP_DOT_SIZE)
-                .graphicsLayer {
+                    renderEffect = if (radius > 0f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) BlurEffect(radius, radius, TileMode.Decal) else null
                     val grow = GAP_REST_SCALE + (1f - GAP_REST_SCALE) * swell
                     scaleX = grow
                     scaleY = grow
-                    transformOrigin = TransformOrigin(0f, 0.5f)
+                    transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
                     alpha = lineAlpha.value * swell
+                }
+                .size(width = 78.dp, height = 34.dp)
+                .clip(pillShape)
+                .background(Color.White.copy(alpha = 0.14f))
+                .border(1.dp, Color.White.copy(alpha = 0.22f), pillShape)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    onSeek(row.timeMs)
                 }
                 .drawBehind {
                     val span = (until - row.timeMs).coerceAtLeast(1L)
                     val through = gapFill.value.takeUnless { it == GAP_RUNNING }
                         ?: ((clock.longValue - row.timeMs).toFloat() / span).coerceIn(0f, 1f)
-                    val radius = GAP_DOT_SIZE.toPx() / 2f
+                    val baseRadius = GAP_DOT_SIZE.toPx() / 2f
                     val stride = (GAP_DOT_SIZE + GAP_DOT_GAP).toPx()
-                    val wavePhase = (clock.longValue % 1_800L) / 1_800f * (2f * kotlin.math.PI.toFloat())
+                    val startX = (size.width - stride * (GAP_DOTS - 1)) / 2f
+                    val wavePhase = if (reduceMotion) 0f else (clock.longValue % 1_800L) / 1_800f * (2f * PI.toFloat())
                     repeat(GAP_DOTS) { dot ->
-                        // Each dot owns its share of the break and pulses softly in a wave.
                         val lit = (through * GAP_DOTS - dot).coerceIn(0f, 1f)
-                        val wave = if (isActive) kotlin.math.sin(wavePhase - dot * 0.9f).toFloat() else 0f
-                        val pulse = 1f + 0.22f * kotlin.math.sin(lit * kotlin.math.PI).toFloat() + 0.10f * wave
-                        val center = Offset(radius + dot * stride, size.height / 2f - wave * 2.dp.toPx())
+                        val wave = if (isActive && !reduceMotion) sin(wavePhase - dot * 0.9f).toFloat() else 0f
+                        val scale = 0.78f + 0.34f * lit + 0.10f * sin(lit * PI).toFloat() + 0.08f * wave
+                        val center = Offset(startX + dot * stride, size.height / 2f - wave * 1.6.dp.toPx())
                         if (isActive && lit > 0.05f) {
                             drawCircle(
-                                color = Immersive.Accent.copy(alpha = 0.24f * lit),
-                                radius = radius * pulse * 1.6f,
+                                brush = Brush.radialGradient(
+                                    colors = listOf(glowTint.copy(alpha = 0.38f * lit), Color.Transparent),
+                                    center = center,
+                                    radius = baseRadius * scale * 2.1f,
+                                ),
+                                radius = baseRadius * scale * 2.1f,
                                 center = center,
                             )
                         }
                         drawCircle(
                             color = Color.White.copy(alpha = GAP_DOT_REST + (1f - GAP_DOT_REST) * lit),
-                            radius = radius * pulse,
+                            radius = baseRadius * scale,
                             center = center,
                         )
                     }

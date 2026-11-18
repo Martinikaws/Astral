@@ -70,6 +70,16 @@ object AstralThemePref {
         prefs(context).edit().putString(KEY_THEME_MODE, mode.name).apply()
     }
 
+    /** Keeps [themeMode] aligned when the unified [LookPref] changes. */
+    fun syncFromLook(context: Context, look: Look) {
+        val mapped = when (look) {
+            Look.GLASSIFY -> AstralThemeMode.GLASSIFY
+            Look.LIQUID_MUSIC -> AstralThemeMode.LIQUID_MUSIC
+            Look.CLASSIC, Look.IMMERSIVE, Look.SPOTIFUSION -> AstralThemeMode.STARRY_NIGHT
+        }
+        setThemeMode(context, mapped)
+    }
+
     fun setLiquidGlassRefraction(context: Context, enabled: Boolean) {
         init(context)
         _liquidGlassRefraction.value = enabled
