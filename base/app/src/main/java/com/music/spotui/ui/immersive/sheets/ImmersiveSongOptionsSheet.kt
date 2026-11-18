@@ -82,6 +82,8 @@ fun ImmersiveSongOptionsSheet(
     currentPlaylistId: String? = null,
     /** The player's lyrics panel is open: the translation row works on the lyrics it shows. */
     lyricsOpen: Boolean = false,
+    /** Extra rows drawn with the now-playing group (the player's Canvas settings). */
+    extraRows: (@Composable () -> Unit)? = null,
 ) {
     val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
@@ -341,6 +343,7 @@ fun ImmersiveSongOptionsSheet(
                 ImmersiveSheetRow(Icons.Rounded.Devices, stringResource(R.string.listen_on)) { showDevices = true }
             }
             ImmersiveSheetRow(Icons.Rounded.Analytics, stringResource(R.string.nerd_title)) { showNerd = true }
+            extraRows?.invoke()
         }
         // Entries from extensions (menu.items), after the app's own; each names its extension.
         if (hasId) com.music.spotui.extensions.ExtensionMenuEntries(
