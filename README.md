@@ -88,20 +88,36 @@ Astral/
 
 ## 📜 Licenses, Certifications & Attributions
 
-Astral is free and open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+Astral is free and open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. The full licence text is in [`LICENSE`](LICENSE). Every bundled third-party component, with its copyright and licence notice, is listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-| Component / Inspiration | Attribution | License |
+**Code Astral is built on:**
+
+| Component | Attribution | License |
 | :--- | :--- | :--- |
 | **Base Codebase (Orpheon / Myspoti)** | [`kota-zo/myspoti`](https://github.com/kota-zo/myspoti) | **GPL-3.0** |
 | **Lossless, Cache, Preloader & Login Fix** | [`p1di/spotifusion`](https://github.com/p1di/spotifusion) | **GPL-3.0** |
-| **Starry Night Theme & Shooting Stars** | [`spicetify/spicetify-themes` (`StarryNight`)](https://github.com/spicetify/spicetify-themes/tree/master/StarryNight) & Delroy Prithvi | **MIT** |
-| **Glassify Theme (Look Inspiration)** | [`sanoojes/spicetify-glassify`](https://github.com/sanoojes/spicetify-glassify) | **AGPL-3.0** |
-| **LiquidMusic Theme (Look Inspiration)** | [`fraustiz/LiquidMusic`](https://github.com/fraustiz/LiquidMusic) | **GPL-3.0** |
-| **Spicy Lyrics & SpicyThemes (Display / Presets)** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/), [`spicylyrics/mobile`](https://github.com/spicylyrics/mobile), [`7xeh/SpicyThemes`](https://github.com/7xeh/SpicyThemes) | **GPL-3.0 / AGPL-3.0** |
-| **BackMusic & Visualizer Modules (Inspiration)** | [`rolandyangg/backmusic_extension`](https://github.com/rolandyangg/backmusic_extension), [`Konsl/spicetify-visualizer`](https://github.com/Konsl/spicetify-visualizer) | **MIT / GPL-3.0** |
-| **UI / UX Inspiration (Login, Widget, Updater)** | Clean-room GPL-3.0 reimplementation inspired by Quackify / SpotiDuck UX | **GPL-3.0** |
+
+**Design references (Astral's own code; no code or assets copied):**
+
+| Astral feature | Inspired by | That project's license |
+| :--- | :--- | :--- |
+| **Starry Night Theme & Shooting Stars** | [`spicetify/spicetify-themes` (`StarryNight`)](https://github.com/spicetify/spicetify-themes/tree/master/StarryNight) & Delroy Prithvi | MIT |
+| **Glassify Look** | [`sanoojes/spicetify-glassify`](https://github.com/sanoojes/spicetify-glassify) | AGPL-3.0 |
+| **LiquidMusic Look** | [`fraustiz/LiquidMusic`](https://github.com/fraustiz/LiquidMusic) | none published |
+| **Spicy Lyrics Display** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/), [`spicylyrics/mobile`](https://github.com/spicylyrics/mobile) | AGPL-3.0 |
+| **Spicy Lyrics Colour Presets** | [`7xeh/SpicyThemes`](https://github.com/7xeh/SpicyThemes) | source-available, not open source |
+| **BackMusic Module** | [`rolandyangg/backmusic_extension`](https://github.com/rolandyangg/backmusic_extension) | none published |
+| **Visualizer Module** | [`Konsl/spicetify-visualizer`](https://github.com/Konsl/spicetify-visualizer) | MIT |
+| **UI / UX (Login, Widget, Updater)** | Quackify / SpotiDuck UX | not applicable (UX only) |
+
+**Bundled libraries and assets:**
+
+| Component | Attribution | License |
+| :--- | :--- | :--- |
 | **AndroidX / Media3 / Horologist / OkHttp** | Google & Square Open Source | **Apache-2.0** (`base/licenses/Apache-2.0.txt`) |
 | **Metadata / Catalog Libraries** | Bundled catalog notice | **LGPL-3.0** (`base/catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt`) |
 | **Typography (`Inter`, `Manrope`)** | Rasmus Andersson / Mikhail Sharanda | **SIL OFL 1.1** (`base/licenses/Inter-OFL.txt`, `base/licenses/Manrope-OFL.txt`) |
 
 > Any derivative distribution of Astral must retain copyright and license notices and publish full corresponding source code under **GPL-3.0**.
+>
+> Astral is an independent, unofficial project, not affiliated with or endorsed by Spotify, Google or Apple. Spotify is a trademark of Spotify AB.
