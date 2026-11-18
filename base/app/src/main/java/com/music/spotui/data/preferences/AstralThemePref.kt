@@ -53,6 +53,7 @@ object AstralThemePref {
         synchronized(this) {
             if (initialized) return
             val p = prefs(context)
+            LookMigration.run(p)
             _themeMode.value = p.getString(KEY_THEME_MODE, null)
                 ?.let { name -> AstralThemeMode.entries.firstOrNull { it.name == name } }
                 ?: AstralThemeMode.STARRY_NIGHT
