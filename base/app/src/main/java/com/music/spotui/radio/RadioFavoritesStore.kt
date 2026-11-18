@@ -65,7 +65,14 @@ object RadioFavoritesStore {
             change()
             val f = file ?: return
             val tmp = File(f.parentFile, f.name + ".tmp")
-            runCatching { tmp.writeText(write()); tmp.renameTo(f) }
+            // File.renameTo doesn't replace an existing file on every platform (Windows); Files.move does.
+            runCatching {
+                tmp.writeText(write())
+                java.nio.file.Files.move(
+                    tmp.toPath(), f.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                )
+            }
         }
     }
 
