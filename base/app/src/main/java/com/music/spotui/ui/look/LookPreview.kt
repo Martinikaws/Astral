@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -529,8 +530,28 @@ private fun ClassicLyricsCard(clock: DemoClock, phases: DemoPhases, open: () -> 
 private val ImmersiveTint = Color(0xFFF2D3E4)
 private val Glass = Color(0xFF2C2C34)
 
+private fun Modifier.previewGlassPanel(look: Look, shape: Shape): Modifier = when (look) {
+    Look.GLASSIFY -> this
+        .background(GlassifyGlassFill, shape)
+        .border(
+            1.dp,
+            Brush.linearGradient(
+                colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.05f)),
+                start = Offset.Zero,
+                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+            ),
+            shape,
+        )
+    Look.LIQUID_MUSIC -> this
+        .background(LiquidMusicSurface, shape)
+        .border(1.dp, LiquidMusicBorder, shape)
+    else -> this
+        .background(Glass.copy(alpha = 0.9f), shape)
+        .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+}
+
 @Composable
-private fun ImmersiveDemo(clock: DemoClock, still: Boolean) {
+private fun ImmersiveDemo(clock: DemoClock, still: Boolean, look: Look = Look.IMMERSIVE) {
     val phases = rememberPhases(clock)
     val open by phases.open
     val lyrics by phases.lyrics
@@ -539,38 +560,107 @@ private fun ImmersiveDemo(clock: DemoClock, still: Boolean) {
     val mini = CoverRect(26f, 624f, 36f)
     val big = CoverRect(28f, 66f, 304f)
     val header = CoverRect(24f, 52f, 48f)
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        ImmersiveHome()
-        ImmersiveMini(playing, Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 88.dp))
-        ImmersiveTabs(Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 18.dp))
-        if (open > 0f) ImmersivePlayer(clock, phases, still, { lyrics }, Modifier.graphicsLayer {
+    val coverRadius = when (look) {
+        Look.LIQUID_MUSIC -> 20.dp
+        Look.GLASSIFY -> 16.dp
+        else -> 12.dp
+    }
+    val backdropModifier = when (look) {
+        Look.GLASSIFY -> Modifier
+            .background(GlassifyBackground)
+            .background(Brush.radialGradient(colors = listOf(StarryBlue.copy(alpha = 0.30f), Color.Transparent)))
+        Look.LIQUID_MUSIC -> Modifier
+            .background(LiquidMusicBackground)
+            .background(Brush.radialGradient(colors = listOf(LiquidMusicAccent.copy(alpha = 0.24f), Color.Transparent)))
+        else -> Modifier.background(Color.Black)
+    }
+    Box(Modifier.fillMaxSize().then(backdropModifier)) {
+        ImmersiveHome(look)
+        ImmersiveMini(
+            playing = playing,
+            look = look,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 88.dp),
+        )
+        ImmersiveTabs(
+            look = look,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(start = 14.dp, end = 14.dp, bottom = 18.dp),
+        )
+        if (open > 0f) ImmersivePlayer(clock, phases, still, { lyrics }, look, Modifier.graphicsLayer {
             translationY = (1f - open) * size.height
             shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
             clip = true
         })
         FlyingCover(
             rect = { lerp(lerp(mini, big, open), header, lyrics) },
-            base = 304f, radius = 12.dp, shadow = open > 0.5f,
+            base = 304f, radius = coverRadius, shadow = open > 0.5f,
             // Only the big cover steps back; the mini one and the lyrics header stay put.
             pause = { 1f + (pause - 1f) * open * (1f - lyrics) },
         )
     }
 }
 
-/** A home page in the Immersive look: a big title, a row of large cards, a shelf. */
+/** A home page in the Immersive, Glassify, and LiquidMusic looks: big title, large cards, a shelf. */
 @Composable
-private fun ImmersiveHome() {
+private fun ImmersiveHome(look: Look) {
     val text = TextStyle(fontFamily = ImmersiveSans, color = Color.White)
+    val heroShape = RoundedCornerShape(
+        when (look) {
+            Look.LIQUID_MUSIC -> 20.dp
+            Look.GLASSIFY -> 16.dp
+            else -> 14.dp
+        },
+    )
+    val shelfShape = RoundedCornerShape(
+        when (look) {
+            Look.LIQUID_MUSIC -> 20.dp
+            Look.GLASSIFY -> 14.dp
+            else -> 10.dp
+        },
+    )
+    val avatarColor = when (look) {
+        Look.GLASSIFY -> StarryBlue
+        Look.LIQUID_MUSIC -> LiquidMusicAccent
+        else -> Color(0xFF7E57C2)
+    }
+    val cardBorder: (Shape) -> Modifier = { shape ->
+        when (look) {
+            Look.GLASSIFY -> Modifier.border(
+                1.dp,
+                Brush.linearGradient(
+                    colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.05f)),
+                    start = Offset.Zero,
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                ),
+                shape,
+            )
+            Look.LIQUID_MUSIC -> Modifier.border(1.dp, LiquidMusicBorder, shape)
+            else -> Modifier
+        }
+    }
     Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 54.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.navigationbar_musicappitems_home_title), style = text, fontSize = 32.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f))
-            Box(Modifier.size(34.dp).background(Color(0xFF7E57C2), CircleShape))
+            Box(Modifier.size(34.dp).background(avatarColor, CircleShape).then(cardBorder(CircleShape)))
         }
         Text(stringResource(R.string.look_demo_section), style = text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (i in 0 until 2) Box(Modifier.size(width = 220.dp, height = 280.dp).clip(RoundedCornerShape(14.dp))) {
+            for (i in 0 until 2) Box(
+                Modifier
+                    .size(width = 220.dp, height = 280.dp)
+                    .clip(heroShape)
+                    .then(cardBorder(heroShape)),
+            ) {
                 DemoTile(i + 2, Modifier.fillMaxSize())
+                if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(92.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.68f)))),
+                    )
+                }
                 Text(DemoShelf[i + 1], style = text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.BottomStart).padding(14.dp))
             }
@@ -578,7 +668,7 @@ private fun ImmersiveHome() {
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (i in 0 until 3) Column(Modifier.width(150.dp)) {
-                DemoTile(i + 5, Modifier.size(150.dp).clip(RoundedCornerShape(10.dp)))
+                DemoTile(i + 5, Modifier.size(150.dp).clip(shelfShape).then(cardBorder(shelfShape)))
                 Text(DemoShelf[(i + 3) % DemoShelf.size], style = text, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                     maxLines = 1, modifier = Modifier.padding(top = 6.dp))
             }
@@ -587,13 +677,14 @@ private fun ImmersiveHome() {
 }
 
 @Composable
-private fun ImmersiveMini(playing: Boolean, modifier: Modifier) {
+private fun ImmersiveMini(playing: Boolean, look: Look, modifier: Modifier) {
+    val shape: Shape = if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else CircleShape
+    val playTint = if (look == Look.LIQUID_MUSIC) LiquidMusicAccent else Color.White
     Row(
         modifier
             .fillMaxWidth()
             .height(52.dp)
-            .background(Glass.copy(alpha = 0.92f), CircleShape)
-            .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+            .previewGlassPanel(look, shape)
             .padding(start = 60.dp, end = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -601,7 +692,7 @@ private fun ImmersiveMini(playing: Boolean, modifier: Modifier) {
             Text(DemoSong.TITLE, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = ImmersiveSans, maxLines = 1)
             Text(DemoSong.ARTIST, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontFamily = ImmersiveSans, maxLines = 1)
         }
-        PlayGlyph(playing, 30.dp, Color.White)
+        PlayGlyph(playing, 30.dp, playTint)
         Spacer(Modifier.width(12.dp))
         Glyph(Icons.Rounded.FastForward, 28.dp)
     }
@@ -609,14 +700,20 @@ private fun ImmersiveMini(playing: Boolean, modifier: Modifier) {
 
 /** Floating, translucent tabs, with search in a bubble of its own. */
 @Composable
-private fun ImmersiveTabs(modifier: Modifier) {
+private fun ImmersiveTabs(look: Look, modifier: Modifier) {
+    val pillShape: Shape = if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else CircleShape
+    val activeFill = when (look) {
+        Look.LIQUID_MUSIC -> LiquidMusicAccent.copy(alpha = 0.24f)
+        Look.GLASSIFY -> StarryBlue.copy(alpha = 0.24f)
+        else -> Color.White.copy(alpha = 0.14f)
+    }
+    val activeTint = if (look == Look.LIQUID_MUSIC) LiquidMusicAccent else Color.White
     Row(modifier.fillMaxWidth().height(62.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .background(Glass.copy(alpha = 0.9f), CircleShape)
-                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                .previewGlassPanel(look, pillShape)
                 .padding(5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -624,9 +721,9 @@ private fun ImmersiveTabs(modifier: Modifier) {
                 Icons.Rounded.Home to R.string.navigationbar_musicappitems_home_title,
                 Icons.Rounded.LibraryMusic to R.string.navigationbar_musicappitems_yourlibrary_title,
             ).forEachIndexed { i, (icon, label) ->
-                val tint = if (i == 0) Color.White else Color.White.copy(alpha = 0.7f)
+                val tint = if (i == 0) activeTint else Color.White.copy(alpha = 0.7f)
                 Column(
-                    Modifier.weight(1f).fillMaxHeight().background(if (i == 0) Color.White.copy(alpha = 0.14f) else Color.Transparent, CircleShape),
+                    Modifier.weight(1f).fillMaxHeight().background(if (i == 0) activeFill else Color.Transparent, pillShape),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
                     Glyph(icon, 24.dp, tint)
@@ -635,7 +732,7 @@ private fun ImmersiveTabs(modifier: Modifier) {
             }
         }
         Box(
-            Modifier.size(62.dp).background(Glass.copy(alpha = 0.9f), CircleShape).border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+            Modifier.size(62.dp).previewGlassPanel(look, pillShape),
             contentAlignment = Alignment.Center,
         ) { Glyph(Icons.Rounded.Search, 26.dp) }
     }
@@ -643,8 +740,18 @@ private fun ImmersiveTabs(modifier: Modifier) {
 
 /** A disc of frosted white behind a small glyph (the star and the menu). */
 @Composable
-private fun GlassDisc(icon: ImageVector) {
-    Box(Modifier.size(30.dp).background(Color.White.copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
+private fun GlassDisc(icon: ImageVector, look: Look = Look.IMMERSIVE) {
+    val fill = when (look) {
+        Look.GLASSIFY -> GlassifyGlassFill
+        Look.LIQUID_MUSIC -> LiquidMusicSurface
+        else -> Color.White.copy(alpha = 0.18f)
+    }
+    val border = when (look) {
+        Look.GLASSIFY -> Modifier.border(1.dp, GlassifyBorder, CircleShape)
+        Look.LIQUID_MUSIC -> Modifier.border(1.dp, LiquidMusicBorder, CircleShape)
+        else -> Modifier
+    }
+    Box(Modifier.size(30.dp).background(fill, CircleShape).then(border), contentAlignment = Alignment.Center) {
         Glyph(icon, 20.dp)
     }
 }
@@ -655,14 +762,35 @@ private fun GlassDisc(icon: ImageVector) {
  * volume and the bottom row stay where they are.
  */
 @Composable
-private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean, lyrics: () -> Float, modifier: Modifier) {
+private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean, lyrics: () -> Float, look: Look, modifier: Modifier) {
     val seconds by phases.seconds
     val progress by phases.progress
     val playing by phases.playing
     val text = TextStyle(fontFamily = ImmersiveSans, color = Color.White)
     val faint = Color.White.copy(alpha = 0.55f)
+    val lyricsGlow = when (look) {
+        Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.GLASSIFY -> StarryBlue
+        else -> Color.White
+    }
     Box(modifier.fillMaxSize()) {
         MeshGradientBackground(DemoSong.mesh, animated = !still)
+        if (look == Look.GLASSIFY) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(GlassifyGlassFill)
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(listOf(GlassifyBorder, Color.Transparent)),
+                        RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+                    ),
+            )
+        } else if (look == Look.LIQUID_MUSIC) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Brush.radialGradient(colors = listOf(LiquidMusicAccent.copy(alpha = 0.16f), Color.Transparent))),
+            )
+        }
         Box(Modifier.align(Alignment.TopCenter).padding(top = 10.dp).size(width = 38.dp, height = 5.dp).background(Color.White.copy(alpha = 0.45f), CircleShape))
         // The title under the big cover, which gives way to the lyrics.
         Row(
@@ -673,9 +801,9 @@ private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean
                 Text(DemoSong.TITLE, style = text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 Text(DemoSong.ARTIST, style = text, color = Color.White.copy(alpha = 0.62f), fontSize = 20.sp, maxLines = 1)
             }
-            GlassDisc(Icons.Rounded.StarOutline)
+            GlassDisc(Icons.Rounded.StarOutline, look)
             Spacer(Modifier.width(10.dp))
-            GlassDisc(Icons.Rounded.MoreHoriz)
+            GlassDisc(Icons.Rounded.MoreHoriz, look)
         }
         // The lyrics, under the cover gone up to the corner.
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = lyrics() }) {
@@ -684,9 +812,9 @@ private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean
                     Text(DemoSong.TITLE, style = text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(DemoSong.ARTIST, style = text, color = Color.White.copy(alpha = 0.62f), fontSize = 15.sp, maxLines = 1)
                 }
-                GlassDisc(Icons.Rounded.StarOutline)
+                GlassDisc(Icons.Rounded.StarOutline, look)
                 Spacer(Modifier.width(10.dp))
-                GlassDisc(Icons.Rounded.MoreHoriz)
+                GlassDisc(Icons.Rounded.MoreHoriz, look)
             }
             ImmersiveLyrics(clock, phases, Modifier.padding(top = 112.dp, start = 24.dp - GLOW_ROOM, end = 24.dp - GLOW_ROOM).height(336.dp))
         }
@@ -711,7 +839,7 @@ private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(34.dp).background(Color.White.copy(alpha = 0.24f * lyrics()), CircleShape),
+                    Modifier.size(34.dp).background(lyricsGlow.copy(alpha = 0.24f * lyrics()), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Glyph(Icons.Rounded.Lyrics, 22.dp, Color.White.copy(alpha = 0.85f)) }
                 Spacer(Modifier.weight(1f))

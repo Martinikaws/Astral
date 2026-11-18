@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -63,12 +65,16 @@ import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.data.offline.OfflineDownloader
 import com.music.spotui.data.offline.OfflineStatus
 import com.music.spotui.data.offline.OfflineStore
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.LocalPlayer
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.DownloadBadge
 import com.music.spotui.ui.components.animatedRow
 import com.music.spotui.ui.components.pressable
+import com.music.spotui.ui.look.isSpotifusionLook
+import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
+import com.music.spotui.ui.theme.GridBackground
 
 /** "Downloaded": songs kept for offline listening, played from the phone by [LocalPlayer]. */
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -116,7 +122,13 @@ fun DownloadsScreen(navController: NavController) {
         LocalPlayer.play(tracks.map(OfflineStore::toLocalTrack), index, shuffle = shuffle, context = title)
     }
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    val spotifusion = isSpotifusionLook()
+    val bannerBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    val accentInk = if (AppAccent.luminance() > 0.45f || spotifusion) Color.Black else Color.White
+
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         if (tracks.isEmpty() && waiting.isEmpty()) Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -129,8 +141,9 @@ fun DownloadsScreen(navController: NavController) {
                 textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         } else LazyColumn(Modifier.fillMaxSize()) {
             item {
+                val topTint = if (pageBg == Color.Transparent) Color(0xCC1D6B45) else headerTint(Color(0xFF1D6B45), 0f)
                 Column(
-                    Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(headerTint(Color(0xFF1D6B45), 0f), AppBackground)))
+                    Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(topTint, pageBg)))
                         .statusBarsPadding().padding(horizontal = 16.dp),
                 ) {
                     Spacer(Modifier.height(56.dp))
@@ -162,7 +175,7 @@ fun DownloadsScreen(navController: NavController) {
                                 .clip(CircleShape).background(com.music.spotui.ui.theme.AppAccent),
                         ) {
                             com.music.spotui.ui.components.PlayPauseIcon(playingHere && SongPlayer.isPlaying(),
-                                stringResource(R.string.content_description_play_button), tint = Color.Black, modifier = Modifier.size(26.dp))
+                                stringResource(R.string.content_description_play_button), tint = accentInk, modifier = Modifier.size(26.dp))
                         }
                     }
                 }
@@ -173,7 +186,7 @@ fun DownloadsScreen(navController: NavController) {
                     stringResource(R.string.downloads_need_source),
                     color = AppText, fontSize = 14.sp, lineHeight = 19.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp)).background(tone(0xFF2A2A2A))
+                        .clip(RoundedCornerShape(8.dp)).background(bannerBg)
                         .pressable(0.98f) { navController.navigate(com.music.spotui.ui.navigation.Routes.Extensions.route) }
                         .padding(14.dp),
                 )
@@ -183,7 +196,7 @@ fun DownloadsScreen(navController: NavController) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(8.dp)).background(tone(0xFF2A2A2A))
+                        .clip(RoundedCornerShape(8.dp)).background(bannerBg)
                         .pressable(0.98f) { OfflineDownloader.stopAll() }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
@@ -296,7 +309,7 @@ fun DownloadsScreen(navController: NavController) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.statusBarsPadding().padding(12.dp).widePressable { navController.navigateUp() }
-                .size(40.dp).clip(CircleShape).background(AppBackground.copy(alpha = 0.4f)),
+                .size(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)),
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.accessibility_navigate_back), tint = AppText)
         }

@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +59,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -72,11 +74,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Haptics
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.immersive.glass
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.components.rememberImmersiveOverscrollFactory
 import com.music.spotui.ui.immersive.motion.ImmersiveMotion
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.look.rememberReduceMotion
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -94,11 +100,27 @@ internal fun ImmersiveSegmentedControl(
 ) {
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
+    val look = LocalLook.current
+    val trackShape = when (look) {
+        Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+        Look.GLASSIFY -> RoundedCornerShape(16.dp)
+        else -> RoundedCornerShape(10.dp)
+    }
+    val pillShape = when (look) {
+        Look.LIQUID_MUSIC -> RoundedCornerShape(16.dp)
+        Look.GLASSIFY -> RoundedCornerShape(12.dp)
+        else -> RoundedCornerShape(8.dp)
+    }
+    val trackMod = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) {
+        Modifier.clip(trackShape).glass(trackShape)
+    } else {
+        Modifier.clip(trackShape).background(Immersive.Raised)
+    }
+    val selectedInk = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Immersive.Raised)
+            .then(trackMod)
             // Enough of a margin for the track to read as a track: at 2 dp the selected pill sat
             // flush against the container's own edge and the two shapes merged into one.
             .padding(4.dp),
@@ -112,14 +134,14 @@ internal fun ImmersiveSegmentedControl(
                 label = "segment pill",
             )
             val labelColor by animateColorAsState(
-                targetValue = if (chosen) Color.White else Immersive.TextSecondary,
+                targetValue = if (chosen) selectedInk else Immersive.TextSecondary,
                 animationSpec = if (reduceMotion) snap() else tween(ImmersiveMotion.FADE_MS),
                 label = "segment label",
             )
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(pillShape)
                     .background(pill)
                     .clickable(role = Role.Tab) {
                         if (!chosen) {
@@ -157,6 +179,10 @@ internal fun ImmersiveSwipeToRemove(key: Any, onRemove: () -> Unit, content: @Co
     // The offset moves every drag and spring frame; only the strip appearing is a composition change.
     val revealed by remember(offset) { derivedStateOf { offset.value < 0f } }
 
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val rowBg = if (pageBg != Color.Transparent) pageBg else if (revealed) Color(0xE60A1422) else Color.Transparent
+
     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { width = it.width.toFloat() }) {
         if (revealed) {
             Box(
@@ -176,7 +202,7 @@ internal fun ImmersiveSwipeToRemove(key: Any, onRemove: () -> Unit, content: @Co
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
-                .background(Immersive.Page)
+                .then(if (rowBg == Color.Transparent) Modifier else Modifier.background(rowBg))
                 .pointerInput(key) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -220,10 +246,17 @@ internal fun ImmersiveNameDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = Immersive.Headline) },
         text = {
+            val look = LocalLook.current
+            val inputShape = Immersive.Button
+            val inputSurface = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) {
+                Modifier.glass(inputShape)
+            } else {
+                Modifier.background(Color.White.copy(alpha = 0.08f), inputShape)
+            }
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.08f), Immersive.Button)
+                    .then(inputSurface)
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
                 if (text.isEmpty()) {
@@ -299,7 +332,13 @@ internal fun ImmersiveSheetRow(
  */
 @Composable
 internal fun ImmersivePageFrame(content: @Composable BoxScope.() -> Unit) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
     CompositionLocalProvider(LocalOverscrollFactory provides rememberImmersiveOverscrollFactory()) {
-        Box(Modifier.fillMaxSize().background(Immersive.Page), content = content)
+        Box(
+            Modifier.fillMaxSize()
+                .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)),
+            content = content,
+        )
     }
 }

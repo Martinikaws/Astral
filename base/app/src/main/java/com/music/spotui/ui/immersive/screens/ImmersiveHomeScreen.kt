@@ -7,6 +7,7 @@ package com.music.spotui.ui.immersive.screens
 
 import com.music.spotui.ui.immersive.shell.immersiveHazeSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import com.music.spotui.ui.components.arrivingRow
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -36,6 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +61,8 @@ import com.music.spotui.data.entity.HomeSection
 import com.music.spotui.data.entity.homeShortcuts
 import com.music.spotui.data.entity.withoutDj
 import com.music.spotui.data.entity.withoutPodcastShows
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Graph
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.onHomeItemClick
@@ -79,8 +86,13 @@ import com.music.spotui.ui.immersive.shell.LocalBarControlSize
 import com.music.spotui.ui.immersive.shell.immersiveChromeScroll
 import com.music.spotui.ui.immersive.shell.immersiveHeaderContentPadding
 import com.music.spotui.ui.immersive.shell.rememberTopBarCollapse
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.TabReselect
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
 import com.music.spotui.ui.viewmodel.HomeViewModel
 
 /**
@@ -141,7 +153,9 @@ fun ImmersiveHomeScreen(navController: NavController) {
     // The shortcuts at the top load in the background, ready before a tap.
     LaunchedEffect(shortcuts) { prefetchHomeShortcuts(shortcuts) }
 
-    Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(
             state = listState,
             // The greeting is the floating header's own title, so the feed starts right under it
@@ -336,6 +350,13 @@ private fun ShelfSection(navController: NavController, section: HomeSection, pla
 /** The two-column shortcuts the web home starts with: a small cover and a name on a raised tile. */
 @Composable
 private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, playingContext: State<String>) {
+    val look = LocalLook.current
+    val tileShape = when (look) {
+        Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+        Look.GLASSIFY -> RoundedCornerShape(16.dp)
+        else -> Immersive.CoverMedium
+    }
+    val coverShape = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) RoundedCornerShape(8.dp) else Immersive.CoverMedium
     Column(
         modifier = Modifier.padding(horizontal = Immersive.Gutter).padding(bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -346,6 +367,30 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 rowItems.forEach { item ->
                     val playing = item.isPlayingIn(playingContext.value)
+                    val tileSurface = when (look) {
+                        Look.GLASSIFY -> Modifier
+                            .background(GlassifyGlassFill, tileShape)
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        if (playing) Immersive.Accent.copy(alpha = 0.65f) else GlassifyBorder,
+                                        Color.White.copy(alpha = 0.06f),
+                                    ),
+                                    start = Offset.Zero,
+                                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                                ),
+                                shape = tileShape,
+                            )
+                        Look.LIQUID_MUSIC -> Modifier
+                            .background(LiquidMusicSurface, tileShape)
+                            .border(
+                                width = 1.dp,
+                                color = if (playing) Immersive.Accent.copy(alpha = 0.65f) else LiquidMusicBorder,
+                                shape = tileShape,
+                            )
+                        else -> Modifier.background(Immersive.Raised)
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -353,13 +398,13 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
                             .height(56.dp)
                             .pressHint { prefetchHomeItem(item) }
                             .immersiveClickable(onClick = { onHomeItemClick(navController, item) })
-                            .clip(Immersive.CoverMedium)
-                            .background(Immersive.Raised),
+                            .clip(tileShape)
+                            .then(tileSurface),
                     ) {
                         ImmersiveCover(
                             url = item.imageUrl,
                             modifier = Modifier.size(56.dp),
-                            shape = Immersive.CoverMedium,
+                            shape = coverShape,
                             border = false,
                         )
                         Text(

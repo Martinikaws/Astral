@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,14 +64,18 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.music.spotui.data.api.TopStats
 import com.music.spotui.data.local.ListenHistory
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.spotifyImageUrl
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.navigation.artistRoute
 import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppMuted
 import com.music.spotui.ui.theme.AppText
+import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.SpotifusionGreen
 import com.music.spotui.ui.theme.tone
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -83,10 +89,23 @@ internal val rangeLabels = listOf(
 )
 
 @Composable
-private fun StatsChip(label: String, selected: Boolean, onClick: () -> Unit) =
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) },
-        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AppAccent, selectedLabelColor = Color.Black,
-            labelColor = AppText, containerColor = tone(0xFF2A2A2A)))
+private fun StatsChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val selectedBg = if (spotifusion) SpotifusionGreen else AppAccent
+    val selectedInk = if (spotifusion || selectedBg.luminance() > 0.45f) Color.Black else Color.White
+    val idleBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = selectedBg,
+            selectedLabelColor = selectedInk,
+            labelColor = AppText,
+            containerColor = idleBg,
+        ),
+    )
+}
 
 /** The tab switch at the top of the recap: Spotify's ranking of the account, or this phone's own counter. */
 @Composable
@@ -205,6 +224,9 @@ fun TimeListenedRecapSection(modifier: Modifier = Modifier) {
     }
     val s = summary ?: return
     val maxDay = s.last7Days.maxOfOrNull { it.minutes }?.coerceAtLeast(1L) ?: 1L
+    val spotifusion = isSpotifusionLook()
+    val cardBg = if (spotifusion) tone(0xFF1F1F1F) else GridBackground
+    val recapBg = if (spotifusion) tone(0xFF222222) else GridBackground
 
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
         Text("Time Listened & Recap", color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -213,14 +235,14 @@ fun TimeListenedRecapSection(modifier: Modifier = Modifier) {
         // Today + Total on Astral
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(tone(0xFF1F1F1F)).padding(14.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(cardBg).padding(14.dp),
             ) {
                 Text("Today", color = StatsSubtle, fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
                 Text(formatDurationMinutes(s.todayMinutes, s.todaySeconds), color = AppAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(tone(0xFF1F1F1F)).padding(14.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(cardBg).padding(14.dp),
             ) {
                 Text("Total on Astral", color = StatsSubtle, fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
@@ -231,7 +253,7 @@ fun TimeListenedRecapSection(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(12.dp))
 
         // Last 7 days daily bar chart
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(tone(0xFF1F1F1F)).padding(14.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(cardBg).padding(14.dp)) {
             Text("Last 7 Days", color = AppText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().height(108.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
@@ -260,7 +282,7 @@ fun TimeListenedRecapSection(modifier: Modifier = Modifier) {
         // Monthly Recap card
         val m = s.monthlyRecap
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tone(0xFF222222)).padding(16.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(recapBg).padding(16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
@@ -390,7 +412,9 @@ fun FriendActivityScreen(navController: NavController) {
         state = runCatching { MyspotiRuntime.api.users.friendActivity() }
     }
     val now = remember(state) { System.currentTimeMillis() }
-    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)).statusBarsPadding()) {
         // Opened from Home's header (no longer a tab): back to it.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp, 12.dp, 8.dp, 8.dp)) {
             androidx.compose.material3.IconButton(onClick = { navController.popBackStack() }) {

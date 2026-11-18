@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -63,9 +65,12 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import app.myspoti.engine.R
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Haptics
 import com.music.spotui.di.SongPlayer
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.theme.AppPalette
+import com.music.spotui.ui.theme.GridBackground
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -159,10 +164,13 @@ fun QueueScreen(navController: NavController) {
         SongPlayer.showQueueOrder(queuedNew, nextNew)
     }
 
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
+            .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))
             .statusBarsPadding()
     ) {
         Row(
@@ -224,11 +232,12 @@ fun QueueScreen(navController: NavController) {
                                 Haptics.click()
                                 SongQueue.add(context, item.song)
                             },
-                        ) {
+                        ) { isSwiping ->
                             QueueRow(
                                 song = item.song,
                                 highlight = false,
                                 isDragging = isDragging,
+                                isSwiping = isSwiping,
                                 onClick = { SongPlayer.skipTo(item) },
                                 onQuickQueue = if (!row.queued && canQueue) {
                                     {
@@ -277,7 +286,7 @@ private fun SwipeQueueItem(
     gesturesEnabled: Boolean,
     onRemove: () -> Unit,
     onQueue: () -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable (isSwiping: Boolean) -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { it * 0.4f },
@@ -295,6 +304,8 @@ private fun SwipeQueueItem(
             }
         }
     )
+    val isSwiping = dismissState.dismissDirection != SwipeToDismissBoxValue.Settled
+    val actionInk = if (AppAccent.luminance() > 0.45f || isSpotifusionLook()) Color.Black else Color.White
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = canQueue,
@@ -312,7 +323,7 @@ private fun SwipeQueueItem(
                         Icon(
                             Icons.AutoMirrored.Filled.PlaylistAdd,
                             contentDescription = stringResource(R.string.add_to_queue_action_content_description),
-                            tint = Color.Black,
+                            tint = actionInk,
                         )
                     }
                 }
@@ -334,7 +345,7 @@ private fun SwipeQueueItem(
                 else -> {}
             }
         },
-        content = { content() }
+        content = { content(isSwiping) }
     )
 }
 
@@ -345,15 +356,21 @@ private fun QueueRow(
     highlight: Boolean,
     onClick: () -> Unit,
     isDragging: Boolean = false,
+    isSwiping: Boolean = false,
     onQuickQueue: (() -> Unit)? = null,
     handleModifier: Modifier? = null,
 ) {
+    val rowBg = when {
+        isDragging -> if (isSpotifusionLook()) com.music.spotui.ui.theme.headerTint(Color(0xFF1E1E24), 0f) else GridBackground
+        isSwiping && AppBackground == Color.Transparent -> Color(0xE60A1422)
+        else -> AppBackground
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start,
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isDragging) com.music.spotui.ui.theme.headerTint(Color(0xFF1E1E24), 0f) else AppBackground)
+            .then(if (rowBg == Color.Transparent) Modifier else Modifier.background(rowBg))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

@@ -72,6 +72,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -93,9 +94,11 @@ import com.music.spotui.data.entity.AccountModel
 import app.myspoti.engine.R
 import com.music.spotui.data.entity.LibraryEntry
 import com.music.spotui.data.local.LibraryOrder
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.isLibraryGridView
 import com.music.spotui.data.preferences.setLibraryGridView
 import com.music.spotui.ui.components.Snackbar
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.albumRoute
 import com.music.spotui.ui.navigation.artistRoute
@@ -105,6 +108,10 @@ import com.music.spotui.ui.navigation.localPlaylistRoute
 import com.music.spotui.ui.navigation.showRoute
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppPalette
+import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.theme.StarryCardOpaque
 import com.music.spotui.ui.viewmodel.LibraryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,13 +152,17 @@ fun LibraryScreen(navController: NavController) {
         )
     }
 
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    val spotifusion = isSpotifusionLook()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             // The rows (and their header with them) capped at a readable width, centred, on wide
             // windows; the grid uses the whole width.
             .then(if (gridView) Modifier else Modifier.cappedPageWidth())
-            .background(Color(AppBackground.toArgb()))
+            .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))
             .statusBarsPadding()
     ) {
         // Header: title + account avatar. Built by hand (rather than a fixed-height
@@ -187,7 +198,7 @@ fun LibraryScreen(navController: NavController) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = stringResource(R.string.library_search_text_hint),
-                tint = if (searchActive) Color(AppPalette.toArgb()) else AppText,
+                tint = if (searchActive) (if (spotifusion) SpotifusionGreen else AppAccent) else AppText,
                 modifier = Modifier.pressable(0.96f) {
                         searchActive = !searchActive
                         if (!searchActive) searchQuery = ""
@@ -200,7 +211,7 @@ fun LibraryScreen(navController: NavController) {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(tone(0xFF3A3A3A))
+                    .background(if (spotifusion) tone(0xFF3A3A3A) else GridBackground)
                     .clickable { showAccount = true },
                 contentAlignment = Alignment.Center
             ) {
@@ -252,8 +263,8 @@ fun LibraryScreen(navController: NavController) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp, 0.dp, 16.dp, 6.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(tone(0xFF252525))
+                    .clip(RoundedCornerShape(if (spotifusion) 4.dp else 10.dp))
+                    .background(if (spotifusion) tone(0xFF252525) else GridBackground)
                     .padding(horizontal = 12.dp),
             ) {
                 Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF888888), modifier = Modifier.size(18.dp))
@@ -380,6 +391,10 @@ fun LibraryScreen(navController: NavController) {
 /** Playlists / By me / Artists / Albums / Podcasts / Songs: one chip chosen at a time; the chosen one again clears it. */
 @Composable
 private fun LibraryChipRow(chosen: com.music.spotui.data.local.LibraryChip, onTap: (com.music.spotui.data.local.LibraryChip) -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val activeBg = if (spotifusion) SpotifusionGreen else AppAccent
+    val activeInk = if (spotifusion || activeBg.luminance() > 0.45f) Color.Black else Color.White
+    val idleBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
     val chips = listOf(
         com.music.spotui.data.local.LibraryChip.PLAYLISTS to R.string.library_chip_playlists,
         com.music.spotui.data.local.LibraryChip.BY_ME to R.string.library_chip_by_me,
@@ -399,12 +414,12 @@ private fun LibraryChipRow(chosen: com.music.spotui.data.local.LibraryChip, onTa
             val on = chip == chosen
             Text(
                 stringResource(label),
-                color = if (on) Color.Black else AppText,
+                color = if (on) activeInk else AppText,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(if (on) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
+                    .background(if (on) activeBg else idleBg)
                     .clickable { onTap(chip) }
                     .padding(horizontal = 14.dp, vertical = 7.dp),
             )
@@ -519,6 +534,9 @@ fun SumUpLibraryScreen(
         }
     }
 
+    val spotifusion = isSpotifusionLook()
+    val dragFill = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    val pinTint = if (spotifusion) SpotifusionGreen else AppAccent
     Box(Modifier.fillMaxSize().padding(padding)) {
     LazyColumn(
         state = listState,
@@ -528,7 +546,6 @@ fun SumUpLibraryScreen(
             // Rows capped at a readable width, centred, on wide windows (they ran 1800 dp long);
             // the grid layout keeps the whole width.
             .cappedPageWidth()
-            .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         itemsIndexed(rows, key = { _, e -> LibraryOrder.key(e) }) { index, entry ->
             val key = LibraryOrder.key(entry)
@@ -550,7 +567,7 @@ fun SumUpLibraryScreen(
                         translationY = if (dragged) dragOffset else 0f
                         if (dragged) { scaleX = 1.03f; scaleY = 1.03f }
                     }
-                    .background(if (dragged) tone(0xFF2A2A2A) else Color.Transparent, RoundedCornerShape(8.dp))
+                    .background(if (dragged) dragFill else Color.Transparent, RoundedCornerShape(8.dp))
                     .pressable(0.96f, onPressHint = { prefetchLibraryEntry(entry) }) { openLibraryEntry(entry, navController) }
                     // Inside the clickable, so a long press that ends without moving opens nothing.
                     .then(if (!movable) Modifier else Modifier.pointerInput(key) {
@@ -572,12 +589,12 @@ fun SumUpLibraryScreen(
             ) {
                 LibraryEntryCover(entry, Modifier
                     .size(55.dp)
-                    .clip(RoundedCornerShape(if (entry.isPlaylist) 6.dp else 4.dp)),
+                    .clip(RoundedCornerShape(if (spotifusion) 4.dp else if (entry.isPlaylist) 8.dp else 6.dp)),
                 )
                 Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                     Text(text = entry.name, color = AppText, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (entry.pinned) Icon(Icons.Default.PushPin, null, tint = com.music.spotui.ui.theme.AppAccent,
+                        if (entry.pinned) Icon(Icons.Default.PushPin, null, tint = pinTint,
                             modifier = Modifier.padding(end = 4.dp).size(12.dp))
                         Text(text = entry.subtitle, color = AppMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -768,13 +785,13 @@ fun LibraryGridScreen(
         }
     }
 
+    val spotifusion = isSpotifusionLook()
     LazyVerticalGrid(
         state = gridState,
         columns = GridCells.Fixed(com.music.spotui.ui.components.windowSize().columns(3, 170.dp)),
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .background(com.music.spotui.ui.theme.AppBackground),
+            .padding(padding),
         contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, com.music.spotui.ui.components.bottomBarsSpace()),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -813,7 +830,7 @@ fun LibraryGridScreen(
                 LibraryEntryCover(entry, Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(if (entry.isPlaylist) 6.dp else 4.dp)),
+                    .clip(RoundedCornerShape(if (spotifusion) 4.dp else if (entry.isPlaylist) 8.dp else 6.dp)),
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(text = entry.name, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -870,11 +887,11 @@ private fun LibraryNote(text: String, onRetry: (() -> Unit)?) {
 
 @Composable
 private fun LibrarySkeleton(padding: PaddingValues) {
+    val tile = if (isSpotifusionLook()) SpotifusionCard else GridBackground
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         Spacer(modifier = Modifier.height(10.dp))
         repeat(8) {
@@ -884,11 +901,11 @@ private fun LibrarySkeleton(padding: PaddingValues) {
                     .fillMaxWidth()
                     .padding(20.dp, 6.dp)
             ) {
-                Box(modifier = Modifier.size(55.dp).clip(RoundedCornerShape(4.dp)).background(tone(0xFF1E1E1E)))
+                Box(modifier = Modifier.size(55.dp).clip(RoundedCornerShape(4.dp)).background(tile))
                 Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Box(modifier = Modifier.height(14.dp).width(160.dp).clip(RoundedCornerShape(3.dp)).background(tone(0xFF1E1E1E)))
+                    Box(modifier = Modifier.height(14.dp).width(160.dp).clip(RoundedCornerShape(3.dp)).background(tile))
                     Spacer(modifier = Modifier.height(6.dp))
-                    Box(modifier = Modifier.height(11.dp).width(90.dp).clip(RoundedCornerShape(3.dp)).background(tone(0xFF1E1E1E)))
+                    Box(modifier = Modifier.height(11.dp).width(90.dp).clip(RoundedCornerShape(3.dp)).background(tile))
                 }
             }
         }
@@ -907,7 +924,7 @@ private fun AccountSheet(
     com.music.spotui.ui.components.LookSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = tone(0xFF1A1A1A),
+        containerColor = if (isSpotifusionLook()) tone(0xFF1A1A1A) else StarryCardOpaque,
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Row(
@@ -977,7 +994,10 @@ private fun sortLabel(sort: LibraryOrder.Sort) = when (sort) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibrarySortSheet(onDismiss: () -> Unit) {
-    com.music.spotui.ui.components.LookSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828)) {
+    com.music.spotui.ui.components.LookSheet(
+        onDismissRequest = onDismiss,
+        containerColor = if (isSpotifusionLook()) tone(0xFF282828) else StarryCardOpaque,
+    ) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(stringResource(R.string.filter_and_sort_sort_section_title), color = AppText, fontSize = 18.sp,
                 fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))

@@ -19,6 +19,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
@@ -47,6 +48,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.PushPin
@@ -67,6 +69,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -93,6 +97,8 @@ import com.music.spotui.data.entity.AccountModel
 import com.music.spotui.data.entity.ArtistsModel
 import com.music.spotui.data.entity.LibraryEntry
 import com.music.spotui.data.local.LibraryOrder
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.isLibraryGridView
 import com.music.spotui.data.preferences.setLibraryGridView
 import com.music.spotui.ui.components.FastScrollbar
@@ -111,6 +117,7 @@ import com.music.spotui.ui.immersive.shell.ImmersiveLargeTitle
 import com.music.spotui.ui.immersive.shell.ImmersiveTopBar
 import com.music.spotui.ui.immersive.shell.immersiveTopContentPadding
 import com.music.spotui.ui.immersive.shell.rememberTopBarCollapse
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.TabReselect
 import com.music.spotui.ui.navigation.albumRoute
@@ -124,6 +131,10 @@ import com.music.spotui.ui.screens.LOCAL_PLAYLIST_PREFIX
 import com.music.spotui.ui.screens.LibraryCreateSheet
 import com.music.spotui.ui.screens.LibraryEntryCover
 import com.music.spotui.ui.screens.LibraryItemSheet
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
 import com.music.spotui.ui.viewmodel.LibraryViewModel
 import com.music.spotui.data.local.LibraryChip
 import com.music.spotui.data.local.LibraryChips
@@ -241,7 +252,9 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     val avatar = (account as? Response.Success)?.data
 
     val refreshing by vm.refreshing.collectAsState()
-    Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
       // Pull down to read the library again, as in the Classic look.
       androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = refreshing,
@@ -613,7 +626,7 @@ internal fun LibraryList(
                             translationY = if (dragged) dragOffset else 0f
                             if (dragged) { scaleX = 1.03f; scaleY = 1.03f }
                         }
-                        .background(if (dragged) Immersive.Raised else androidx.compose.ui.graphics.Color.Transparent, Immersive.CoverMedium)
+                        .background(if (dragged) Immersive.Raised else Color.Transparent, Immersive.Card)
                         .pressHint { prefetchLibraryEntry(entry) }
                         .immersiveClickable(onClick = { openLibraryEntry(entry, navController) }, pressedScale = 0.98f)
                         // Inside the clickable, so a long press that ends without moving opens nothing.
@@ -680,18 +693,48 @@ internal fun LibraryList(
 /** One row of the library: a cover, the name, the creator or kind, a pin mark and the menu. */
 @Composable
 private fun LibraryEntryRow(entry: LibraryEntry, onMenu: () -> Unit, modifier: Modifier = Modifier) {
+    val look = LocalLook.current
+    val glassCard = look == Look.GLASSIFY || look == Look.LIQUID_MUSIC
+    val cardShape = Immersive.Card
+    val cardMod = when (look) {
+        Look.GLASSIFY -> Modifier
+            .padding(horizontal = Immersive.Gutter, vertical = 4.dp)
+            .clip(cardShape)
+            .background(GlassifyGlassFill, cardShape)
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.05f)),
+                    start = Offset.Zero,
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                ),
+                shape = cardShape,
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+        Look.LIQUID_MUSIC -> Modifier
+            .padding(horizontal = Immersive.Gutter, vertical = 4.dp)
+            .clip(cardShape)
+            .background(LiquidMusicSurface, cardShape)
+            .border(1.dp, LiquidMusicBorder, cardShape)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+        else -> Modifier.padding(horizontal = Immersive.Gutter, vertical = 4.dp)
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = Immersive.Gutter, vertical = 4.dp),
+            .then(cardMod),
     ) {
-        val shape = Immersive.CoverSmall
+        val shape = when (look) {
+            Look.LIQUID_MUSIC -> RoundedCornerShape(12.dp)
+            Look.GLASSIFY -> RoundedCornerShape(10.dp)
+            else -> Immersive.CoverSmall
+        }
         LibraryEntryCover(
             entry,
             Modifier.size(52.dp).clip(shape).background(Immersive.Raised).immersiveThumbnailBorder(shape),
         )
-        Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
+        Column(modifier = Modifier.padding(start = if (glassCard) 12.dp else 14.dp).weight(1f)) {
             Text(
                 text = entry.name,
                 style = Immersive.Body.copy(fontWeight = FontWeight.Medium),
@@ -815,7 +858,25 @@ private fun LibraryGrid(
             val key = LibraryOrder.key(entry)
             val dragged = dragKey == key
             val movable = reorderLevel != null && index >= pinned
-            val shape = Immersive.CoverMedium
+            val look = LocalLook.current
+            val shape = when (look) {
+                Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+                Look.GLASSIFY -> RoundedCornerShape(16.dp)
+                else -> Immersive.CoverMedium
+            }
+            val coverBorder = when (look) {
+                Look.GLASSIFY -> Modifier.border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.06f)),
+                        start = Offset.Zero,
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                    ),
+                    shape = shape,
+                )
+                Look.LIQUID_MUSIC -> Modifier.border(1.dp, LiquidMusicBorder, shape)
+                else -> Modifier.immersiveThumbnailBorder(shape)
+            }
             Column(
                 modifier = Modifier
                     // Same modifier chain while dragging (see the list view).
@@ -855,7 +916,7 @@ private fun LibraryGrid(
             ) {
                 LibraryEntryCover(
                     entry,
-                    Modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Immersive.Raised).immersiveThumbnailBorder(shape),
+                    Modifier.fillMaxWidth().aspectRatio(1f).clip(shape).background(Immersive.Raised).then(coverBorder),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(

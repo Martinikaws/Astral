@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -86,7 +87,12 @@ import com.music.spotui.ui.navigation.playlistRoute
 import com.music.spotui.ui.navigation.showRoute
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppPalette
+import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.viewmodel.SearchViewModel
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.toRecentItem
 import com.music.spotui.data.preferences.toSong
 
@@ -95,14 +101,15 @@ import com.music.spotui.data.preferences.toSong
 fun SearchScreen(navController: NavController) {
     val searchViewModel : SearchViewModel = viewModel()
     val results by searchViewModel.results.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val surfaceColor = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
     // Results are live search hits (or empty); never gate the search UI on them.
     val searchResults = (results as? Response.Success)?.data ?: SearchResults()
 
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        color = surfaceColor,
+        modifier = Modifier.fillMaxSize(),
     ) {
         SumUpSearchScreen(navController = navController, searchResults, searchViewModel,
             loading = results is Response.Loading, failed = results is Response.Error)
@@ -195,6 +202,9 @@ fun SumUpSearchScreen(
             .filter { !it.equals(text.trim(), ignoreCase = true) }
     }
 
+    val spotifusion = isSpotifusionLook()
+    val activeAccent = if (spotifusion) SpotifusionGreen else AppAccent
+
     LazyColumn(
         state = listState,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
@@ -203,7 +213,6 @@ fun SumUpSearchScreen(
             // The field and the results capped at a readable width, centred, on wide windows
             // (they ran 1800 dp long); the browse grid spreads over that width.
             .cappedPageWidth()
-            .background(Color(AppBackground.toArgb()))
             .statusBarsPadding()
 
     ){
@@ -240,12 +249,12 @@ fun SumUpSearchScreen(
                         )
                         Text(
                             stringResource(R.string.chat_content_picker_clear_recent_searches),
-                            color = AppAccent,
+                            color = activeAccent,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(AppAccent.copy(alpha = 0.14f))
+                                .background(activeAccent.copy(alpha = 0.14f))
                                 .pressable(0.96f) {
                                     com.music.spotui.data.preferences.clearRecentItems(context)
                                     localRecents = emptyList()
@@ -309,7 +318,8 @@ fun SumUpSearchScreen(
                         val q = suggestions[i]
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(tone(0xFF2A2A2A))
+                            modifier = Modifier.clip(RoundedCornerShape(50))
+                                .background(if (spotifusion) tone(0xFF2A2A2A) else GridBackground)
                                 .pressable(0.96f) { searchViewModel.search(q) }
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         ) {
@@ -456,6 +466,11 @@ private fun filterSearchResults(results: SearchResults, filter: SearchFilter): L
 
 @Composable
 private fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val activeBg = if (spotifusion) SpotifusionGreen else AppAccent
+    val activeInk = if (spotifusion || activeBg.luminance() > 0.45f) Color.Black else Color.White
+    val idleBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    val chipCorner = if (spotifusion) 50 else 16
     androidx.compose.foundation.lazy.LazyRow(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -467,12 +482,13 @@ private fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -
             val on = f == selected
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.height(32.dp).clip(RoundedCornerShape(16.dp))
-                    .background(if (on) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
+                modifier = Modifier.height(32.dp)
+                    .clip(if (spotifusion) RoundedCornerShape(percent = chipCorner) else RoundedCornerShape(chipCorner.dp))
+                    .background(if (on) activeBg else idleBg)
                     .pressable(0.96f) { onSelect(if (on && f != SearchFilter.Top) SearchFilter.Top else f) }
                     .padding(horizontal = 14.dp),
             ) {
-                Text(stringResource(f.label), color = if (on) Color.Black else AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(f.label), color = if (on) activeInk else AppText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -515,20 +531,24 @@ fun RecentItemRow(
         "playlist" -> stringResource(R.string.assisted_curation_search_playlist)
         else -> ""
     }
+    val spotifusion = isSpotifusionLook()
+    val cardShape = RoundedCornerShape(if (spotifusion) 8.dp else 12.dp)
+    val cardBg = if (spotifusion) SpotifusionCard else GridBackground
+    val accent = if (spotifusion) SpotifusionGreen else AppAccent
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(tone(0xFF1A1A1E))
+            .clip(cardShape)
+            .background(cardBg)
             .pressable(0.97f) { onClick() }
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         GlideImage(
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(if (item.type == "artist") 100.dp else 8.dp)),
+                .clip(RoundedCornerShape(if (item.type == "artist") 100.dp else if (spotifusion) 4.dp else 8.dp)),
             model = item.image,
             contentScale = ContentScale.Crop,
             failure = placeholder(R.drawable.placeholder),
@@ -555,12 +575,12 @@ fun RecentItemRow(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(if (isTrack) AppAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.10f))
+                            .background(if (isTrack) accent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.10f))
                             .padding(horizontal = 7.dp, vertical = 2.dp),
                     ) {
                         Text(
                             text = badgeLabel,
-                            color = if (isTrack) AppAccent else AppText.copy(alpha = 0.88f),
+                            color = if (isTrack) accent else AppText.copy(alpha = 0.88f),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -653,7 +673,7 @@ fun SearchSongRow(
     val context = LocalContext.current
     val isLiked = com.music.spotui.di.rememberTrackSaved(song.spotifyTrackId)
     val currentPlayingIndicatorColor =
-        if (song.id == searchViewModel.currentSongId.value) Color(AppPalette.toArgb()) else AppText
+        if (song.id == searchViewModel.currentSongId.value) (if (isSpotifusionLook()) SpotifusionGreen else AppAccent) else AppText
 
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -901,7 +921,7 @@ private fun BrowseCategoryTile(
     Box(
         modifier = modifier
             .height(96.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(if (isSpotifusionLook()) 4.dp else 10.dp))
             .background(color)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -958,6 +978,10 @@ fun SearchStickyBar(
     val ownFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val fieldFocus = focusRequester ?: ownFocus
     val context = LocalContext.current
+    val spotifusion = isSpotifusionLook()
+    val barBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    val barShape = RoundedCornerShape(if (spotifusion) 4.dp else 12.dp)
+    val cursorTint = if (spotifusion) SpotifusionGreen else AppAccent
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -967,9 +991,9 @@ fun SearchStickyBar(
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(barShape)
                 .height(55.dp)
-                .background(tone(0xFF2A2A2A))
+                .background(barBg)
                 .padding(10.dp, 0.dp)
         ){
             Icon(
@@ -995,7 +1019,7 @@ fun SearchStickyBar(
                     unfocusedIndicatorColor = Color.Transparent,
                     focusedTextColor = AppText,
                     unfocusedTextColor = AppText,
-                    cursorColor = AppPalette
+                    cursorColor = cursorTint
 
                 ),
                 singleLine = true,
@@ -1025,7 +1049,7 @@ fun SearchStickyBar(
             modifier = Modifier
                 .size(55.dp)
                 .clip(CircleShape)
-                .background(tone(0xFF2A2A2A))
+                .background(barBg)
                 .pressable(0.9f) { launchVoiceSearch(context) },
         ) {
             Icon(

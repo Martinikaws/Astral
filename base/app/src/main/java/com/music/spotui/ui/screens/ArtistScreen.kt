@@ -59,10 +59,14 @@ import com.music.spotui.ui.components.SongOptionsSheet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -80,12 +84,17 @@ import com.music.spotui.data.entity.AlbumsModel
 import com.music.spotui.data.entity.ArtistOverviewModel
 import com.music.spotui.data.entity.ArtistTrackUi
 import com.music.spotui.data.entity.ArtistsModel
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.Loader
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.albumRoute
 import com.music.spotui.ui.navigation.artistRoute
 import com.music.spotui.ui.theme.AppBackground
+import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.theme.StarryCardOpaque
 import com.music.spotui.ui.viewmodel.ArtistViewModel
 
 private val SpotifyGreen: Color get() = com.music.spotui.ui.theme.AppAccent
@@ -97,13 +106,14 @@ private fun grouped(n: Long): String =
 fun ArtistScreen(navController: NavController, artistName: String, artistId: String = "") {
     val artistViewModel: ArtistViewModel = viewModel()
     val overview by artistViewModel.overview.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val surfaceColor = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
     LaunchedEffect(artistName, artistId) { artistViewModel.loadArtistOverview(artistName, artistId) }
 
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        color = surfaceColor,
+        modifier = Modifier.fillMaxSize(),
     ) {
         // The page fades in over its placeholder instead of replacing it in one frame.
         com.music.spotui.ui.components.LoadedFade(overview is Response.Loading) { loading ->
@@ -200,13 +210,14 @@ private fun ArtistOverviewContent(
         artistViewModel.updateSongState(s.coverUri, s.title, s.singer, true, s.id, index)
     }
 
+    val pageBg = AppBackground
+    val accentInk = if (SpotifyGreen.luminance() > 0.45f || isSpotifusionLook()) Color.Black else Color.White
+
     Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        modifier = Modifier.fillMaxSize()
     ) {
         // ── Header: big artist image with scrim + name ──
         item {
@@ -220,7 +231,27 @@ private fun ArtistOverviewContent(
                 .height(headerHeight)
             ) {
                 GlideImage(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (pageBg == Color.Transparent) {
+                                Modifier
+                                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                    .drawWithContent {
+                                        drawContent()
+                                        drawRect(
+                                            Brush.verticalGradient(
+                                                0f to Color.Black,
+                                                0.72f to Color.Black,
+                                                1f to Color.Transparent,
+                                            ),
+                                            blendMode = BlendMode.DstIn,
+                                        )
+                                    }
+                            } else {
+                                Modifier
+                            },
+                        ),
                     model = overview.headerImage.ifBlank { overview.avatarImage },
                     contentScale = ContentScale.Crop,
                     failure = placeholder(R.drawable.placeholder),
@@ -234,7 +265,7 @@ private fun ArtistOverviewContent(
                             colors = listOf(
                                 Color.Black.copy(alpha = 0.35f),
                                 Color.Transparent,
-                                Color(AppBackground.toArgb()),
+                                if (pageBg == Color.Transparent) Color.Black.copy(alpha = 0.40f) else pageBg,
                             ),
                         )
                     )
@@ -268,7 +299,7 @@ private fun ArtistOverviewContent(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier.size(18.dp).clip(CircleShape).background(SpotifyGreen),
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = accentInk, modifier = Modifier.size(13.dp))
                         }
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.verified_artist), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -378,7 +409,7 @@ private fun ArtistOverviewContent(
                         com.music.spotui.ui.components.PlayPauseIcon(
                             playing = isThisArtist && playingNow,
                             contentDescription = if (isThisArtist && playingNow) stringResource(R.string.content_description_pause_button) else stringResource(R.string.content_description_play_button),
-                            tint = Color.Black,
+                            tint = accentInk,
                             modifier = Modifier.size(26.dp),
                         )
                     }
@@ -561,7 +592,7 @@ private fun ArtistOverviewContent(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(tone(0xFF2A2A2A))
+                .background(if (isSpotifusionLook() || pageBg != Color.Transparent) tone(0xFF2A2A2A) else StarryCardOpaque.copy(alpha = 0.94f))
                 .statusBarsPadding()
                 .height(56.dp)
                 .padding(horizontal = 12.dp),
@@ -767,13 +798,14 @@ private fun releaseYear(album: AlbumsModel): String = album.year
 fun ArtistReleasesScreen(navController: NavController, artistName: String, artistId: String = "") {
     val artistViewModel: ArtistViewModel = viewModel()
     val overview by artistViewModel.overview.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val surfaceColor = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
     LaunchedEffect(artistName, artistId) { artistViewModel.loadArtistOverview(artistName, artistId) }
 
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        color = surfaceColor,
+        modifier = Modifier.fillMaxSize(),
     ) {
         val data = (overview as? Response.Success)?.data
         val releases = data?.popularReleases ?: emptyList()
@@ -793,9 +825,7 @@ fun ArtistReleasesScreen(navController: NavController, artistName: String, artis
 
         LazyColumn(
             contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(AppBackground.toArgb()))
+            modifier = Modifier.fillMaxSize()
         ) {
             item {
                 Row(
@@ -889,17 +919,21 @@ private fun ReleaseSectionHeader(title: String) {
 
 @Composable
 private fun ReleaseFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val activeBg = if (spotifusion) SpotifusionGreen else AppAccent
+    val activeInk = if (spotifusion || activeBg.luminance() > 0.45f) Color.Black else Color.White
+    val idleBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
     // Same pill as the Home chips.
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.pressable(0.96f) { onClick() }
             .clip(RoundedCornerShape(50))
-            .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
+            .background(if (selected) activeBg else idleBg)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Text(
             text = label,
-            color = if (selected) Color.Black else AppText,
+            color = if (selected) activeInk else AppText,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

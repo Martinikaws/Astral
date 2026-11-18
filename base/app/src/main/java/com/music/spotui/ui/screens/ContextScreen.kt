@@ -71,6 +71,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -592,8 +593,13 @@ fun ContextScreen(navController: NavController, type: String, id: String) {
     // During composition, so a cached page is there for the very first frame.
     remember(type, id) { vm.load(type, id) }
     val resp by vm.page.collectAsState()
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && PageBackground == Color.Transparent) Color.Transparent else PageBackground
     // The page fades in over its placeholder instead of replacing it in one frame.
-    com.music.spotui.ui.components.LoadedFade(resp is Response.Loading, Modifier.fillMaxSize().background(PageBackground)) { loading ->
+    com.music.spotui.ui.components.LoadedFade(
+        resp is Response.Loading,
+        Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)),
+    ) { loading ->
         Box(modifier = Modifier.fillMaxSize()) {
             // The placeholder fading out stays the placeholder, whatever the response is now.
             if (loading) Loader(SkeletonKind.Header)
@@ -819,10 +825,11 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().nestedScroll(revealPull)) {
         item {
+            val headerTop = headerTint(tint, 0.25f).let { if (PageBackground == Color.Transparent) it.copy(alpha = 0.78f) else it }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(headerTint(tint, 0.25f), PageBackground)))
+                    .background(Brush.verticalGradient(listOf(headerTop, PageBackground)))
                     .statusBarsPadding()
             ) {
                 Box(
@@ -1076,7 +1083,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                             com.music.spotui.ui.components.PlayPauseIcon(
                                 playing = isThisContext && playing,
                                 contentDescription = if (isThisContext && playing) stringResource(R.string.content_description_pause_button) else stringResource(R.string.content_description_play_button),
-                                tint = Color.Black,
+                                tint = if (SpotifyGreen.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White,
                                 modifier = Modifier.size(24.dp),
                             )
                         }
@@ -1512,7 +1519,12 @@ private fun TrackRow(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(20.dp).clip(CircleShape).background(SpotifyGreen),
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = stringResource(R.string.liked_song), tint = Color.Black, modifier = Modifier.size(14.dp))
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = stringResource(R.string.liked_song),
+                        tint = if (SpotifyGreen.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White,
+                        modifier = Modifier.size(14.dp),
+                    )
                 }
             }
             // No gap: the ⋮'s touch square starts 12 dp before its glyph.

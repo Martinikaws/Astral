@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.pressable
 import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
@@ -89,16 +91,18 @@ fun WelcomeScreen(onLogin: () -> Unit) {
         alpha = v
         translationY = (1f - v) * 24.dp.toPx()
     }
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val scrimColors = if (starryEnabled) {
+        listOf(Color(0x99060F2B), Color(0xB30B1B45), Color(0x99060F2B))
+    } else {
+        listOf(AstralMidnight, AstralNavy, AstralMidnight)
+    }
     Box(
         Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(AstralMidnight, AstralNavy, AstralMidnight)
-                )
-            )
+            .background(Brush.verticalGradient(colors = scrimColors))
     ) {
-        Glow(Modifier.fillMaxSize(), alpha = 0.28f)
+        Glow(Modifier.fillMaxSize(), alpha = if (starryEnabled) 0.18f else 0.28f)
         Box(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 28.dp, vertical = 24.dp)) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,10 +54,13 @@ import app.myspoti.host.android.MyspotiRuntime
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.pressable
 import com.music.spotui.ui.components.spotifyImageUrl
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.navigation.playlistRoute
 import com.music.spotui.ui.theme.AppBackground
+import com.music.spotui.ui.theme.StarryCardOpaque
 import kotlinx.coroutines.launch
 
 /**
@@ -83,11 +88,13 @@ fun ProfileScreen(navController: NavController, userId: String, userName: String
         if (!me) blocked = runCatching { MyspotiRuntime.api.users.isBlocked(uri) }.getOrNull()
     }
     val p = profile
+    val spotifusion = isSpotifusionLook()
+    val containerColor = if (spotifusion) tone(0xFF282828) else StarryCardOpaque
     if (blockAsk) {
         val name = p?.name ?: userName.ifEmpty { userId }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { blockAsk = false },
-            containerColor = tone(0xFF282828),
+            containerColor = containerColor,
             title = { Text(stringResource(R.string.profile_block_title, name), color = AppText) },
             text = { Text(stringResource(R.string.profile_block_confirm, name), color = AppMuted) },
             confirmButton = {
@@ -104,9 +111,14 @@ fun ProfileScreen(navController: NavController, userId: String, userName: String
             dismissButton = { androidx.compose.material3.TextButton(onClick = { blockAsk = false }) { Text(stringResource(R.string.cancel), color = AppText) } },
         )
     }
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
-        modifier = Modifier.fillMaxSize().background(AppBackground).statusBarsPadding(),
+        modifier = Modifier
+            .fillMaxSize()
+            .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))
+            .statusBarsPadding(),
     ) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -124,7 +136,7 @@ fun ProfileScreen(navController: NavController, userId: String, userName: String
                             Icons.Default.MoreVert, stringResource(R.string.profile_more_options), tint = AppText,
                             modifier = Modifier.pressable(0.96f) { menu = true }.padding(16.dp).size(26.dp),
                         )
-                        androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = tone(0xFF282828)) {
+                        androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = containerColor) {
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text(stringResource(if (b) R.string.profile_unblock else R.string.profile_block), color = AppText) },
                                 onClick = {

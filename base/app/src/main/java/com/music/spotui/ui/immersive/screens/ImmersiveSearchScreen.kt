@@ -68,7 +68,9 @@ import com.music.spotui.data.entity.LibraryEntry
 import com.music.spotui.data.entity.PodcastModel
 import com.music.spotui.data.entity.SearchResults
 import com.music.spotui.data.entity.SongsModel
+import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.RecentItem
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.addRecentItem
 import com.music.spotui.data.preferences.clearRecentItems
 import com.music.spotui.data.preferences.getRecentItems
@@ -78,6 +80,7 @@ import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.immersive.sheets.ImmersiveSongOptionsSheet
 import com.music.spotui.ui.components.launchVoiceSearch
 import com.music.spotui.ui.immersive.Immersive
+import com.music.spotui.ui.immersive.glass
 import com.music.spotui.ui.immersive.components.ImmersiveButton
 import com.music.spotui.ui.immersive.components.ImmersiveCover
 import com.music.spotui.ui.immersive.components.ImmersiveListRow
@@ -92,6 +95,7 @@ import com.music.spotui.ui.immersive.components.immersiveSongListSkeleton
 import com.music.spotui.ui.immersive.shell.ImmersiveTopBar
 import com.music.spotui.ui.immersive.shell.immersiveLargeTitle
 import com.music.spotui.ui.immersive.shell.immersiveTopContentPadding
+import com.music.spotui.ui.look.LocalLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.navigation.TabReselect
 import com.music.spotui.ui.navigation.albumRoute
@@ -103,9 +107,15 @@ import com.music.spotui.ui.navigation.showRoute
 import com.music.spotui.ui.screens.SearchFilter
 import com.music.spotui.ui.screens.mergeRecentItems
 import com.music.spotui.ui.screens.toRecentItemOrNull
+import com.music.spotui.ui.theme.GlassifyBorder
+import com.music.spotui.ui.theme.GlassifyGlassFill
+import com.music.spotui.ui.theme.LiquidMusicBorder
+import com.music.spotui.ui.theme.LiquidMusicSurface
 import com.music.spotui.ui.viewmodel.SearchViewModel
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -199,7 +209,13 @@ fun ImmersiveSearchScreen(navController: NavController) {
         vm.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
     }
 
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val look = LocalLook.current
+
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)),
+    ) {
         // Wide windows: more browse tiles per row (two on phones), counted in the list's capped width.
         val browseCols = com.music.spotui.ui.components.WindowSize.columnsIn(
             minOf(maxWidth, com.music.spotui.ui.components.WindowSize.MaxPageWidth), 2, 220.dp)
@@ -212,7 +228,34 @@ fun ImmersiveSearchScreen(navController: NavController) {
         ) {
             immersiveLargeTitle(title)
             stickyHeader(key = "search:field") {
-                Column(Modifier.fillMaxWidth().background(Immersive.Page).padding(top = 4.dp, bottom = 6.dp)) {
+                val stickyBgModifier = if (pageBg == Color.Transparent) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.45f),
+                            0.75f to Color.Black.copy(alpha = 0.16f),
+                            1f to Color.Transparent,
+                        ),
+                    )
+                } else {
+                    Modifier.background(pageBg)
+                }
+                val fieldShape = Immersive.Button
+                val fieldBorder = when (look) {
+                    Look.GLASSIFY -> Modifier
+                        .clip(fieldShape)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.06f)),
+                                start = Offset.Zero,
+                                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                            ),
+                            shape = fieldShape,
+                        )
+                    Look.LIQUID_MUSIC -> Modifier.clip(fieldShape).border(1.dp, LiquidMusicBorder, fieldShape)
+                    else -> Modifier
+                }
+                Column(Modifier.fillMaxWidth().then(stickyBgModifier).padding(top = 4.dp, bottom = 6.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter),
@@ -225,6 +268,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                             placeholder = stringResource(R.string.search_header_field_hint),
                             modifier = Modifier
                                 .weight(1f)
+                                .then(fieldBorder)
                                 .onFocusChanged { searchFocused = it.hasFocus },
                         )
                         Spacer(Modifier.width(8.dp))
@@ -378,14 +422,34 @@ private fun LazyListScope.recentSearches(
             else -> ""
         }
         val row: @Composable () -> Unit = {
+            val look = LocalLook.current
+            val cardShape = Immersive.Card
+            val cardMod = when (look) {
+                Look.GLASSIFY -> Modifier
+                    .background(GlassifyGlassFill, cardShape)
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.linearGradient(
+                            colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.05f)),
+                            start = Offset.Zero,
+                            end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                        ),
+                        shape = cardShape,
+                    )
+                Look.LIQUID_MUSIC -> Modifier
+                    .background(LiquidMusicSurface, cardShape)
+                    .border(1.dp, LiquidMusicBorder, cardShape)
+                else -> Modifier
+                    .background(Immersive.Raised, cardShape)
+                    .border(0.5.dp, Color.White.copy(alpha = 0.08f), cardShape)
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Immersive.Gutter, vertical = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Immersive.Raised)
-                    .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .clip(cardShape)
+                    .then(cardMod)
                     .clickable(role = Role.Button) { onOpen(item) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
@@ -459,12 +523,16 @@ private fun LazyListScope.recentSearches(
 /** The mic button beside the search field: opens the device's voice search for music. */
 @Composable
 private fun ImmersiveVoiceSearchButton(onClick: () -> Unit) {
+    val look = LocalLook.current
+    val shape = if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else CircleShape
+    val surface = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) Modifier.glass(shape)
+        else Modifier.background(Immersive.Raised, shape)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(46.dp)
-            .clip(CircleShape)
-            .background(Immersive.Raised, CircleShape)
+            .clip(shape)
+            .then(surface)
             .clickable(role = Role.Button, onClick = onClick),
     ) {
         Icon(
@@ -689,7 +757,7 @@ private fun SongResultRow(
             current = current,
             onClick = onClick,
             onMore = onMore,
-            modifier = Modifier.background(Immersive.Page),
+            modifier = if (Immersive.Page == Color.Transparent) Modifier else Modifier.background(Immersive.Page),
             showAlbum = true,
         )
     }
@@ -698,6 +766,29 @@ private fun SongResultRow(
 /** The best song for the query, promoted: a big cover, the title, and Play / more. */
 @Composable
 private fun TopResultCard(song: SongsModel, onPlay: () -> Unit, onMore: () -> Unit) {
+    val look = LocalLook.current
+    val cardShape = Immersive.Card
+    val glassCard = when (look) {
+        Look.GLASSIFY -> Modifier
+            .clip(cardShape)
+            .background(GlassifyGlassFill, cardShape)
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(GlassifyBorder, Color.White.copy(alpha = 0.05f)),
+                    start = Offset.Zero,
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                ),
+                shape = cardShape,
+            )
+            .padding(14.dp)
+        Look.LIQUID_MUSIC -> Modifier
+            .clip(cardShape)
+            .background(LiquidMusicSurface, cardShape)
+            .border(1.dp, LiquidMusicBorder, cardShape)
+            .padding(14.dp)
+        else -> Modifier
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -706,26 +797,28 @@ private fun TopResultCard(song: SongsModel, onPlay: () -> Unit, onMore: () -> Un
     ) {
         Text(text = stringResource(R.string.immersive_screens_top_result), style = Immersive.Title)
         Spacer(Modifier.height(10.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.immersiveClickable(onClick = onPlay, onLongClick = onMore),
-        ) {
-            ImmersiveCover(song.coverUri, Modifier.size(72.dp), Immersive.CoverMedium)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(text = song.title, style = Immersive.Headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(text = song.singer, style = Immersive.Subhead, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(modifier = Modifier.fillMaxWidth().then(glassCard)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.immersiveClickable(onClick = onPlay, onLongClick = onMore),
+            ) {
+                ImmersiveCover(song.coverUri, Modifier.size(72.dp), Immersive.CoverMedium)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(text = song.title, style = Immersive.Headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(text = song.singer, style = Immersive.Subhead, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                ImmersiveMoreButton(onClick = onMore, tint = Immersive.Text, iconSize = 24.dp)
             }
-            ImmersiveMoreButton(onClick = onMore, tint = Immersive.Text, iconSize = 24.dp)
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ImmersiveButton(
-                text = stringResource(R.string.immersive_shell_play),
-                onClick = onPlay,
-                icon = Icons.Rounded.PlayArrow,
-            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ImmersiveButton(
+                    text = stringResource(R.string.immersive_shell_play),
+                    onClick = onPlay,
+                    icon = Icons.Rounded.PlayArrow,
+                )
+            }
         }
     }
 }

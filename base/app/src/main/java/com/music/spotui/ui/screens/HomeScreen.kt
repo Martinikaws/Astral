@@ -51,7 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
@@ -75,13 +75,18 @@ import com.music.spotui.data.entity.homeShortcuts
 import com.music.spotui.data.entity.withoutDj
 import com.music.spotui.data.entity.withoutPodcastShows
 import com.music.spotui.data.entity.HomeSection
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.Loader
 import com.music.spotui.ui.components.onHomeItemClick
 import com.music.spotui.ui.components.prefetchHomeItem
 import com.music.spotui.ui.components.prefetchHomeShortcuts
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.navigation.Routes
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.GridBackground
+import com.music.spotui.ui.theme.SpotifusionCard
+import com.music.spotui.ui.theme.SpotifusionGreen
+import com.music.spotui.ui.theme.StarryCardOpaque
 import com.music.spotui.ui.viewmodel.HomeViewModel
 
 
@@ -93,11 +98,12 @@ fun HomeScreen(navController: NavController){
     // An old feed is read again when Home shows again (see HomeViewModel.refreshIfStale).
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { homeViewModel.refreshIfStale() }
     val home by homeViewModel.home.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val surfaceColor = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        color = surfaceColor,
+        modifier = Modifier.fillMaxSize(),
     ) {
         val feed = (home as? Response.Success)?.data
         val hasFeed = feed != null && feed.sections.isNotEmpty()
@@ -171,26 +177,33 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
         }
     }
 
+    val pageBg = AppBackground
+    val headerFade = if (pageBg == Color.Transparent) {
+        Brush.verticalGradient(
+            0f to Color.Black.copy(alpha = 0.42f),
+            0.6f to Color.Black.copy(alpha = 0.16f),
+            1f to Color.Transparent,
+        )
+    } else {
+        Brush.verticalGradient(
+            0f to pageBg,
+            0.55f to pageBg.copy(alpha = 0.85f),
+            1f to Color.Transparent,
+        )
+    }
+
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+        modifier = Modifier.fillMaxSize()
     ) {
         // Sticky filter row: content scrolls underneath it, like the official app.
         stickyHeader {
-            // Fade (not a solid band): opaque under the status bar, transparent at the bottom.
+            // Fade (not a solid band): opaque or soft starry scrim under the status bar, transparent at the bottom.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color(AppBackground.toArgb()),
-                            0.55f to Color(AppBackground.toArgb()).copy(alpha = 0.85f),
-                            1f to Color.Transparent,
-                        )
-                    )
+                    .background(headerFade)
                     .statusBarsPadding()
                     .padding(bottom = 10.dp)
             ) {
@@ -260,13 +273,14 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
         }
         }
         WhatsNewBell { navController.navigate(com.music.spotui.ui.navigation.Routes.WhatsNew.route) }
+        val spotifusion = isSpotifusionLook()
         // B31: a separator between the profile and the options, reported missing from this
         // header (the sheets already carry one).
         Box(
             modifier = Modifier
                 .padding(vertical = 10.dp)
                 .size(width = 1.dp, height = 22.dp)
-                .background(tone(0xFF3E3E3E)),
+                .background(if (spotifusion) tone(0xFF3E3E3E) else Color.White.copy(alpha = 0.14f)),
         )
         // Scrolls sideways if the pills don't fit, like Spotify's.
         Row(
@@ -296,7 +310,10 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
                 val subs = com.music.spotui.data.entity.HomeSubChips.byParent[parent].orEmpty()
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.clip(CircleShape).background(tone(0xFF2A2A2A)).clickable { onFacet("") }.padding(8.dp),
+                    modifier = Modifier.clip(CircleShape)
+                        .background(if (spotifusion) tone(0xFF2A2A2A) else GridBackground)
+                        .clickable { onFacet("") }
+                        .padding(8.dp),
                 ) {
                     Icon(androidx.compose.material.icons.Icons.Filled.Close, contentDescription = stringResource(R.string.filter_chip_all_label),
                         tint = AppText, modifier = Modifier.size(18.dp))
@@ -329,15 +346,26 @@ private val JoinedEnd = RoundedCornerShape(topStartPercent = 15, bottomStartPerc
 
 @Composable
 private fun HomePill(label: String, selected: Boolean = false, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(50), onClick: () -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val chipBg = if (selected) {
+        if (spotifusion) SpotifusionGreen else AppAccent
+    } else {
+        if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    }
+    val chipInk = if (selected) {
+        if (spotifusion || chipBg.luminance() > 0.45f) Color.Black else Color.White
+    } else {
+        AppText
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .clip(shape)
-            .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
+            .background(chipBg)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Text(text = label, color = if (selected) Color.Black else AppText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, color = chipInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -346,6 +374,9 @@ private fun HomePill(label: String, selected: Boolean = false, shape: androidx.c
 private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>) {
     // Large windows: more tiles per row (two on phones).
     val cols = com.music.spotui.ui.components.windowSize().columns(2, 280.dp)
+    val spotifusion = isSpotifusionLook()
+    val tileShape = RoundedCornerShape(if (spotifusion) 4.dp else 8.dp)
+    val tileBg = if (spotifusion) SpotifusionCard else GridBackground
     Column(modifier = Modifier.padding(8.dp, 4.dp)) {
         items.chunked(cols).forEach { rowItems ->
             Row(
@@ -360,8 +391,8 @@ private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>
                         modifier = Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onHomeItemClick(navController, item) }
                             .weight(1f)
                             .height(48.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(GridBackground.toArgb()))
+                            .clip(tileShape)
+                            .background(tileBg)
                             ,
                     ) {
                         GlideImage(
@@ -424,6 +455,10 @@ private fun HomeFeedSection(navController: NavController, section: HomeSection) 
 @Composable
 private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     val isArtist = item is HomeItem.Artist
+    val spotifusion = isSpotifusionLook()
+    val cardShape = if (isArtist) CircleShape else RoundedCornerShape(if (spotifusion) 4.dp else 8.dp)
+    val dotColor = if (spotifusion) SpotifusionGreen else AppAccent
+    val subtitleColor = if (spotifusion) Color(0xFFB3B3B3) else AppMuted
     val subtitle = when (item) {
         is HomeItem.Album -> item.subtitle
         is HomeItem.Playlist -> item.subtitle
@@ -441,7 +476,7 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
             GlideImage(
                 modifier = Modifier
                     .size(150.dp)
-                    .clip(if (isArtist) CircleShape else RoundedCornerShape(8.dp)),
+                    .clip(cardShape),
                 contentScale = ContentScale.Crop,
                 model = item.imageUrl,
                 loading = placeholder(R.drawable.placeholder),
@@ -449,7 +484,7 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
                 contentDescription = "",
             )
             if (item is HomeItem.Show && !item.isEpisode) {
-                com.music.spotui.ui.components.NewEpisodeDot(item.id, AppAccent, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                com.music.spotui.ui.components.NewEpisodeDot(item.id, dotColor, Modifier.align(Alignment.TopEnd).padding(8.dp))
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -464,7 +499,7 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
         // Always two lines tall: a long artist mix no longer makes one card taller than its row.
         Text(
             text = subtitle,
-            color = AppMuted,
+            color = subtitleColor,
             fontSize = 11.sp,
             lineHeight = 14.sp,
             minLines = 2,
@@ -500,8 +535,11 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
     val name = com.music.spotui.data.api.ProfileCache.name.orEmpty()
     val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
     // Opened in full: half-open, the sheet and its list both moved under the finger.
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828),
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = if (isSpotifusionLook()) tone(0xFF282828) else StarryCardOpaque,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.fillMaxWidth().then(Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars))
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(bottom = 16.dp),
