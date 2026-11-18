@@ -201,23 +201,26 @@ fun App() {
 
 
 
+/*
+ * Minimum black scrim for Glassify's transparent page (stars off). All values are sRGB, which is the space Compose
+ * blends in, so a black scrim of alpha a scales sRGB by (1 - a). What is drawn bottom to top is the dark base
+ * GlassifyBackground (~sRGB 0.066 mean), then ONE of:
+ *  - the blurred cover at alpha 0.52: worst case a white cover gives 0.066*0.48 + 0.52 = 0.55; or
+ *  - the accent glow (radial, alpha 0.36, never together with the cover): brightest 0.066*0.64 + 0.36 = 0.40;
+ * then the scrim (V * (1 - a)), then the page veil GlassifyBackground at 0.55 (MyNavHost), which sits on top:
+ * v = V * (1 - a) * 0.45 + 0.55 * 0.066 = V * (1 - a) * 0.45 + 0.036.
+ *  - Secondary text #ADB5BD (relative luminance ~0.456) needs 4.5:1: background luminance <= 0.0624, sRGB <= 0.277,
+ *    so V * (1 - a) <= 0.535: for the cover (V = 0.55) a >= 0.03, for the glow (V = 0.40) no scrim at all.
+ *  - White needs 7:1: luminance <= 0.10, sRGB <= 0.349, so V * (1 - a) <= 0.695: met with no scrim.
+ * The veil does most of the work; a floor of 0.10 keeps a margin for the white page-card tint and rounding.
+ * With the stars on behind another Look the old scrim stays, so the stars are not dimmed to ~38%.
+ */
+private const val MinCoverScrim = 0.10f
+
 /**
  * Glassify (`spicetify-glassify`) heavily blurred album-art ambient layer behind the interactive shell.
  * Stays translucent over [com.music.spotui.ui.components.StarryNightBackdrop] when Starry Night is active.
  */
-/*
- * Glassify's page is transparent, so the blurred cover (a white one is the worst case) sits straight under the
- * text. Worst case: cover alpha 0.52 over GlassifyBackground (~#0E1118, sRGB ~0.06) gives sRGB 0.55; the accent
- * glow (alpha 0.36 radial) can lift the brightest spot to ~0.71. Black scrim alpha a scales that to 0.71 * (1 - a).
- *  - Secondary text #ADB5BD has relative luminance ~0.456, so 4.5:1 needs a background luminance <= (0.456+0.05)/4.5 - 0.05
- *    = 0.0624, i.e. sRGB <= ~0.277, i.e. (1 - a) <= 0.39 -> a >= 0.61 at the glow's very centre, the brightest spot there is.
- *  - White needs 7:1, i.e. background luminance <= 1.05/7 - 0.05 = 0.10 (sRGB ~0.35): met from a >= 0.50.
- * So the scrim never drops below 0.62 at the top and 0.72 at the bottom (where the mini player and tab bar sit),
- * whatever the stars extra does.
- */
-private const val MinCoverScrimTop = 0.62f
-private const val MinCoverScrimBottom = 0.72f
-
 @OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
 private fun GlassifyAmbientBackdrop(
@@ -261,8 +264,8 @@ private fun GlassifyAmbientBackdrop(
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
                         colors = listOf(
-                            androidx.compose.ui.graphics.Color.Black.copy(alpha = maxOf(if (starryActive) 0.16f else 0.42f, MinCoverScrimTop)),
-                            androidx.compose.ui.graphics.Color.Black.copy(alpha = maxOf(if (starryActive) 0.28f else 0.65f, MinCoverScrimBottom)),
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.16f else maxOf(0.42f, MinCoverScrim)),
+                            androidx.compose.ui.graphics.Color.Black.copy(alpha = if (starryActive) 0.28f else maxOf(0.65f, MinCoverScrim)),
                         ),
                     ),
                 ),

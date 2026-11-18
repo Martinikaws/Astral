@@ -16,6 +16,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -940,7 +942,7 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     chevron = true, onClick = { open(SettingsPage.SpicyTheme) },
                 )
             }
-            if (look == com.music.spotui.data.preferences.Look.IMMERSIVE || look == com.music.spotui.data.preferences.Look.CLASSIC) {
+            if (com.music.spotui.data.api.SupportReminder.honoursChosenAccent(look)) {
                 row { AccentRow(look) }
             }
             // Material You is the Classic look's: this look's colours come from the playing cover.
@@ -1078,14 +1080,35 @@ private fun rotationLabel(mode: String): Int = when (mode) {
 }
 
 /** The accent colour of one look, for everyone (the same palette the supporter sheet uses). */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AccentRow(look: com.music.spotui.data.preferences.Look) {
     val ctx = LocalContext.current
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(stringResource(R.string.supporter_accent), style = Immersive.Body)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 10.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(top = 10.dp),
+        ) {
+            if (com.music.spotui.data.api.SupportReminder.hasLookDefaultAccent(look)) {
+                val defaultSelected = com.music.spotui.data.api.SupportReminder.usesLookDefaultAccent(look)
+                val defaultColor = if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) com.music.spotui.ui.theme.StarryAccent
+                    else com.music.spotui.ui.theme.LiquidMusicAccent
+                val defaultName = stringResource(R.string.accent_look_default)
+                Box(
+                    Modifier.size(38.dp)
+                        .semantics { contentDescription = defaultName; role = Role.RadioButton }
+                        .clip(CircleShape).background(defaultColor)
+                        .border(if (defaultSelected) 3.dp else 1.dp, if (defaultSelected) Immersive.Text else Immersive.Text.copy(alpha = 0.4f), CircleShape)
+                        .clickable { com.music.spotui.data.api.SupportReminder.clearAccent(ctx) },
+                )
+            }
             for (a in com.music.spotui.data.api.SupportReminder.Accent.entries) {
-                val selected = com.music.spotui.data.api.SupportReminder.accentOf(look) == a
+                val selected = !com.music.spotui.data.api.SupportReminder.usesLookDefaultAccent(look) &&
+                    (!com.music.spotui.data.api.SupportReminder.usesImmersiveAccent(look) ||
+                        com.music.spotui.data.api.SupportReminder.immersiveAccentChosen) &&
+                    com.music.spotui.data.api.SupportReminder.accentOf(look) == a
                 val name = stringResource(when (a) {
                     com.music.spotui.data.api.SupportReminder.Accent.GREEN -> R.string.color_green
                     com.music.spotui.data.api.SupportReminder.Accent.BLUE -> R.string.color_blue

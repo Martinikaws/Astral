@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -370,14 +371,15 @@ object Immersive {
 fun immersiveSwitchColors(): SwitchColors {
     val t = Immersive.Tokens
     val accent = Immersive.Accent
+    val thumbOn = if (accent.luminance() > 0.55f) Color(0xFF0A1422) else t.switchThumbOn
     return SwitchDefaults.colors(
-        checkedThumbColor = t.switchThumbOn,
+        checkedThumbColor = thumbOn,
         checkedTrackColor = accent,
         checkedBorderColor = Color.Transparent,
         uncheckedThumbColor = Color.White,
         uncheckedTrackColor = t.switchTrackOff,
         uncheckedBorderColor = Color.Transparent,
-        disabledCheckedThumbColor = t.switchThumbOn.copy(alpha = 0.7f),
+        disabledCheckedThumbColor = thumbOn.copy(alpha = 0.7f),
         disabledCheckedTrackColor = accent.copy(alpha = 0.4f),
         disabledCheckedBorderColor = Color.Transparent,
         disabledUncheckedThumbColor = Color.White.copy(alpha = 0.6f),

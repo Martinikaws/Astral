@@ -225,4 +225,36 @@ class LookMigrationTest {
         LookMigration.run(p)
         assertFalse(p.getBoolean("starry_night_enabled", true))
     }
+
+    @Test fun `the shooting-stars key alone marks an existing install`() {
+        p.edit().putBoolean("starry_night_shooting_stars", true).commit()
+        assertTrue(LookMigration.isExistingInstall(p))
+        LookMigration.run(p)
+        assertTrue(p.getBoolean("starry_night_enabled", false))
+    }
+
+    @Test fun `a fresh install is not detected as existing`() {
+        assertFalse(LookMigration.isExistingInstall(p))
+    }
+
+    @Test fun `upgrader with only look_chosen reads as Classic and gets the stars`() {
+        p.edit().putBoolean("look_chosen", true).commit()
+        LookMigration.run(p)
+        assertEquals(Look.CLASSIC, look())
+        assertTrue(p.getBoolean("starry_night_enabled", false))
+    }
+
+    @Test fun `v1_0_1 Interactive with the Glassify theme ends on Glassify with the stars on`() {
+        v101(look = "IMMERSIVE", theme = "GLASSIFY")
+        LookMigration.run(p)
+        assertEquals(Look.GLASSIFY, look())
+        assertTrue(p.getBoolean("starry_night_enabled", false))
+    }
+
+    @Test fun `a stored Starry Night look gets no extra`() {
+        p.edit().putBoolean("look_chosen", true).putString("look", "STARRY_NIGHT").commit()
+        LookMigration.run(p)
+        assertEquals(Look.STARRY_NIGHT, look())
+        assertFalse(p.contains("starry_night_enabled"))
+    }
 }

@@ -75,6 +75,19 @@ object SupportReminder {
     /** Whether the Look honours a chosen accent at all (Spotifusion is always green, Glassify follows the cover). */
     fun honoursChosenAccent(look: Look): Boolean = look != Look.SPOTIFUSION && look != Look.GLASSIFY
 
+    /** The Looks with an accent of their own (LiquidMusic red, Starry Night gold) that a chosen one only overrides. */
+    fun hasLookDefaultAccent(look: Look): Boolean = look == Look.LIQUID_MUSIC || look == Look.STARRY_NIGHT
+
+    /** Whether the Look's own accent is showing, i.e. [setAccent] never picked one (or [clearAccent] dropped it). */
+    fun usesLookDefaultAccent(look: Look): Boolean = hasLookDefaultAccent(look) && !immersiveAccentChosen
+
+    /** Drops the chosen accent so the Look's own default applies again. */
+    fun clearAccent(context: Context) {
+        immersiveAccent = Accent.GREEN
+        immersiveAccentChosen = false
+        prefs(context).edit().remove(KEY_ACCENT_IMMERSIVE).apply()
+    }
+
     /** The colour the active look uses for its accent (Spotify green unless another was chosen in Settings). */
     val accentColor: Color get() = accentOf(LookPref.look).color
 

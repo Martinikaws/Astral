@@ -92,9 +92,15 @@ internal object LookMigration {
 
     fun run(c: Context) = run(c.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE))
 
+    /** Any of these keys means this is not a fresh install; read BEFORE [runV2], which writes its flag even on a fresh one. */
+    fun isExistingInstall(p: SharedPreferences): Boolean =
+        p.contains(FLAG) || p.contains("look_offered") || p.contains(LOOK_CHOSEN) || p.contains(LOOK) ||
+            p.contains(PAGE_STYLE) || p.contains(THEME_MODE) || p.contains("starry_night_shooting_stars")
+
     fun run(p: SharedPreferences) {
+        val existing = isExistingInstall(p)
         runV2(p)
-        runStarryLook(p)
+        runStarryLook(p, existing)
     }
 
     /**
@@ -104,11 +110,9 @@ internal object LookMigration {
      * switch is then cleared. Anyone else keeps their Look; the extra is kept on for an upgrader who never set the
      * switch (the stars were on by default behind every Look) and survives when it was explicitly on. Idempotent (flag [FLAG_STARRY]); fresh installs are untouched.
      */
-    fun runStarryLook(p: SharedPreferences) {
+    fun runStarryLook(p: SharedPreferences, existing: Boolean = isExistingInstall(p)) {
         if (p.getBoolean(FLAG_STARRY, false)) return
         val e = p.edit().putBoolean(FLAG_STARRY, true)
-        val existing = p.getBoolean(LOOK_CHOSEN, false) || p.contains(LOOK) || p.contains(PAGE_STYLE) || p.contains(THEME_MODE) ||
-            p.contains("starry_night_shooting_stars")
         if (existing) {
             val starryOn = p.getBoolean(STARRY_ENABLED, true) // an unset switch was on
             val look = Look.fromKey(p.getString(LOOK, null))

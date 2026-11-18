@@ -72,13 +72,21 @@ internal fun extractContrastCoverAccent(context: Context, imageUrl: String, onEx
     }.onFailure { onExtracted(null) }
 }
 
-/** Ensures dynamic album-art accents maintain crisp contrast against dark glass panels. */
+/**
+ * Ensures dynamic album-art accents maintain crisp contrast against dark glass panels
+ * and clamps overly bright covers (<= 0.72 luminance).
+ */
 internal fun adjustForDarkGlass(color: Color): Color {
     var out = color
     var step = 0f
     while (out.luminance() < 0.28f && step < 0.65f) {
         step += 0.05f
         out = lerp(color, Color.White, step)
+    }
+    var darkStep = 0f
+    while (out.luminance() > 0.72f && darkStep < 0.45f) {
+        darkStep += 0.05f
+        out = lerp(color, Color(0xFF0E1118), darkStep)
     }
     return out
 }
