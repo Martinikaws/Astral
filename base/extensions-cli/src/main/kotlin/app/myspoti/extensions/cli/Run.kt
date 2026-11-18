@@ -40,7 +40,7 @@ import kotlinx.serialization.json.JsonObject
 import java.io.File
 import kotlin.system.exitProcess
 
-private const val USAGE = """myspoti-ext: build and try Myspoti extensions on a computer.
+private const val USAGE = """myspoti-ext: build and try Astral extensions on a computer.
 
   check <folder|zip>                 package validity only: the manifest's problems, whether the script
                                      loads, the hooks it provides, the actions the user is asked (icon,
@@ -192,7 +192,7 @@ private fun check(dir: File) {
     }
     m.categoryWarning()?.let { println("! $it") }
     println("In the store: ${m.category().key}${if (m.category == null) " (set \"category\" to choose)" else ""}" +
-        (m.minAppVersion?.let { ", Myspoti $it or newer" } ?: "") + (if (m.tags.isNotEmpty()) ", tags ${m.tags}" else ""))
+        (m.minAppVersion?.let { ", Astral $it or newer" } ?: "") + (if (m.tags.isNotEmpty()) ", tags ${m.tags}" else ""))
     if (problems.isNotEmpty() || fieldProblems.isNotEmpty()) exitProcess(1)
 }
 
