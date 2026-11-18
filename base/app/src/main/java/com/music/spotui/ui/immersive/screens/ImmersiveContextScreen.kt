@@ -718,14 +718,18 @@ private fun ContextHeader(
             .padding(top = immersiveTopContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(sleeve).shadow(SleeveShadow, SleeveShape)) {
-            if (isLiked) LikedSleeve(Modifier.matchParentSize())
-            else ImmersiveCover(
-                url = p.coverUri,
-                modifier = Modifier.matchParentSize(),
-                shape = SleeveShape,
-                placeholderIcon = if (p.type == "album") Icons.Rounded.Album else Icons.Rounded.QueueMusic,
-            )
+        Box(Modifier.size(sleeve)) {
+            // Outside the shadow's clip: the halo reaches past the sleeve.
+            if (!isLiked) com.music.spotui.ui.components.CoverGlow(p.coverUri, Modifier.matchParentSize())
+            Box(Modifier.matchParentSize().shadow(SleeveShadow, SleeveShape)) {
+                if (isLiked) LikedSleeve(Modifier.matchParentSize())
+                else ImmersiveCover(
+                    url = p.coverUri,
+                    modifier = Modifier.matchParentSize(),
+                    shape = SleeveShape,
+                    placeholderIcon = if (p.type == "album") Icons.Rounded.Album else Icons.Rounded.QueueMusic,
+                )
+            }
         }
         Spacer(Modifier.height(20.dp))
         Text(

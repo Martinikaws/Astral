@@ -850,17 +850,20 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                 val coverShape = RoundedCornerShape(4.dp)
                 val cover: @Composable (Dp) -> Unit = { side ->
                     if (p.type == "liked" || p.type == "liked-artist") LikedCover(Modifier.size(side).shadow(16.dp, coverShape)) else
-                    GlideImage(
-                        model = p.coverUri,
-                        contentDescription = "",
-                        contentScale = ContentScale.Crop,
-                        // No cover at all (a new playlist): the app's own image, not an empty square.
-                        failure = com.bumptech.glide.integration.compose.placeholder(R.drawable.placeholder),
-                        modifier = Modifier
-                            .size(side)
-                            .shadow(16.dp, coverShape)
-                            .clip(coverShape),
-                    )
+                    Box(Modifier.size(side)) {
+                        com.music.spotui.ui.components.CoverGlow(p.coverUri, Modifier.matchParentSize())
+                        GlideImage(
+                            model = p.coverUri,
+                            contentDescription = "",
+                            contentScale = ContentScale.Crop,
+                            // No cover at all (a new playlist): the app's own image, not an empty square.
+                            failure = com.bumptech.glide.integration.compose.placeholder(R.drawable.placeholder),
+                            modifier = Modifier
+                                .size(side)
+                                .shadow(16.dp, coverShape)
+                                .clip(coverShape),
+                        )
+                    }
                 }
                 val details: @Composable () -> Unit = {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
