@@ -275,6 +275,8 @@ fun SweptLyricLine(
     glowColor: Color = color,
     /** Optional layout callback for tap-to-seek and annotations. */
     onTextLayout: ((TextLayoutResult) -> Unit)? = null,
+    /** Applied to the main text itself (its own bounds), so draw/placement math shares its origin. */
+    textModifier: Modifier = Modifier,
 ) {
     var layout by remember(line) { mutableStateOf<TextLayoutResult?>(null) }
 
@@ -370,7 +372,7 @@ fun SweptLyricLine(
 
     val right = alignsRight(line.text, alignEnd, laneLocked)
     Box(
-        modifier.then(auraModifier),
+        modifier,
         contentAlignment = if (right) AbsoluteAlignment.TopRight else AbsoluteAlignment.TopLeft,
     ) {
         Text(
@@ -383,7 +385,7 @@ fun SweptLyricLine(
                 layout = it
                 onTextLayout?.invoke(it)
             },
-            modifier = riseAgainst(room),
+            modifier = textModifier.then(auraModifier).then(riseAgainst(room)),
         )
         if (glowAlpha > 0.01f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Text(
