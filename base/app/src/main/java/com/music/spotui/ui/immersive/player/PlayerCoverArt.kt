@@ -11,7 +11,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -56,6 +59,7 @@ internal fun coverStyleFor(look: Look): CoverStyle? = when (look) {
 /** Height of the full-bleed cover: a bit taller than square, but never so tall the controls lose room. */
 internal fun fullBleedCoverHeight(width: Dp, windowHeight: Dp): Dp =
     minOf(width * 1.2f, windowHeight * 0.58f).coerceAtLeast(minOf(width, windowHeight * 0.4f))
+
 /**
  * Fades the content out vertically: opaque down to [start] of its height, transparent at the
  * bottom. An offscreen layer plus a DstIn gradient, so it works on a video view too. The brush
@@ -79,7 +83,11 @@ internal fun Modifier.coverFadeMask(start: Float): Modifier = this
 private val TopScrimBrush = Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.40f), Color.Transparent))
 
 /** Under the credits, over the half-faded foot of the cover (short phones). */
-internal val CreditsScrimBrush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)))
+internal val CreditsScrimBrush = Brush.verticalGradient(
+    0f to Color.Transparent,
+    0.45f to Color.Black.copy(alpha = 0.38f),
+    1f to Color.Transparent,
+)
 
 /** The cover itself, full width and [height] tall, with a light scrim on top and the fade at its foot. */
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -118,25 +126,29 @@ internal fun PlayerFullBleedCover(
 @Composable
 internal fun PlayerCoverBlurBackdrop(coverUrl: String, modifier: Modifier = Modifier) {
     val blurred = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    // The url shown before this one: recomputed only when the url changes, i.e. on a track change.
-    val holder = remember { arrayOf(coverUrl) }
-    val previous = remember(coverUrl) { holder[0].also { holder[0] = coverUrl } }
     val decode = if (blurred) 160 else 24
-    // The new cover dissolves in over the old one, as SongBlendCover does for the cover itself.
-    val fadeIn = remember { Animatable(1f) }
+    // The cover shown before this one, kept only while the new one dissolves in over it.
+    var previous by remember { mutableStateOf<String?>(null) }
+    var shown by remember { mutableStateOf(coverUrl) }
+    if (shown != coverUrl) {
+        previous = shown.takeIf { it.isNotBlank() }
+        shown = coverUrl
+    }
+    val fadeIn = remember(coverUrl) { Animatable(if (previous != null) 0f else 1f) }
     LaunchedEffect(coverUrl) {
-        if (previous != coverUrl) {
-            fadeIn.snapTo(0f)
+        if (previous != null) {
             fadeIn.animateTo(1f, tween(400))
+            previous = null
         }
     }
     Box(
         modifier.fillMaxSize().graphicsLayer { alpha = if (blurred) 0.6f else 0.35f }
             .let { if (blurred) it.blur(60.dp) else it },
     ) {
-        if (previous != coverUrl) {
+        val old = previous
+        if (old != null && coverUrl.isNotBlank()) {
             GlideImage(
-                model = previous.takeIf { it.isNotBlank() },
+                model = old,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
