@@ -368,7 +368,7 @@ object TrackAudioSync {
 
         // Prefer local AutoMix analysis when playing a local/extension file (matches exact decoded PCM timing);
         // otherwise use Spotify's audio-analysis.
-        val model: TrackModel? = activeLocalModel ?: spotifyModel
+        val model: TrackModel? = activeLocalModel?.takeIf { it.sourceUri == currentLocalUri } ?: spotifyModel
 
         val isPlaying = SongPlayer.isPlaying()
         val isMoving = SongPlayer.positionMoving()

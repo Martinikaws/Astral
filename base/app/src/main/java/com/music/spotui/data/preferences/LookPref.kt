@@ -104,8 +104,8 @@ internal object LookMigration {
         // v1.0.1 rendered pages purely from page_style, defaulting to ORPHEON_GLASS when never stored
         // (PageStyle.of), whatever the look was. So a chosen look without a stored style really showed
         // glass pages: keep that as an explicit override when it differs from what the look implies
-        // (CLASSIC -> Basic now). Without a chosen look or a stored style there is nothing to preserve.
-        val rendered = if (styleName != null || lookChosen) PageStyle.of(styleName) else PageStyle.forLook(newLook)
+        // (CLASSIC -> Basic now). Past the fresh-install return, v1.0.1 data exists, so what it rendered is preserved.
+        val rendered = PageStyle.of(styleName)
         if (rendered != PageStyle.forLook(newLook)) {
             e.putString(PAGE_STYLE, rendered.name).putBoolean(PAGE_STYLE_OVERRIDE, true)
         } else {
