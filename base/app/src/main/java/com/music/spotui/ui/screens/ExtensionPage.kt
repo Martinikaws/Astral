@@ -32,6 +32,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +45,7 @@ import app.myspoti.extensions.Action
 import app.myspoti.extensions.PageContent
 import app.myspoti.extensions.PageNetwork
 import app.myspoti.extensions.SurfaceGuard
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.extensions.Extensions
 import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
@@ -83,7 +85,9 @@ fun ExtensionPageScreen(navController: NavController, id: String) {
         ) { ExtensionPageBody(id, loaded, hosts, network, any, shield.isNotEmpty()) }
         return
     }
-    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.accessibility_navigate_back), tint = AppText)

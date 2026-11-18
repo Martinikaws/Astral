@@ -78,6 +78,15 @@ private val SoftFootMask = Brush.verticalGradient(
     0.75f to Color.Black,
 )
 
+/** Fades the artist backdrop smoothly to transparent at its foot when the page itself is transparent. */
+private val TransparentFootMask = Brush.verticalGradient(
+    0.00f to Color.Black,
+    0.55f to Color.Black,
+    0.76f to Color.Black.copy(alpha = 0.65f),
+    0.90f to Color.Black.copy(alpha = 0.20f),
+    1.00f to Color.Transparent,
+)
+
 /**
  * Where the top of the artwork currently is.
  *
@@ -110,6 +119,18 @@ internal fun ArtistBackdrop(
     val model = spotifyImageUrl(imageUrl)
     val artHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { artHeight.toPx() }
     val softenFoot = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val pageBg = Immersive.Page
+    val transparentPage = pageBg == Color.Transparent
+    val bottomFadeModifier = if (transparentPage) {
+        Modifier
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(TransparentFootMask, blendMode = BlendMode.DstIn)
+            }
+    } else {
+        Modifier
+    }
     Box(modifier.clipToBounds()) {
         Box(
             Modifier
@@ -117,50 +138,61 @@ internal fun ArtistBackdrop(
                 .height(artHeight)
                 .offset { IntOffset(0, listState.headerTop(artHeightPx).roundToInt()) },
         ) {
-            Box(Modifier.matchParentSize().background(Immersive.Raised))
-            if (model != null) {
-                GlideImage(
-                    model = model,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-                if (softenFoot) {
+            Box(Modifier.matchParentSize().then(bottomFadeModifier)) {
+                Box(Modifier.matchParentSize().background(Immersive.Raised))
+                if (model != null) {
                     GlideImage(
                         model = model,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .matchParentSize()
-                            // Offscreen so the mask cuts the blurred result rather than each draw beneath it.
-                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(SoftFootMask, blendMode = BlendMode.DstIn)
-                            }
-                            // Rectangle keeps the edges clamped to the picture's own colour
-                            // rather than fading to transparent at the foot.
-                            .blur(SoftFootBlur, BlurredEdgeTreatment.Rectangle),
+                        modifier = Modifier.matchParentSize(),
                     )
+                    if (softenFoot) {
+                        GlideImage(
+                            model = model,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .matchParentSize()
+                                // Offscreen so the mask cuts the blurred result rather than each draw beneath it.
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    drawRect(SoftFootMask, blendMode = BlendMode.DstIn)
+                                }
+                                // Rectangle keeps the edges clamped to the picture's own colour
+                                // rather than fading to transparent at the foot.
+                                .blur(SoftFootBlur, BlurredEdgeTreatment.Rectangle),
+                        )
+                    }
                 }
             }
-            // Ends on the page colour at full strength, so there is no edge left where the artwork
-            // stops. Eased rather than run straight: a gradient that changes slope at a stop shows
-            // a line at that stop, however close the colours either side of it are. The darkening
-            // at the top keeps the bar's controls legible over a bright photo.
+            // Ends on the page colour at full strength (or dissolves transparently when the page
+            // itself is transparent), so there is no edge left where the artwork stops. Eased
+            // rather than run straight: a gradient that changes slope at a stop shows a line at
+            // that stop, however close the colours either side of it are. The darkening at the top
+            // keeps the bar's controls legible over a bright photo.
             Box(
                 Modifier
                     .matchParentSize()
                     .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.35f),
-                            0.22f to Color.Transparent,
-                            0.45f to Color.Transparent,
-                            0.65f to Immersive.Page.copy(alpha = 0.30f),
-                            0.82f to Immersive.Page.copy(alpha = 0.72f),
-                            0.94f to Immersive.Page.copy(alpha = 0.95f),
-                            1.00f to Immersive.Page,
-                        ),
+                        if (transparentPage) {
+                            Brush.verticalGradient(
+                                0.00f to Color.Black.copy(alpha = 0.35f),
+                                0.22f to Color.Transparent,
+                                1.00f to Color.Transparent,
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                0.00f to Color.Black.copy(alpha = 0.35f),
+                                0.22f to Color.Transparent,
+                                0.45f to Color.Transparent,
+                                0.65f to pageBg.copy(alpha = 0.30f),
+                                0.82f to pageBg.copy(alpha = 0.72f),
+                                0.94f to pageBg.copy(alpha = 0.95f),
+                                1.00f to pageBg,
+                            )
+                        },
                     ),
             )
         }

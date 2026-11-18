@@ -133,8 +133,15 @@ fun App() {
         ) {
             com.music.spotui.ui.theme.dynamicCoverAccent = null
         } else {
-            com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, coverUri) { extracted ->
-                com.music.spotui.ui.theme.dynamicCoverAccent = extracted
+            val requestedCover = coverUri
+            com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, requestedCover) { extracted ->
+                val activeLook = com.music.spotui.data.preferences.LookPref.look
+                if (com.music.spotui.di.Graph.currentSongState.coverUri.value == requestedCover &&
+                    (activeLook == com.music.spotui.data.preferences.Look.GLASSIFY ||
+                        activeLook == com.music.spotui.data.preferences.Look.LIQUID_MUSIC)
+                ) {
+                    com.music.spotui.ui.theme.dynamicCoverAccent = extracted
+                }
             }
         }
     }

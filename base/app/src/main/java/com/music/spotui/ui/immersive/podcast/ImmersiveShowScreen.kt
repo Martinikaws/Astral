@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -119,8 +120,11 @@ fun ImmersiveShowScreen(navController: NavController, showId: String, showName: 
         )
     }
 
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+
     ImmersiveOverscrollHost {
-        Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+        Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(bottom = Immersive.BottomChrome),

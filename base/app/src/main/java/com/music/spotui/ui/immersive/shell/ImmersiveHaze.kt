@@ -90,13 +90,14 @@ internal fun Modifier.immersiveFrost(
 ): Modifier {
     val page = LocalImmersiveFrostPage.current
     if (page != null && state === LocalImmersiveHaze.current) return this.immersivePageFrost(page, tint, blur)
-    return hazeFrost(state, tint, blur)
+    val fallbackBg = if (Immersive.Page == Color.Transparent) Color(0xFF0A1422) else Immersive.Page
+    return hazeFrost(state, tint, blur, fallbackBg)
 }
 
 @OptIn(ExperimentalHazeApi::class)
-private fun Modifier.hazeFrost(state: HazeState, tint: Color, blur: Float): Modifier = hazeEffect(state) {
+private fun Modifier.hazeFrost(state: HazeState, tint: Color, blur: Float, fallbackBg: Color): Modifier = hazeEffect(state) {
     inputScale = HazeInputScale.Fixed(0.33f)
-    backgroundColor = Immersive.Page
+    backgroundColor = fallbackBg
     tints = listOf(HazeTint(tint))
     blurRadius = blur.dp
     noiseFactor = 0f

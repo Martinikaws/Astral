@@ -27,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ import androidx.navigation.NavController
 import app.myspoti.engine.R
 import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.AlbumsModel
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveListRow
 import com.music.spotui.ui.immersive.components.ImmersiveSongRowSkeleton
@@ -76,7 +79,10 @@ fun ImmersiveArtistReleasesScreen(navController: NavController, artistName: Stri
         navController.navigate(albumRoute(album.name, album.artists.ifBlank { artistName }, album.spotifyId))
     }
 
-    Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = immersiveTopContentPadding(), bottom = Immersive.BottomChrome),
@@ -162,6 +168,7 @@ private fun ReleaseRow(album: AlbumsModel, onClick: () -> Unit) {
 /** A filter pill: the accent when it is on, the raised grey when it is not. */
 @Composable
 private fun ReleaseFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val selectedInk = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
     Box(
         modifier = Modifier
             .immersiveClickable(onClick = onClick)
@@ -173,7 +180,7 @@ private fun ReleaseFilterChip(label: String, selected: Boolean, onClick: () -> U
         Text(
             text = label,
             style = Immersive.Subhead.copy(
-                color = if (selected) androidx.compose.ui.graphics.Color.White else Immersive.Text,
+                color = if (selected) selectedInk else Immersive.Text,
                 fontWeight = FontWeight.SemiBold,
             ),
         )

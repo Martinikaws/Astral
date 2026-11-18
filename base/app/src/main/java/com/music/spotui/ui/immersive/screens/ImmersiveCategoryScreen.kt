@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,6 +31,7 @@ import androidx.navigation.NavController
 import app.myspoti.engine.R
 import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.LibraryEntry
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.pressHint
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveMessageState
@@ -53,8 +55,10 @@ fun ImmersiveCategoryScreen(navController: NavController, genre: String, title: 
     val playlists by viewModel.playlists.collectAsState()
     val gridState = rememberLazyGridState()
     val collapse = gridCollapse(gridState)
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
 
-    Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyVerticalGrid(
             state = gridState,
             columns = GridCells.Fixed(com.music.spotui.ui.components.windowSize().columns(2, 200.dp)),

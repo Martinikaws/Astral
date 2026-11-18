@@ -81,6 +81,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -178,7 +179,9 @@ fun ImmersiveContextScreen(navController: NavController, type: String, id: Strin
     // During composition, so a cached page is there for the very first frame.
     remember(type, id) { vm.load(type, id) }
     val resp by vm.page.collectAsState()
-    BoxWithConstraints(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         val sleeve = albumSleeve(maxWidth, maxHeight, com.music.spotui.ui.components.windowSize().large)
         when (val r = resp) {
             is Response.Loading -> ContextLoading(navController, sleeve)
@@ -704,10 +707,13 @@ private fun ContextHeader(
     onMove: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val ringColor = if (pageBg == Color.Transparent) Color(0xFF0A1422) else pageBg
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(lerp(tint, Color.Black, 0.3f), Immersive.Page)))
+            .background(Brush.verticalGradient(listOf(lerp(tint, Color.Black, 0.3f), pageBg)))
             .padding(top = immersiveTopContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -749,7 +755,7 @@ private fun ContextHeader(
             ) {
                 Box(Modifier.width((24 + 16 * (members.size.coerceAtMost(4) - 1)).dp).height(24.dp)) {
                     members.take(4).forEachIndexed { n, m ->
-                        Box(Modifier.padding(start = (16 * n).dp).size(24.dp).clip(CircleShape).background(Immersive.Page).padding(1.dp)) {
+                        Box(Modifier.padding(start = (16 * n).dp).size(24.dp).clip(CircleShape).background(ringColor).padding(1.dp)) {
                             com.music.spotui.ui.components.ProfileAvatar(m.imageUrl, m.name, 22.dp)
                         }
                     }
@@ -1062,7 +1068,10 @@ private fun InviteJoinBar(vm: ContextViewModel, p: ContextPageModel, modifier: M
         Text(stringResource(R.string.playlist_invite_banner), style = Immersive.Body, modifier = Modifier.weight(1f).padding(end = 12.dp))
         androidx.compose.material3.Button(
             enabled = !joining,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Immersive.Accent, contentColor = Color.White),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = Immersive.Accent,
+                contentColor = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White,
+            ),
             onClick = {
                 joining = true
                 com.music.spotui.data.api.InviteLinks.join(context, offered, p) { ok ->

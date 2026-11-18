@@ -70,6 +70,7 @@ import com.music.spotui.ui.components.episodeMinutes
 import com.music.spotui.ui.components.pressable
 import com.music.spotui.ui.navigation.episodeRoute
 import com.music.spotui.data.preferences.EpisodeFilter
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.EpisodeProgressBar
 import com.music.spotui.ui.components.episodeFilterLabel
 import com.music.spotui.ui.theme.AppAccent
@@ -124,7 +125,8 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
         )
     }
 
-    val pageBg = AppBackground
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
     Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(
             contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),

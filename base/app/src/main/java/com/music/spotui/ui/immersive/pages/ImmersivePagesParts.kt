@@ -181,7 +181,7 @@ internal fun ImmersiveSwipeToRemove(key: Any, onRemove: () -> Unit, content: @Co
 
     val starryEnabled by StarryNightPref.enabled.collectAsState()
     val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
-    val rowBg = if (pageBg != Color.Transparent) pageBg else if (revealed) Color(0xE60A1422) else Color.Transparent
+    val rowBg = if (pageBg != Color.Transparent) pageBg else if (revealed) Color(0xFF0A1422) else Color.Transparent
 
     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { width = it.width.toFloat() }) {
         if (revealed) {

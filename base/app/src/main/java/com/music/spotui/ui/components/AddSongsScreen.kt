@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -119,8 +121,11 @@ fun AddSongsScreen(page: ContextPageModel, onClose: (added: Boolean) -> Unit) {
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     val close = { onClose(added.isNotEmpty()) }
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val dialogBg = if (starryEnabled && AppBackground == Color.Transparent) com.music.spotui.ui.theme.StarryCardOpaque else AppBackground
+    val searchBg = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF2A2A2A) else Color.White.copy(alpha = 0.10f)
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding().navigationBarsPadding().imePadding()) {
+        Column(Modifier.fillMaxSize().background(dialogBg).statusBarsPadding().navigationBarsPadding().imePadding()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).clickable(onClick = close)) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.add_songs_close), tint = AppText)
@@ -131,7 +136,7 @@ fun AddSongsScreen(page: ContextPageModel, onClose: (added: Boolean) -> Unit) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(44.dp)
-                    .clip(RoundedCornerShape(8.dp)).background(tone(0xFF2A2A2A)).padding(horizontal = 12.dp),
+                    .clip(RoundedCornerShape(8.dp)).background(searchBg).padding(horizontal = 12.dp),
             ) {
                 Icon(Icons.Default.Search, contentDescription = null, tint = AppMuted, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(10.dp))

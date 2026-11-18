@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -199,7 +200,7 @@ internal fun InstallPrompt() {
 
     com.music.spotui.ui.components.LookAlertDialog(
         onDismissRequest = dismiss,
-        containerColor = tone(0xFF282828),
+        containerColor = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.StarryCardOpaque,
         icon = { ExtIcon(m.id, m.name, null, p.pkg.icon, 48.dp) },
         title = {
             Text(stringResource(if (plan is InstallPlan.Fresh) R.string.extensions_prompt_title_install else R.string.extensions_prompt_title_update, m.name), color = AppText)
@@ -302,7 +303,7 @@ internal fun ClashDialog(m: Manifest, clashes: List<Clash>, onDismiss: () -> Uni
     val keepNew = remember(clashes) { mutableStateMapOf<Clash, Boolean>().apply { clashes.forEach { put(it, true) } } }
     com.music.spotui.ui.components.LookAlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = tone(0xFF282828),
+        containerColor = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.StarryCardOpaque,
         title = { Text(m.name, color = AppText, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = { Column(Modifier.verticalScroll(rememberScrollState())) { ClashChoices(m.name, clashes, keepNew) } },
         confirmButton = { TextButton(onClick = { onDone(keepNew.toMap()) }) { Text(stringResource(R.string.ext_clash_ok), color = AppAccent) } },
@@ -435,7 +436,10 @@ internal fun stateLine(e: com.music.spotui.extensions.InstalledExtension, error:
 internal val Problem = Color(0xFFE5534B)
 
 @Composable
-internal fun VersionPill(version: String) = ExtPill(if (version.startsWith("v")) version else "v$version", AppMuted, tone(0xFF2A2A2A))
+internal fun VersionPill(version: String) {
+    val bg = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF2A2A2A) else com.music.spotui.ui.theme.GridBackground
+    ExtPill(if (version.startsWith("v")) version else "v$version", AppMuted, bg)
+}
 
 @Composable
 internal fun ExtPill(text: String, color: Color, background: Color) =
@@ -461,10 +465,11 @@ internal fun StateButton(action: StoreAction, busy: Boolean, large: Boolean = fa
     val pad = PaddingValues(horizontal = if (large) 24.dp else 14.dp)
     val mod = Modifier.height(h).let { if (large) it.fillMaxWidth() else it.widthIn(min = 92.dp) }
     val text = @Composable { id: Int -> Text(stringResource(id), fontSize = if (large) 15.sp else 13.sp, maxLines = 1) }
+    val installInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
     when {
         busy -> Box(mod, contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(20.dp), color = AppAccent, strokeWidth = 2.dp) }
         action == StoreAction.INSTALL -> Button(onInstall, mod, contentPadding = pad,
-            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = Color.Black)) { text(R.string.extensions_install) }
+            colors = ButtonDefaults.buttonColors(containerColor = AppAccent, contentColor = installInk)) { text(R.string.extensions_install) }
         action == StoreAction.UPDATE -> FilledTonalButton(onInstall, mod, contentPadding = pad,
             colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppAccent.copy(alpha = 0.22f), contentColor = AppAccent)) { text(R.string.extensions_update) }
         action == StoreAction.INSTALLED -> OutlinedButton(onOpen, mod, contentPadding = pad,
@@ -476,8 +481,10 @@ internal fun StateButton(action: StoreAction, busy: Boolean, large: Boolean = fa
 
 /** A small dot, for "failed to load" on an icon or "update" on a tab. */
 @Composable
-internal fun Dot(color: Color, size: Dp = 10.dp) =
-    Box(Modifier.size(size).clip(CircleShape).background(color).border(1.5.dp, AppBackground, CircleShape))
+internal fun Dot(color: Color, size: Dp = 10.dp) {
+    val ringColor = if (AppBackground == Color.Transparent) Color(0xFF0A1422) else AppBackground
+    Box(Modifier.size(size).clip(CircleShape).background(color).border(1.5.dp, ringColor, CircleShape))
+}
 
 // ── Small pieces, as on the settings page ──
 
@@ -491,7 +498,9 @@ internal fun Page(titleRes: Int?, navController: NavController, title: String? =
         }
         return
     }
-    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.accessibility_navigate_back), tint = AppText)
@@ -553,7 +562,7 @@ internal fun UrlDialog(title: Int, hint: Int, warning: Int? = null, onDismiss: (
     val ok = text.trim().startsWith("https://") && text.trim().length > 10
     com.music.spotui.ui.components.LookAlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = tone(0xFF282828),
+        containerColor = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.StarryCardOpaque,
         title = { Text(stringResource(title), color = AppText) },
         text = {
             Column {

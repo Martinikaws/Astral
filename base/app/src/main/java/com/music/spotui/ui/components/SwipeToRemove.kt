@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -57,6 +58,9 @@ fun SwipeToRemove(key: Any, onRemove: () -> Unit, content: @Composable () -> Uni
     val reduce = com.music.spotui.ui.look.rememberReduceMotion()
     val slideOut = if (reduce) snap<Float>() else tween(180)
     val springBack = if (reduce) snap<Float>() else spring<Float>()
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && com.music.spotui.ui.theme.AppBackground == Color.Transparent) Color.Transparent else com.music.spotui.ui.theme.AppBackground
+    val rowBg = if (pageBg != Color.Transparent) pageBg else if (revealed) Color(0xFF0A1422) else Color.Transparent
 
     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { width = it.width.toFloat() }) {
         if (revealed) {
@@ -72,7 +76,7 @@ fun SwipeToRemove(key: Any, onRemove: () -> Unit, content: @Composable () -> Uni
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
-                .background(com.music.spotui.ui.theme.AppBackground)
+                .then(if (rowBg == Color.Transparent) Modifier else Modifier.background(rowBg))
                 .pointerInput(key) {
                     detectHorizontalDragGestures(
                         onDragEnd = {

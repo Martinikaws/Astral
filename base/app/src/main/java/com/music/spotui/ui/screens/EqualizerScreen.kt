@@ -23,10 +23,13 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,12 +39,15 @@ import androidx.navigation.NavController
 import app.myspoti.engine.R
 import com.music.spotui.data.preferences.EqPreset
 import com.music.spotui.data.preferences.EqualizerPref
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.EqBands
 import com.music.spotui.di.Spatial
+import com.music.spotui.ui.look.isSpotifusionLook
 import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppMuted
 import com.music.spotui.ui.theme.AppText
+import com.music.spotui.ui.theme.GridBackground
 import com.music.spotui.ui.theme.tone
 
 /**
@@ -53,7 +59,9 @@ import com.music.spotui.ui.theme.tone
 fun EqualizerScreen(navController: NavController) {
     val ctx = LocalContext.current
     val pref = EqualizerPref
-    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding()) {
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.accessibility_navigate_back), tint = AppText)
@@ -124,6 +132,9 @@ fun EqualizerScreen(navController: NavController) {
 /** A row of choices as the crossfade's, scrolling sideways when they do not fit. */
 @Composable
 private fun <T> Chips(items: List<T>, selected: (T) -> Boolean, label: @Composable (T) -> String, enabled: Boolean = true, onPick: (T) -> Unit) {
+    val spotifusion = isSpotifusionLook()
+    val idleBg = if (spotifusion) tone(0xFF2A2A2A) else GridBackground
+    val activeInk = if (spotifusion || AppAccent.luminance() > 0.45f) Color.Black else Color.White
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
@@ -132,9 +143,9 @@ private fun <T> Chips(items: List<T>, selected: (T) -> Boolean, label: @Composab
             val on = selected(item)
             Text(
                 label(item),
-                color = if (on) Color.Black else if (enabled) AppText else AppMuted, fontSize = 14.sp,
+                color = if (on) activeInk else if (enabled) AppText else AppMuted, fontSize = 14.sp,
                 modifier = Modifier.clip(RoundedCornerShape(50))
-                    .background(if (on && enabled) AppAccent else if (on) AppMuted else tone(0xFF2A2A2A))
+                    .background(if (on && enabled) AppAccent else if (on) AppMuted else idleBg)
                     .clickable(enabled = enabled) { onPick(item) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )

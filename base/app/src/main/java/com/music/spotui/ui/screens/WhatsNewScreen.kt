@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -177,7 +178,10 @@ internal fun WhatsNewOptionsSheet(item: WhatsNewItem, saved: Boolean, onDismiss:
     var adding by remember { mutableStateOf(false) }
     if (adding) { com.music.spotui.ui.components.AddCollectionToPlaylistSheet(item.uri, item.title, onDismiss); return }
     val episode = item.album == null
-    com.music.spotui.ui.components.LookSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828)) {
+    com.music.spotui.ui.components.LookSheet(
+        onDismissRequest = onDismiss,
+        containerColor = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.StarryCardOpaque,
+    ) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             Text(item.title, color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(20.dp, 0.dp, 20.dp, 8.dp))
@@ -264,7 +268,9 @@ fun WhatsNewScreen(navController: NavController) {
     var attempt by remember { mutableStateOf(0) }
     val feed = rememberWhatsNewFeed(content, attempt)
 
-    Column(Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground).statusBarsPadding()) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && com.music.spotui.ui.theme.AppBackground == Color.Transparent) Color.Transparent else com.music.spotui.ui.theme.AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)).statusBarsPadding()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 8.dp),
@@ -371,7 +377,7 @@ private fun WhatsNewRow(item: WhatsNewItem, onClick: () -> Unit) {
                     Icon(
                         if (playback.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = stringResource(if (playback.playing) R.string.content_description_pause_button else R.string.content_description_play_button),
-                        tint = Color.Black,
+                        tint = Color(0xFF0A1422),
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -382,12 +388,13 @@ private fun WhatsNewRow(item: WhatsNewItem, onClick: () -> Unit) {
 
 @Composable
 private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    val idleBg = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.GridBackground
     Box(
         Modifier.clip(RoundedCornerShape(50))
-            .background(if (selected) AppText else tone(0xFF282828))
+            .background(if (selected) AppText else idleBg)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        Text(label, color = if (selected) Color.Black else AppText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = if (selected) Color(0xFF0A1422) else AppText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }

@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +64,8 @@ fun ImmersiveButton(
 ) {
     // Lighting up (Shuffle on) fades the fill and the content instead of swapping them in one frame.
     val reduce = rememberReduceMotion()
-    val content by animateColorAsState(if (filled) Color.White else Immersive.Accent, stateFade(reduce), label = "buttonContent")
+    val filledInk = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
+    val content by animateColorAsState(if (filled) filledInk else Immersive.Accent, stateFade(reduce), label = "buttonContent")
     val fill by animateColorAsState(if (filled) Immersive.Accent else Immersive.Raised, stateFade(reduce), label = "buttonFill")
     Row(
         modifier = modifier

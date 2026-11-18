@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -105,7 +106,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val Green: Color get() = com.music.spotui.ui.theme.AppAccent
-private val SheetColor: androidx.compose.ui.graphics.Color get() = tone(0xFF282828)
+private val SheetColor: androidx.compose.ui.graphics.Color
+    get() = if (com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.SPOTIFUSION) tone(0xFF282828)
+    else com.music.spotui.ui.theme.StarryCardOpaque
 
 /** A name prompt (new playlist / folder, rename). */
 @Composable
@@ -312,7 +315,10 @@ fun BlendInviteSheet(link: com.music.spotui.data.api.InviteLinks.BlendLink, navC
                         }
                     }
                 },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = com.music.spotui.ui.theme.AppAccent, contentColor = Color.Black),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = com.music.spotui.ui.theme.AppAccent,
+                    contentColor = if (Green.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White,
+                ),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
             ) { Text(stringResource(if (busy) R.string.blend_working else R.string.blend_join_button), fontWeight = FontWeight.Bold, fontSize = 16.sp) }
             if (own) androidx.compose.material3.Button(
@@ -322,7 +328,7 @@ fun BlendInviteSheet(link: com.music.spotui.data.api.InviteLinks.BlendLink, navC
                     context.startActivity(android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     onDismiss()
                 },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = AppText, contentColor = com.music.spotui.ui.theme.AppBackground),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = AppText, contentColor = Color(0xFF0A1422)),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
             ) { Text(stringResource(R.string.blend_invite), fontWeight = FontWeight.Bold, fontSize = 16.sp) }
             TextButton(onClick = onDismiss, modifier = Modifier.padding(top = 4.dp)) {
@@ -411,7 +417,9 @@ fun FolderScreen(navController: NavController, uri: String, initialName: String)
         name = newName
         LibraryFolders.rename(context, uri, newName) { ok -> if (!ok) name = before }
     }
-    Column(Modifier.fillMaxSize().background(AppBackground)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         val n = entries?.size
         PageHeader(name, n?.let { pluralStringResource(R.plurals.add_to_playlist_folder_subtitle_playlists_count, it, it.toString()) }, navController) { menu = true }
         when (val list = entries) {
@@ -484,7 +492,10 @@ fun LocalPlaylistScreen(navController: NavController, id: String) {
     }
     if (renaming) NameDialog(stringResource(R.string.local_rename), playlist.name, stringResource(R.string.local_rename),
         onDismiss = { renaming = false }) { renaming = false; LocalPlaylists.rename(id, it) }
-    Column(Modifier.fillMaxSize().background(AppBackground)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    val playInk = if (Green.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+    Column(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         PageHeader(playlist.name, stringResource(R.string.local_playlist_subtitle) + " • " +
             pluralStringResource(R.plurals.add_to_playlist_subtitle_songs_count, playlist.items.size, playlist.items.size.toString()),
             navController) { menu = true }
@@ -500,7 +511,7 @@ fun LocalPlaylistScreen(navController: NavController, id: String) {
                             LocalPlayer.play(playlist.items.map { it.toTrack() }, 0, context = playlist.name)
                         }.clip(CircleShape).background(Green),
                     ) {
-                        Icon(painterResource(R.drawable.play_svgrepo_com), stringResource(R.string.content_description_play_button), tint = Color.Black, modifier = Modifier.size(24.dp))
+                        Icon(painterResource(R.drawable.play_svgrepo_com), stringResource(R.string.content_description_play_button), tint = playInk, modifier = Modifier.size(24.dp))
                     }
                 }
             }

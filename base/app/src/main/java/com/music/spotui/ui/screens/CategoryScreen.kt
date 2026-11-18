@@ -47,9 +47,11 @@ import com.bumptech.glide.integration.compose.placeholder
 import app.myspoti.engine.R
 import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.LibraryEntry
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.Loader
 import com.music.spotui.ui.components.Snackbar
 import com.music.spotui.ui.navigation.playlistRoute
+import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.viewmodel.CategoryViewModel
 
 @Composable
@@ -57,11 +59,13 @@ fun CategoryScreen(navController: NavController, genre: String, title: String) {
     val viewModel: CategoryViewModel = viewModel()
     LaunchedEffect(genre) { viewModel.load(genre) }
     val playlists by viewModel.playlists.collectAsState()
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(com.music.spotui.ui.theme.AppBackground)
+            .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))
             .statusBarsPadding()
     ) {
         Row(

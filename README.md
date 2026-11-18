@@ -20,14 +20,17 @@
 
 ## ✨ Highlights
 
-- **Starry Night Main Theme**: Spicetify's **Starry Night** (`[Base]`) palette (`#000000` → `#142B44` night sky, `#152238` elevated cards, `#FFF3C4` starlight accent, `#4687D6` sky blue) with a live twinkling stars & diagonal shooting stars backdrop — toggleable across **all** UI styles (**Astral Basic**, **Astral Interactive Glass**, and **Spotifusion 1:1**).
+- **Starry Night Main Theme**: Spicetify's **Starry Night** (`[Base]`) palette (`#000000` → `#142B44` night sky, `#152238` elevated cards, `#FFF3C4` starlight accent, `#4687D6` sky blue) with a live twinkling stars & diagonal shooting stars backdrop — toggleable across **all 5 Looks** with transparent screen surfaces so the night sky shines cleanly behind every menu and page.
+- **5 Unified App-Wide Looks**: Pick between **Astral Basic**, **Astral Interactive**, **Spotifusion 1:1** (full Spotify layout & greens), **Glassify** (specular translucent glass cards & blurred cover backdrop), and **LiquidMusic** (20dp floating iOS-style liquid glass panels, dynamic album-art contrast accent, plus a **Liquid Glass Refraction vs Frosted Glass** toggle) in First-Run Setup or Settings → Look.
 - **Falling Star Boot Splash**: Cold-start animated curved comet & starlight reveal on launch.
 - **Fast-Start Playback & Lossless HiFi**:
   - Instant optimistic UI & immediate local/cached playback start without WebView roundtrip lag.
   - Background `QueuePreloader` & `PlaybackCacheManager` + **Lossless / SpotiFLAC** Hi-Res FLAC support.
   - Native **AutoMix / Crossfade** DSP, **AdBlock**, **Spotify Connect**, and **Android Auto**.
-- **3 Selectable Page Styles**: Choose between **Astral Basic**, **Astral Interactive (Glass)**, and **Spotifusion 1:1** for Playlist, Album, and Artist pages on first launch or anytime in Settings.
-- **Spicy Lyrics**: Kinetic word/syllable-synced lyrics (`spikerko/spicy-lyrics` style) with fluid album-art mesh gradient background, spring-animated active line focus, opposite-aligned duet/vocalist lines, instrumental interlude dots, and Spicy Lyrics + LRCLIB + Genius + NetEase providers.
+- **Spicy Lyrics Display Overhaul**: Kinetic word/syllable-synced sweep & held-word letter bloom (`spikerko/spicy-lyrics` / `spicylyrics/mobile` display style), staggered spring scroll, opposite-aligned duet/vocalist lines, pill instrumental interlude dots, animated mesh backdrop, and **`7xeh/SpicyThemes`** color presets over LRCLIB, Spotify, AMLL, LyricsPlus, NetEase, Kugou, Genius & optional Spicy Lyrics sources.
+- **Full-Screen Beat-Synced Modules Tab**: Toggleable in Settings (`ModulesPref`) with real-time Spotify `audio-analysis` + `:automix` beat/spectrum sync (`TrackAudioSync`):
+  - **BackMusic** (`rolandyangg/backmusic_extension`): blurred album backdrop, real beat-spawned wave rings & 12-band mirrored bars, selectable particles (`Stars`, `Snow`, `Fireflies`, `Dust`), floating bobbing cover centerpiece, and mini EQ label.
+  - **Visualizer** (`Konsl/spicetify-visualizer`): NCS glowing particle-ring sphere, 64-band Spectrum curve/bars, and beat waveform.
 - **Rich Queue, Search & Music Videos**:
   - Cloud-synced + decorated recent cached searches.
   - Drag-to-reorder queue & swipe/drag-to-add-to-queue gestures.
@@ -61,7 +64,9 @@ Astral/
 │   ├── extensions-cli/   # Extension validation CLI
 │   └── host-android/     # Headless WebView host, MediaSession & notification service
 ├── FEED-EXTENSIONS.md    # AI prompt & spec for porting Spicetify extensions & custom themes
-├── HANDOFF.md            # Build & workspace notes
+├── PROJECT_BRIEF.md      # Full project architecture, state & backlog brief
+├── TASKS.md              # Shared multi-agent task board
+├── HANDOFF.md            # Build & workspace coordination log
 ├── CHANGELOG.md          # Release history
 └── README.md
 ```
@@ -90,7 +95,10 @@ Astral is free and open-source software licensed under the **GNU General Public 
 | **Base Codebase (Orpheon / Myspoti)** | [`kota-zo/myspoti`](https://github.com/kota-zo/myspoti) | **GPL-3.0** |
 | **Lossless, Cache, Preloader & Login Fix** | [`p1di/spotifusion`](https://github.com/p1di/spotifusion) | **GPL-3.0** |
 | **Starry Night Theme & Shooting Stars** | [`spicetify/spicetify-themes` (`StarryNight`)](https://github.com/spicetify/spicetify-themes/tree/master/StarryNight) & Delroy Prithvi | **MIT** |
-| **Spicy Lyrics (Provider & Kinetic Renderer)** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/) | **GPL-3.0** |
+| **Glassify Theme (Look Inspiration)** | [`sanoojes/spicetify-glassify`](https://github.com/sanoojes/spicetify-glassify) | **AGPL-3.0** |
+| **LiquidMusic Theme (Look Inspiration)** | [`fraustiz/LiquidMusic`](https://github.com/fraustiz/LiquidMusic) | **GPL-3.0** |
+| **Spicy Lyrics & SpicyThemes (Display / Presets)** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/), [`spicylyrics/mobile`](https://github.com/spicylyrics/mobile), [`7xeh/SpicyThemes`](https://github.com/7xeh/SpicyThemes) | **GPL-3.0 / AGPL-3.0** |
+| **BackMusic & Visualizer Modules (Inspiration)** | [`rolandyangg/backmusic_extension`](https://github.com/rolandyangg/backmusic_extension), [`Konsl/spicetify-visualizer`](https://github.com/Konsl/spicetify-visualizer) | **MIT / GPL-3.0** |
 | **UI / UX Inspiration (Login, Widget, Updater)** | Clean-room GPL-3.0 reimplementation inspired by Quackify / SpotiDuck UX | **GPL-3.0** |
 | **AndroidX / Media3 / Horologist / OkHttp** | Google & Square Open Source | **Apache-2.0** (`base/licenses/Apache-2.0.txt`) |
 | **Metadata / Catalog Libraries** | Bundled catalog notice | **LGPL-3.0** (`base/catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt`) |

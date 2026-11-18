@@ -137,7 +137,10 @@ fun ImmersiveArtistScreen(navController: NavController, artistName: String, arti
 
     LaunchedEffect(artistName, artistId) { artistViewModel.loadArtistOverview(artistName, artistId) }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Immersive.Page)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         // Measured rather than read off the window, and capped against the window's own height so
         // a landscape window still shows the track list under the photo.
         // Large windows and a phone on its side: at most 45 % of the height (60 % filled the first

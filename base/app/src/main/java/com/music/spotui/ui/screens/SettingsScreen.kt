@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -787,6 +788,11 @@ private fun TransitionsLink(onOpen: () -> Unit) {
     }
 }
 
+/** Foreground ink color for selected accent-filled chips across all 5 Looks. */
+@Composable
+private fun accentChipInk(): Color =
+    if (com.music.spotui.ui.theme.AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+
 /**
  * Transitions: off, a crossfade (its length under it) or AutoMix (its options under it), with
  * what the choice does in one line.
@@ -801,7 +807,7 @@ private fun TransitionsRow() {
     @Composable
     fun Chip(label: String, selected: Boolean, onClick: () -> Unit) = Text(
         label,
-        color = if (selected) Color.Black else AppText, fontSize = 14.sp,
+        color = if (selected) accentChipInk() else AppText, fontSize = 14.sp,
         modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
             .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
             .clickable(onClick = onClick)
@@ -1053,7 +1059,7 @@ private fun AccountProviderRows() {
                 val selected = pref.id == id
                 Text(
                     com.music.spotui.ui.components.accountProviderLabel(id),
-                    color = if (selected) Color.Black else AppText, fontSize = 14.sp,
+                    color = if (selected) accentChipInk() else AppText, fontSize = 14.sp,
                     modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                         .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
                         .clickable { pref.set(ctx, id) }
@@ -1095,7 +1101,7 @@ private fun OrientationRow() {
                 val selected = pref.mode == value
                 Text(
                     stringResource(label),
-                    color = if (selected) Color.Black else AppText, fontSize = 14.sp,
+                    color = if (selected) accentChipInk() else AppText, fontSize = 14.sp,
                     modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                         .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
                         .clickable { pref.set(ctx, value) }
@@ -1235,7 +1241,7 @@ private fun StorageRows() {
                 val selected = storage.mediaCacheMb == mb
                 Text(
                     cacheSizeLabel(mb),
-                    color = if (selected) Color.Black else AppText, fontSize = 14.sp,
+                    color = if (selected) accentChipInk() else AppText, fontSize = 14.sp,
                     modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                         .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
                         .clickable { storage.chooseMediaCacheMb(mb) }

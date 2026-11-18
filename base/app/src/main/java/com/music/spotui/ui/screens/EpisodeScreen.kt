@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -108,7 +109,11 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
         )
     }
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    val accentInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(
             contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
             modifier = Modifier.fillMaxSize(),
@@ -117,7 +122,7 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(headerTint(Color(0xFF34302B), 0f), AppBackground)))
+                        .background(Brush.verticalGradient(listOf(headerTint(Color(0xFF34302B), 0f), pageBg)))
                         .statusBarsPadding(),
                 ) {
                     Box(
@@ -223,11 +228,11 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
                                 com.music.spotui.ui.components.PlayPauseIcon(
                                     playing = playing,
                                     contentDescription = null,
-                                    tint = Color.Black,
+                                    tint = accentInk,
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text(stringResource(if (playing) R.string.notif_action_pause else R.string.episode_play), color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(stringResource(if (playing) R.string.notif_action_pause else R.string.episode_play), color = accentInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -282,6 +287,7 @@ fun EpisodeScreen(navController: NavController, episodeId: String, fallbackName:
 /** ✓ disc when the episode is saved, outlined + otherwise (same shape as the player's). */
 @Composable
 private fun SaveEpisodeButton(saved: Boolean, onClick: () -> Unit) {
+    val accentInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
     if (saved) {
         Box(
             contentAlignment = Alignment.Center,
@@ -291,7 +297,7 @@ private fun SaveEpisodeButton(saved: Boolean, onClick: () -> Unit) {
                 .background(AppAccent)
                 .pressable(0.9f, onClick = onClick),
         ) {
-            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.episode_unsave), tint = Color.Black, modifier = Modifier.size(17.dp))
+            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.episode_unsave), tint = accentInk, modifier = Modifier.size(17.dp))
         }
     } else {
         Icon(

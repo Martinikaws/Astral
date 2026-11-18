@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import app.myspoti.engine.R
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.di.Graph
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveMessageState
@@ -38,9 +41,12 @@ fun ImmersiveAlbumByIdScreen(navController: NavController, name: String, artist:
         }
     }
     val albumId = resolved
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val bgMod = if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg)
     when {
         albumId != null -> ImmersiveContextScreen(navController, type = "album", id = albumId)
-        failed -> Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+        failed -> Box(Modifier.fillMaxSize().then(bgMod)) {
             ImmersiveMessageState(
                 message = stringResource(R.string.album_not_found),
                 actionLabel = stringResource(R.string.retry_button),
@@ -49,7 +55,7 @@ fun ImmersiveAlbumByIdScreen(navController: NavController, name: String, artist:
             )
             ImmersiveTopBar(title = "", collapse = { 0f }, onBack = { navController.navigateUp() })
         }
-        else -> BoxWithConstraints(Modifier.fillMaxSize().background(Immersive.Page)) {
+        else -> BoxWithConstraints(Modifier.fillMaxSize().then(bgMod)) {
             ContextLoading(navController, sleeve = albumSleeve(maxWidth, maxHeight, com.music.spotui.ui.components.windowSize().large))
         }
     }

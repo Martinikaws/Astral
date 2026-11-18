@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -84,8 +86,12 @@ internal fun rememberTrackTapper(): TrackTapper {
 
 /** [SwipeToQueue] drawn in the Immersive look's colours. */
 @Composable
-internal fun ImmersiveSwipeToQueue(song: SongsModel, content: @Composable () -> Unit) =
-    SwipeToQueue(song, strip = Immersive.Accent, iconTint = Color.White, background = Immersive.Page, content = content)
+internal fun ImmersiveSwipeToQueue(song: SongsModel, content: @Composable () -> Unit) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val iconInk = if (Immersive.Accent.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
+    SwipeToQueue(song, strip = Immersive.Accent, iconTint = iconInk, background = pageBg, content = content)
+}
 
 /**
  * "About" under an artist page: a title and a few lines of [text] that open on a tap, with a

@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +44,7 @@ import app.myspoti.host.android.MyspotiRuntime
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
+import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.components.pressable
 import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.theme.AppBackground
@@ -64,9 +67,14 @@ fun FollowListScreen(navController: NavController, userId: String, followers: Bo
         }.getOrDefault(emptyList())
     }
     val list = people
+    val starryEnabled by StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace()),
-        modifier = Modifier.fillMaxSize().background(AppBackground).statusBarsPadding(),
+        modifier = Modifier
+            .fillMaxSize()
+            .then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))
+            .statusBarsPadding(),
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {

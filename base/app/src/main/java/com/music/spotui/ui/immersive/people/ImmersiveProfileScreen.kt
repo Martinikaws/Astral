@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,8 +101,11 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
     val listState = rememberLazyListState()
     val avatarUrl = p?.images?.best(300)?.url
 
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+
     ImmersiveOverscrollHost {
-        Box(Modifier.fillMaxSize().background(Immersive.Page)) {
+        Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(bottom = Immersive.BottomChrome),

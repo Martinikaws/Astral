@@ -1,5 +1,21 @@
 # Astral — Release Log
 
+## v1.0.2 — Unified 5-Look Overhaul, Starry Night Transparency, Beat-Synced Modules & Spicy Lyrics Display (2026-11-18)
+
+### Unified 5-Look System & Starry Night Visibility
+- **5 App-Wide Looks**: Unified **Spotifusion 1:1**, **Glassify** (`sanoojes/spicetify-glassify`), and **LiquidMusic** (`fraustiz/LiquidMusic`, with **Liquid Glass Refraction vs Frosted Glass** toggle) directly into **Look** (`LookPref`) alongside **Astral Basic** and **Astral Interactive**, overhauling menus, navigation bars, previews (`LookStep` / `LookPreview`), and screens across the entire app.
+- **Starry Night Transparency Fix**: Made root and screen containers transparent/translucent (`Color.Transparent` + single `0xB80A1422` transition veil in `MyNavHost`) when **Starry Night** is toggled ON so the twinkling stars and shooting stars visibly shine behind Home, Search, Library, Artist, Playlist, Album, Settings, Radio, and Modules across all 5 Looks.
+- **Legible Contrast & Backdrop Masks**: Added luminance-checked button/chip/badge inks across Classic and Immersive screens (`ImmersiveButtons`, `SettingsScreen`, `ExtensionsScreen`, `LocalFilesScreen`, `LibraryExtras`), opaque swipe-reveal fills, and seamless `BlendMode.DstIn` backdrop fades (`ImmersiveArtistScreenParts`, `ArtistScreen`).
+
+### Real Beat-Synced Modules & Spicy Lyrics Display Overhaul
+- **Real Audio Beat & Spectrum Sync (`TrackAudioSync`)**: Added Spotify `audio-analysis` (`beats[]`, `bars[]`, `segments[]`, `pitches[12]`) + `:automix` `TrackAnalysis` playback-clock interpolation driving both **BackMusic** (`rolandyangg/backmusic_extension`) and **Visualizer** (`Konsl/spicetify-visualizer`, including NCS particle ring & 64-band Spectrum) on real song beats.
+- **Spicy Lyrics Display Overhaul**: Refined kinetic word-by-word & held-word letter bloom, staggered spring scroll, opposite-aligned duet lines, italic backing vocals, pill-shaped instrumental interlude dots, and `SpicyThemes` (`7xeh/SpicyThemes`) presets while keeping Astral's existing lyrics sources.
+
+### Branding Cleanup
+- Replaced remaining user-facing `Orpheon` / `Myspoti` strings across 82 XML resource files (12 locales) and Kotlin diagnostic/extension/User-Agent strings with **Astral** (`Astral dev` for debug).
+
+---
+
 ## v1.0.1 — Themes, Liquid Glass Refraction & Full-Screen Modules (2026-11-17)
 
 ### Themes & Lyrics Styling

@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -50,7 +51,7 @@ fun SwipeToQueue(
     song: SongsModel,
     modifier: Modifier = Modifier,
     strip: Color = com.music.spotui.ui.theme.AppAccent,
-    iconTint: Color = Color.Black,
+    iconTint: Color = if (strip.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White,
     background: Color = com.music.spotui.ui.theme.AppBackground,
     content: @Composable () -> Unit,
 ) {
@@ -68,6 +69,11 @@ fun SwipeToQueue(
     // strip's two visual thresholds, not the whole row, recompose.
     val revealed by remember(offset) { derivedStateOf { offset.value != 0f } }
     val fromStart by remember(offset) { derivedStateOf { offset.value > 0f } }
+    val rowBg = when {
+        background != Color.Transparent -> background
+        revealed -> Color(0xFF0A1422)
+        else -> Color.Transparent
+    }
 
     Box(modifier = modifier.fillMaxWidth()) {
         if (revealed) {
@@ -88,7 +94,7 @@ fun SwipeToQueue(
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
-                .background(background)
+                .then(if (rowBg == Color.Transparent) Modifier else Modifier.background(rowBg))
                 // A row that cannot be queued (a local file of the computer, say) does not slide.
                 .then(if (!queueable) Modifier else Modifier.pointerInput(song.id) {
                     detectHorizontalDragGestures(

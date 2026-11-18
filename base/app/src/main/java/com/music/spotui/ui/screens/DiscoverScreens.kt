@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -267,9 +268,10 @@ fun RecapScreen(navController: NavController) {
         if (tab == 0) SpotifyStatsTab(navController) else LazyColumn(contentPadding = PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace())) {
             item {
                 Row(Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val selectedInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
                     periods.forEachIndexed { i, (label, _) ->
                         FilterChip(selected = i == period, onClick = { period = i }, label = { Text(stringResource(label)) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AppAccent, selectedLabelColor = Color.Black,
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AppAccent, selectedLabelColor = selectedInk,
                                 labelColor = AppText, containerColor = tone(0xFF2A2A2A)))
                     }
                 }

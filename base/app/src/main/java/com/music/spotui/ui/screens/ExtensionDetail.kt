@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -501,11 +502,12 @@ internal fun UpdateNeedsOk(name: String, from: String, p: com.music.spotui.exten
 @Composable
 private fun AcceptRow(accept: String, enabled: Boolean, tint: Color, onAccept: () -> Unit, keep: String? = null, onKeep: () -> Unit = {}) {
     if (!enabled) Text(stringResource(R.string.extension_accept_tick_first), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    val acceptInk = if (tint.luminance() > 0.45f || (tint == AppAccent && com.music.spotui.ui.look.isSpotifusionLook())) Color.Black else Color.White
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.Button(
             onClick = onAccept,
             enabled = enabled,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = tint, contentColor = Color.Black, disabledContainerColor = AppMuted.copy(alpha = 0.25f), disabledContentColor = AppText.copy(alpha = 0.6f)),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = tint, contentColor = acceptInk, disabledContainerColor = AppMuted.copy(alpha = 0.25f), disabledContentColor = AppText.copy(alpha = 0.6f)),
             modifier = Modifier.weight(1f),
         ) { Text(accept, fontWeight = FontWeight.SemiBold) }
         if (keep != null) androidx.compose.material3.OutlinedButton(onClick = onKeep, modifier = Modifier.weight(1f)) { Text(keep, color = AppText) }

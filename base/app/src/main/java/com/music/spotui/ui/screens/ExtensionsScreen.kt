@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -274,7 +275,8 @@ private fun Tabs(selected: Int, updates: Int, onSelect: (Int) -> Unit) {
                     Text(label, color = if (i == selected) AppText else AppMuted, fontSize = 15.sp, fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal)
                     if (i == 1 && updates > 0) {
                         Spacer(Modifier.width(6.dp))
-                        Text(updates.toString(), color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        val badgeInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+                        Text(updates.toString(), color = badgeInk, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(AppAccent).padding(horizontal = 6.dp))
                     }
                 }
@@ -318,10 +320,15 @@ private fun CategoryChips(categories: List<Category>, selected: Category?, onSel
     val immersive = com.music.spotui.ui.navigation.isImmersive()
     val chipOn = if (immersive) com.music.spotui.ui.immersive.Immersive.Accent else AppAccent
     val chipOff = if (immersive) com.music.spotui.ui.immersive.Immersive.Raised else tone(0xFF2A2A2A)
+    val selectedInk = if (immersive) {
+        if (chipOn.luminance() > 0.45f) Color(0xFF0A1422) else Color.White
+    } else {
+        if (chipOn.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+    }
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         (listOf<Category?>(null) + categories).forEach { c ->
             val on = c == selected
-            Text(stringResource(categoryLabel(c)), color = if (on) (if (immersive) Color.White else Color.Black) else AppText, fontSize = 13.sp, maxLines = 1,
+            Text(stringResource(categoryLabel(c)), color = if (on) selectedInk else AppText, fontSize = 13.sp, maxLines = 1,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) chipOn else chipOff)
                     .clickable { onSelect(if (on) null else c) }.padding(horizontal = 14.dp, vertical = 7.dp))
         }
@@ -349,7 +356,8 @@ private fun RepoHeader(repo: ExtensionStore.Repo, onRefresh: () -> Unit, onRemov
                     Text(repo.catalog?.name ?: runCatching { java.net.URI(repo.url).host }.getOrNull() ?: repo.url, color = AppText, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     Spacer(Modifier.width(8.dp))
-                    if (official) ExtPill(stringResource(R.string.extensions_official_badge), Color.Black, AppAccent)
+                    val officialInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+                    if (official) ExtPill(stringResource(R.string.extensions_official_badge), officialInk, AppAccent)
                     else ExtPill(stringResource(R.string.extensions_repo_yours), Warning, Warning.copy(alpha = 0.15f))
                 }
                 Text(repo.url, color = AppMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)

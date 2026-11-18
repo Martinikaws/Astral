@@ -250,9 +250,8 @@ private fun Look.swatchColor(): Color = when (this) {
 /** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 5 Looks. */
 @Composable
 private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
-    val baseLook = if (look.isImmersive()) Look.IMMERSIVE else Look.CLASSIC
     Box(Modifier.fillMaxSize()) {
-        LookDemo(baseLook, clock, still = still)
+        LookDemo(look, clock, still = still)
         when (look) {
             Look.SPOTIFUSION -> {
                 Box(

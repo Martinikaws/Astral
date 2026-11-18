@@ -260,17 +260,22 @@ fun ImmersiveSearchScreen(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter),
                     ) {
-                        ImmersiveSearchField(
-                            query = text,
-                            onQueryChange = { vm.search(it) },
-                            onSubmit = { vm.search(text) },
-                            focusRequester = fieldFocus,
-                            placeholder = stringResource(R.string.search_header_field_hint),
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .then(fieldBorder)
-                                .onFocusChanged { searchFocused = it.hasFocus },
-                        )
+                                .then(fieldBorder),
+                        ) {
+                            ImmersiveSearchField(
+                                query = text,
+                                onQueryChange = { vm.search(it) },
+                                onSubmit = { vm.search(text) },
+                                focusRequester = fieldFocus,
+                                placeholder = stringResource(R.string.search_header_field_hint),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged { searchFocused = it.hasFocus },
+                            )
+                        }
                         Spacer(Modifier.width(8.dp))
                         // Voice search: the Google app's own "Search with your voice" for music.
                         ImmersiveVoiceSearchButton(onClick = { launchVoiceSearch(context) })

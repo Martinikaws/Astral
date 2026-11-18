@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -132,8 +134,11 @@ private fun LogsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     var text by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { text = BetaLogs.recent() }
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val dialogBg = if (starryEnabled && AppBackground == Color.Transparent) com.music.spotui.ui.theme.StarryCardOpaque else AppBackground
+    val copyInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().background(dialogBg).statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.beta_logs_title, BetaLogs.MINUTES), color = AppText, fontSize = 17.sp,
                     modifier = Modifier.weight(1f).padding(start = 8.dp))
@@ -156,7 +161,7 @@ private fun LogsDialog(onDismiss: () -> Unit) {
                 }
                 TextButton(onClick = { text?.let { copy(context, it) } }, enabled = text != null,
                     modifier = Modifier.background(AppAccent, RoundedCornerShape(20.dp))) {
-                    Text(stringResource(R.string.beta_logs_copy), color = Color.Black)
+                    Text(stringResource(R.string.beta_logs_copy), color = copyInk)
                 }
             }
         }

@@ -25,12 +25,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -67,14 +69,16 @@ import com.music.spotui.ui.theme.headerTint
 fun LiveRadioScreen(navController: NavController) {
     val state = rememberLiveRadioState()
     val favorites = RadioFavoritesStore.list()
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(
             bottom = com.music.spotui.ui.components.bottomBarsSpace())) {
             item {
                 Column(
                     Modifier.fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(headerTint(Color(0xFF1C6E7A), 0f), AppBackground)))
+                        .background(Brush.verticalGradient(listOf(headerTint(Color(0xFF1C6E7A), 0f), pageBg)))
                         .statusBarsPadding().padding(horizontal = 16.dp),
                 ) {
                     Spacer(Modifier.height(56.dp))
@@ -104,10 +108,11 @@ fun LiveRadioScreen(navController: NavController) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                 ) {
+                    val chipInk = if (AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
                     for (g in state.genres) {
                         val on = g == state.genre
                         Text(
-                            g, color = if (on) Color.Black else AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            g, color = if (on) chipInk else AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(50))
                                 .background(if (on) AppAccent else com.music.spotui.ui.theme.tone(0xFF2A2A2A))
                                 .pressable(0.95f) { state.pick(g) }
@@ -155,7 +160,8 @@ fun LiveRadioScreen(navController: NavController) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.statusBarsPadding().padding(12.dp).size(40.dp).clip(CircleShape)
-                .background(AppBackground.copy(alpha = 0.4f)).pressable { navController.navigateUp() },
+                .background(if (pageBg == Color.Transparent) Color.Black.copy(alpha = 0.4f) else pageBg.copy(alpha = 0.4f))
+                .pressable { navController.navigateUp() },
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.accessibility_navigate_back), tint = AppText)
         }

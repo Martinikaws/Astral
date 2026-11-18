@@ -1247,7 +1247,10 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
         Text(stringResource(R.string.playlist_invite_banner), color = AppText, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(end = 12.dp))
         androidx.compose.material3.Button(
             enabled = !joining,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = SpotifyGreen, contentColor = Color.Black),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = SpotifyGreen,
+                contentColor = if (SpotifyGreen.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White,
+            ),
             onClick = {
                 joining = true
                 com.music.spotui.data.api.InviteLinks.join(context, offered, p) { ok ->

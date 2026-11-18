@@ -362,7 +362,7 @@ private fun QueueRow(
 ) {
     val rowBg = when {
         isDragging -> if (isSpotifusionLook()) com.music.spotui.ui.theme.headerTint(Color(0xFF1E1E24), 0f) else GridBackground
-        isSwiping && AppBackground == Color.Transparent -> Color(0xE60A1422)
+        isSwiping && AppBackground == Color.Transparent -> Color(0xFF0A1422)
         else -> AppBackground
     }
     Row(

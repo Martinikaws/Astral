@@ -37,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -96,7 +98,11 @@ fun LocalFilesScreen(navController: NavController) {
         onDismiss = { choosingFolders = false },
     )
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
+    val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
+    val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
+    val accentInk = if (com.music.spotui.ui.theme.AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White
+
+    Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
         when {
             !granted -> EmptyState(
                 title = stringResource(R.string.local_files_empty_section_title),
@@ -114,7 +120,7 @@ fun LocalFilesScreen(navController: NavController) {
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 item {
                     Column(
-                        Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(headerTint(Color(0xFF2E5C46), 0f), AppBackground)))
+                        Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(headerTint(Color(0xFF2E5C46), 0f), pageBg)))
                             .statusBarsPadding().padding(horizontal = 16.dp),
                     ) {
                         Spacer(Modifier.height(56.dp))
@@ -149,7 +155,7 @@ fun LocalFilesScreen(navController: NavController) {
                                     .clip(CircleShape).background(com.music.spotui.ui.theme.AppAccent),
                             ) {
                                 com.music.spotui.ui.components.PlayPauseIcon(playingLocal && SongPlayer.isPlaying(),
-                                    stringResource(R.string.content_description_play_button), tint = Color.Black, modifier = Modifier.size(26.dp))
+                                    stringResource(R.string.content_description_play_button), tint = accentInk, modifier = Modifier.size(26.dp))
                             }
                         }
                     }
@@ -189,7 +195,7 @@ fun LocalFilesScreen(navController: NavController) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.statusBarsPadding().padding(12.dp).size(40.dp).clip(CircleShape)
-                .background(AppBackground.copy(alpha = 0.4f)).pressable { navController.navigateUp() },
+                .background(if (pageBg == Color.Transparent) Color.Black.copy(alpha = 0.4f) else pageBg.copy(alpha = 0.4f)).pressable { navController.navigateUp() },
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.accessibility_navigate_back), tint = AppText)
         }
@@ -212,7 +218,7 @@ private fun EmptyState(title: String, subtitle: String, button: String?, onClick
             modifier = Modifier.padding(top = 24.dp).height(48.dp).pressable(0.96f, onClick = onClick)
                 .clip(RoundedCornerShape(50)).background(AppText).padding(horizontal = 28.dp),
         ) {
-            Text(button, color = com.music.spotui.ui.theme.AppBackground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(button, color = Color(0xFF0A1422), fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -226,7 +232,10 @@ internal fun LocalFoldersSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var folders by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     var version by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) { folders = LocalMusic.folders(context) }
-    com.music.spotui.ui.components.LookSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828)) {
+    com.music.spotui.ui.components.LookSheet(
+        onDismissRequest = onDismiss,
+        containerColor = if (com.music.spotui.ui.look.isSpotifusionLook()) tone(0xFF282828) else com.music.spotui.ui.theme.StarryCardOpaque,
+    ) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(stringResource(R.string.local_folders_title), color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp))
