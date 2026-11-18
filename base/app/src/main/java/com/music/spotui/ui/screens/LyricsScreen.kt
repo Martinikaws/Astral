@@ -131,6 +131,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.geometry.CornerRadius
@@ -588,6 +590,8 @@ private fun LyricLineText(
     }
     val color by animateColorAsState(target, tween(220), label = "lyricColor")
     var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    // Where the swept text sits inside the line (right-aligned lines wrap-width and hug the right edge).
+    var textX by remember { mutableFloatStateOf(0f) }
     var pressAt by remember { mutableStateOf(Offset.Zero) }
     val effectiveEndMs = remember(line, nextLineMs, songDurationMs) {
         nextLineMs ?: songDurationMs.takeIf { it > line.timeMs } ?: (line.timeMs + (line.text.length * 90L).coerceIn(2_500L, 6_000L))
@@ -669,7 +673,7 @@ private fun LyricLineText(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onLongClick = onHold,
-                    onClick = { onTap?.invoke(layout?.let { tapTime(swept, it, pressAt - Offset(roomPx, roomPx)) } ?: line.timeMs) },
+                    onClick = { onTap?.invoke(layout?.let { tapTime(swept, it, pressAt - Offset(roomPx + (if (usesSwept) textX else 0f), roomPx)) } ?: line.timeMs) },
                 ) else Modifier
         )
     val underline = if (!annotated) Modifier else Modifier.drawBehind {
@@ -711,11 +715,15 @@ private fun LyricLineText(
                 fontWeight = FontWeight.Bold,
                 textAlign = align,
             )
-            val dimAlpha = when (state) {
-                -1 -> SUNG_ALPHA
-                0 -> UNSUNG_ALPHA
-                else -> 0.90f
-            }
+            val dimAlpha by animateFloatAsState(
+                targetValue = when (state) {
+                    -1 -> SUNG_ALPHA
+                    0 -> UNSUNG_ALPHA
+                    else -> 0.90f
+                },
+                animationSpec = tween(220, easing = LYRIC_EASING),
+                label = "classicDim",
+            )
             SweptLyricLine(
                 line = swept,
                 clock = clock,
@@ -730,7 +738,10 @@ private fun LyricLineText(
                 color = palette.highlight,
                 glowColor = glowColor,
                 onTextLayout = { layout = it },
-                modifier = Modifier.fillMaxWidth().then(underline),
+                textModifier = Modifier
+                    .onPlaced { textX = it.positionInParent().x }
+                    .then(underline),
+                modifier = Modifier.fillMaxWidth(),
             )
         } else {
             Text(
@@ -854,12 +865,13 @@ private fun SpicyLyricsBackdrop(
         animationSpec = tween(900),
         label = "kawarpBase",
     )
-    val meshPhase = if (reduceMotion) 0f else rememberInfiniteTransition(label = "spicyMesh").animateFloat(
+    // Kept as State and read inside the draw lambda so the drift does not recompose each frame.
+    val meshPhaseState = rememberInfiniteTransition(label = "spicyMesh").animateFloat(
         initialValue = 0f,
         targetValue = (2f * PI).toFloat(),
         animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
         label = "meshPhase",
-    ).value
+    )
 
     Box(Modifier.fillMaxSize()) {
         if (starryActive) {
@@ -896,6 +908,7 @@ private fun SpicyLyricsBackdrop(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
+                    val meshPhase = if (reduceMotion) 0f else meshPhaseState.value
                     val a = if (reveal == null) 1f else (reveal() / 0.10f).coerceIn(0f, 1f)
                     val blobStrength = when {
                         oledBlack -> 0.14f
@@ -960,7 +973,9 @@ fun LyricsScreen(
     val state = rememberLyricsState(vm, title, artist)
     val lyrics = (state as? LyricsViewModel.State.Loaded)?.lyrics
     val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
-    val artworkPalette = rememberArtworkColors(coverUri.takeIf { it.isNotBlank() })
+    val rawArtwork = rememberArtworkColors(coverUri.takeIf { it.isNotBlank() })
+    // The palette always carries stock fallback colours; only trust it when there is a cover.
+    val artworkPalette = if (coverUri.isNotBlank()) rawArtwork else com.music.spotui.ui.look.MeshPalette(emptyList())
     val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
     val themeMode by AstralThemePref.themeMode.collectAsState()
     val starryEnabled by StarryNightPref.enabled.collectAsState()
@@ -1204,7 +1219,10 @@ fun LyricsScreen(
                         enabled = l.synced && !selecting,
                         reduceMotion = reduceMotion,
                         onBrowsingChange = { browsing = it },
-                        onScrollRun = { scrollRun = it },
+                        onScrollRun = {
+                            scrollSince.floatValue = 0f
+                            scrollRun = it
+                        },
                     )
                     LazyColumn(
                         state = listState,
@@ -1275,7 +1293,7 @@ fun LyricsScreen(
                                     scrollRun = scrollRun,
                                     scrollSince = scrollSince,
                                     lineIndex = i,
-                                    focusIndex = active,
+                                    focusIndex = focusLine,
                                     modifier = Modifier.revealIn(reveal, 0.35f + 0.045f * (i - staggerBase).coerceIn(0, 8), 22f),
                                 )
                                 val lastWordEnd = line.words?.lastOrNull()?.endMs
@@ -1588,14 +1606,14 @@ fun InlineLyrics(
             CardIconButton(palette, stringResource(R.string.lyrics_fullscreen), { Icon(Icons.Default.OpenInFull, null, tint = palette.highlight, modifier = Modifier.size(16.dp)) }, onExpand)
         }
         Spacer(Modifier.height(12.dp))
+        val inlineDuet = remember(l) { l.hasDuet || l.lines.any { (it.voice ?: 0) > 1 } }
+        val songDurationMs = SongPlayer.getDuration().coerceAtLeast(0L)
         LazyColumn(
             state = listState,
             userScrollEnabled = false,
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().height(CARD_LINES_HEIGHT),
         ) {
-            val inlineDuet = remember(l) { l.hasDuet || l.lines.any { (it.voice ?: 0) > 1 } }
-            val songDurationMs = SongPlayer.getDuration().coerceAtLeast(0L)
             itemsIndexed(l.lines, key = { i, _ -> i }) { i, line ->
                 LyricLineText(
                     line = line,
