@@ -111,7 +111,7 @@ Astral is free and open-source software licensed under the **GNU General Public 
 | **Base Codebase (Orpheon / Myspoti)** | [`kota-zo/myspoti`](https://github.com/kota-zo/myspoti) | **GPL-3.0** |
 | **Lossless, Cache, Preloader & Login Fix** | [`p1di/spotifusion`](https://github.com/p1di/spotifusion) | **GPL-3.0** |
 
-**Design references (Astral's own code; no code or assets copied):**
+**Design references (Astral's own code; no code or assets copied, except the Spicy Lyrics renderer, which is ported AGPL-3.0 code):**
 
 | Astral feature | Inspired by | That project's license |
 | :--- | :--- | :--- |
