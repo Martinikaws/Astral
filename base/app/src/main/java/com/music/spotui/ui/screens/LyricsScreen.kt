@@ -160,10 +160,14 @@ import app.myspoti.power.EnergySettings
 import com.music.spotui.data.api.LyricsApi
 import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.Lyrics
-import com.music.spotui.data.preferences.AstralThemeMode
 import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.data.preferences.LyricsRomanizationPref
+import com.music.spotui.data.preferences.SpicyBackgroundPref
 import com.music.spotui.data.preferences.SpicyThemePreset
+import com.music.spotui.spicy.SpicyBackgroundButton
+import com.music.spotui.spicy.SpicyBackgroundLayer
+import com.music.spotui.spicy.SpicyBackgroundSheet
+import com.music.spotui.spicy.SpicyLyricsLayer
 import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.getLyricTranslateLang
 import com.music.spotui.data.preferences.isLyricsExtraSources
@@ -968,7 +972,7 @@ fun LyricsScreen(
     reveal: (() -> Float)? = null,
 ) {
     val context = LocalContext.current
-    remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); true }
+    remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); SpicyBackgroundPref.init(context); true }
     val vm: LyricsViewModel = viewModel()
     val state = rememberLyricsState(vm, title, artist)
     val lyrics = (state as? LyricsViewModel.State.Loaded)?.lyrics
@@ -977,11 +981,11 @@ fun LyricsScreen(
     // The palette always carries stock fallback colours; only trust it when there is a cover.
     val artworkPalette = if (coverUri.isNotBlank()) rawArtwork else com.music.spotui.ui.look.MeshPalette(emptyList())
     val spicyPreset by AstralThemePref.spicyTheme.collectAsState()
-    val themeMode by AstralThemePref.themeMode.collectAsState()
     val starryEnabled by StarryNightPref.enabled.collectAsState()
     val oledBlack = EnergySettings.oledBlack
     val customSpicy = spicyPreset != SpicyThemePreset.ASTRAL_DEFAULT
-    val starryActive = !customSpicy && starryEnabled && themeMode == AstralThemeMode.STARRY_NIGHT && !oledBlack
+    // As in the Immersive panel: the stars follow the Starry Night setting (the Look, or the extra), not a theme mode.
+    val starryActive = !customSpicy && starryEnabled && !oledBlack
     val reduceMotion = rememberReduceMotion()
 
     val effectiveAccent = if (customSpicy) Color(spicyPreset.accentHex)
@@ -1039,6 +1043,8 @@ fun LyricsScreen(
     val targetLanguage = getLyricTranslateLang(context).ifBlank { Locale.getDefault().language.ifBlank { "en" } }
     var menu by remember { mutableStateOf(false) }
     var sourcesOpen by remember { mutableStateOf(false) }
+    var spicySheet by remember { mutableStateOf(false) }
+    val spicy by SpicyBackgroundPref.state.collectAsState()
     // Lines picked to share: a long press on a line, or "Share lyrics" in the menu, starts it.
     val selecting by vm.selecting.collectAsState()
     val picked by vm.picked.collectAsState()
@@ -1061,7 +1067,17 @@ fun LyricsScreen(
             .fillMaxSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
     ) {
-        SpicyLyricsBackdrop(
+        // The Spicy Lyrics renderer and its background preset, unless it is switched off in the background
+        // sheet, or a translation is shown or lines are being picked to share (the classic list carries those).
+        val useSpicy = spicy.renderer && !selecting && (state as? LyricsViewModel.State.Loaded)?.showTranslation != true
+        if (useSpicy) SpicyBackgroundLayer(
+            coverUri = coverUri,
+            artist = artist,
+            playing = playing,
+            positionMs = position,
+            settings = spicy,
+            reduceMotion = reduceMotion,
+        ) else SpicyLyricsBackdrop(
             coverUri = coverUri,
             meshColors = meshColors,
             baseColor = meshBase,
@@ -1137,6 +1153,7 @@ fun LyricsScreen(
                 }
                 if (meaningOpen) com.music.spotui.ui.components.AboutSheet(m, palette.background) { meaningOpen = false }
             }
+            SpicyBackgroundButton(onClick = { spicySheet = true }, tint = palette.highlight, modifier = Modifier.padding(horizontal = 4.dp))
             Box {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -1165,6 +1182,7 @@ fun LyricsScreen(
         }
 
         if (sourcesOpen) com.music.spotui.ui.components.LyricsSourceSheet(onDismiss = { sourcesOpen = false }, vm = vm)
+        if (spicySheet) SpicyBackgroundSheet { spicySheet = false }
 
         when (state) {
             is LyricsViewModel.State.Loading ->
@@ -1184,6 +1202,21 @@ fun LyricsScreen(
                     targetState = l, animationSpec = tween(450), label = "lyricsSwap",
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) { l ->
+                if (useSpicy) {
+                    val spicyRomanize = LyricsRomanizationPref.on && l.hasRomanization
+                    SpicyLyricsLayer(
+                        lyrics = l,
+                        documentKey = "$title|$artist",
+                        currentTimeMs = position,
+                        playing = playing && l.synced,
+                        onSeek = { jumpTo(it) },
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                        romanize = spicyRomanize,
+                        songDurationMs = songDurationMs,
+                        reduceMotion = reduceMotion,
+                    )
+                    return@Crossfade
+                }
                 val active by remember(l) { derivedStateOf { activeIndexFor(l, position()) } }
                 val focus by remember(l) { derivedStateOf { focusIndexFor(l, position()) } }
                 val focusLine = if (focus >= 0) focus else active
