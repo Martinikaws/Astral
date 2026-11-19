@@ -111,14 +111,14 @@ Astral is free and open-source software licensed under the **GNU General Public 
 | **Base Codebase (Orpheon / Myspoti)** | [`kota-zo/myspoti`](https://github.com/kota-zo/myspoti) | **GPL-3.0** |
 | **Lossless, Cache, Preloader & Login Fix** | [`p1di/spotifusion`](https://github.com/p1di/spotifusion) | **GPL-3.0** |
 
-**Design references (Astral's own code; no code or assets copied):**
+**Design references (Astral's own code; no code or assets copied, except the Spicy Lyrics renderer, which is ported AGPL-3.0 code):**
 
 | Astral feature | Inspired by | That project's license |
 | :--- | :--- | :--- |
 | **Starry Night Theme & Shooting Stars** | [`spicetify/spicetify-themes` (`StarryNight`)](https://github.com/spicetify/spicetify-themes/tree/master/StarryNight) & Delroy Prithvi | MIT |
 | **Glassify Look** | [`sanoojes/spicetify-glassify`](https://github.com/sanoojes/spicetify-glassify) | AGPL-3.0 |
 | **LiquidMusic Look** | [`fraustiz/LiquidMusic`](https://github.com/fraustiz/LiquidMusic) | none published |
-| **Spicy Lyrics Display** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/), [`spicylyrics/mobile`](https://github.com/spicylyrics/mobile) | AGPL-3.0 |
+| **Spicy Lyrics Display** | [`spikerko/spicy-lyrics`](https://github.com/spikerko/spicy-lyrics/), [`spicylyrics/mobile`](https://github.com/spicylyrics/mobile) | AGPL-3.0 (renderer and backgrounds are ported code, see `THIRD_PARTY_NOTICES.md` Part 5) |
 | **Spicy Lyrics Colour Presets** | [`7xeh/SpicyThemes`](https://github.com/7xeh/SpicyThemes) | source-available, not open source |
 | **BackMusic Module** | [`rolandyangg/backmusic_extension`](https://github.com/rolandyangg/backmusic_extension) | none published |
 | **Visualizer Module** | [`Konsl/spicetify-visualizer`](https://github.com/Konsl/spicetify-visualizer) | MIT |

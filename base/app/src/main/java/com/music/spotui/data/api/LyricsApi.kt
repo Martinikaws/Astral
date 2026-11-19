@@ -62,6 +62,8 @@ object LyricsApi {
     )
     private val inFlight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Lyrics?>>()
     private val health = LyricsHealth()
+    /** How many requests [httpFetch] went on to make (not the ones set aside first): tests check a source that is off makes none. */
+    internal val requestsAttempted = java.util.concurrent.atomic.AtomicLong()
     // Set while one provider is asked by hand ([fetchFrom]): it is asked even when set aside.
     private val bypass = ThreadLocal<Boolean>()
     private val scope =
@@ -146,6 +148,13 @@ object LyricsApi {
     /** A setting changed what is looked for: every song is read again when next shown. */
     fun forgetAll() { cache.clear(); health.forgetAll(); scope.launch { LyricsDisk.clear() } }
 
+    /**
+     * A source was switched on or off: the songs not found (or found only in part) are asked again.
+     * What was found stays, in memory and on storage (it may be lyrics picked by hand), and so does
+     * the providers' health.
+     */
+    fun forgetMisses() { synchronized(cache) { cache.values.removeAll { it is Miss || it is Partial } } }
+
     /** Bumped when the lyrics extensions changed and the cache was dropped: an open lyrics view reads its song again. */
     val sourcesTick = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
@@ -205,11 +214,15 @@ object LyricsApi {
      * [fetchFrom]; [name] is shown as it is (a brand, not translated); [words]: it can time the
      * words; [setAside]: why it is not asked by itself for now (a run of failures), null when it is.
      */
-    data class Source(val id: String, val name: String, val words: Boolean = false, val setAside: String? = null)
+    data class Source(
+        val id: String, val name: String, val words: Boolean = false, val setAside: String? = null,
+        /** [toggle]: the user can switch it on or off in the picker ([enabled]: it is on; off, it is never asked). */
+        val toggle: Boolean = false, val enabled: Boolean = true,
+    )
 
     private fun allSetAside(vararg ids: String): String? = ids.map { health.reason(it) }.takeIf { r -> r.all { it != null } }?.first()
 
-    private val WORD_SOURCES = setOf("spicy", "amll", "lyricsplus", "lrcred", "netease", "kugou")
+    private val WORD_SOURCES = setOf("spicy", "amll", "lyricsplus", "lrcred", "netease", "kugou", "unison", "lrcmux", "kuwo", "rmm")
 
     /** The providers that can be tried for [track], in the order the resolver prefers them; the extensions giving lyrics come last (`ext:<id>`). */
     fun sources(track: Track): List<Source> = buildList {
@@ -222,6 +235,12 @@ object LyricsApi {
         add(Source("lrclib", "LRCLIB", false, allSetAside("lrclib")))
         add(Source("netease", "NetEase", true, allSetAside("netease")))
         if (geniusOn) add(Source("genius", "Genius", false, allSetAside("genius")))
+        // Added from Spicy Lyrics Mobile; the user can switch each one in the picker (LyricsSourcePref).
+        add(Source("unison", UnisonLyrics.NAME, true, allSetAside("unison"), toggle = true, enabled = extraOn("unison")))
+        add(Source("lrcmux", LrcMuxLyrics.NAME, true, allSetAside("lrcmux"), toggle = true, enabled = extraOn("lrcmux")))
+        add(Source("qq", QqLyrics.NAME, false, allSetAside("qq"), toggle = true, enabled = extraOn("qq")))
+        add(Source("kuwo", KuwoLyrics.NAME, true, allSetAside("kuwo"), toggle = true, enabled = extraOn("kuwo")))
+        add(Source("rmm", RmmRevivalLyrics.NAME, true, allSetAside("rmm"), toggle = true, enabled = extraOn("rmm")))
         runCatching { com.music.spotui.extensions.Extensions.lyricsSources() }.getOrDefault(emptyList())
             .forEach { (id, name) -> add(Source("ext:$id", name)) }
     }
@@ -231,6 +250,11 @@ object LyricsApi {
         val p = lyrics.provider.orEmpty().lowercase()
         return when {
             "spicy" in p -> "spicy"
+            "lrcmux" in p -> "lrcmux"
+            "unison" in p -> "unison"
+            "rmm" in p -> "rmm"
+            "qq music" in p -> "qq"
+            "kuwo" in p -> "kuwo"
             "amll" in p -> "amll"
             "lyricsplus" in p -> "lyricsplus"
             "lrc.red" in p -> "lrcred"
@@ -273,6 +297,8 @@ object LyricsApi {
                 }
                 sourceId == "netease" -> byHand { fromNetEaseWords(title, artist, durationMs) ?: fromNetEase(title, artist, durationSec) }
                 sourceId == "genius" -> byHand { fromGenius(title, artist) }
+                // Asked by hand only while switched on: nothing is sent to a source the user has not agreed to.
+                sourceId in EXTRA_SOURCES && extraOn(sourceId) -> byHand { fromExtra(sourceId, asked, title, artist, track.album, durationMs) }
                 else -> null
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Log.d("LyricsApi", "$sourceId by hand: ${e.javaClass.simpleName}"); null }
@@ -539,22 +565,28 @@ object LyricsApi {
         // Hand-timed syllable by syllable by its community (CC0), found by the song's Spotify id.
         val amll = async { within(WORD_WAIT_MS) { asking("amll", track) { fromAmll(track.trackId) } } }
         val netease = async { within(WORD_WAIT_MS) { asking("netease", track) { fromNetEaseWords(title, artist, durationMs) } } }
+        // The sources added from Spicy Lyrics Mobile that can time words: appended after the ones above.
+        val more = EXTRA_WORD_SOURCES.map { id -> async { if (!extraOn(id)) null else within(WORD_WAIT_MS) { asking(id, track) { fromExtra(id, asked, title, artist, track.album, durationMs) } } } }
         val sp = spotify.await()
         // Shown at once while the word timings or the backing vocals are looked for (reported: lyrics slow to come).
         if (sp != null) showEarly(track, sp)
         if (sp != null && sp.wordSynced && sp.uncapped) {
-            kugou.cancel(); netease.cancel()
+            kugou.cancel(); netease.cancel(); more.forEach { it.cancel() }
             return@coroutineScope withBacks(sp, spicy, amll, plus, red)
         }
         // Without Spotify's own (no account, or none for the song) every catalogue still answers.
         val spicyResult = spicy.await()
-        val words = (spicyResult?.takeIf { it.wordSynced } ?: amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
+        val ownWords = (spicyResult?.takeIf { it.wordSynced } ?: amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
             ?: netease.await()?.takeIf { it.wordSynced } ?: kugou.await())?.takeIf { it.wordSynced }
+        val words = ownWords ?: more.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.wordSynced } }
+        // Nobody had words: what these answered (line-synced or nothing) goes on to the line pass, which does not ask them again.
+        val alreadyAsked = if (words == null) EXTRA_WORD_SOURCES.zip(more.map { it.await() }).toMap() else emptyMap()
+        more.forEach { it.cancel() }
         when {
             words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, spicy, amll, plus, red) } ?: sp
             spicyResult != null -> spicyResult.copy(colors = sp?.colors)
             sp != null -> sp
-            else -> lineFallbacks(track)
+            else -> lineFallbacks(track, alreadyAsked)
         }
     }
 
@@ -604,12 +636,13 @@ object LyricsApi {
     private const val MAX_ALIGN_SHIFT_MS = 20_000L
 
     /** Nothing from Spotify: LRCLIB, then (opt-in) NetEase and Genius, then Kugou. */
-    private suspend fun lineFallbacks(track: Track): Lyrics? = coroutineScope {
+    private suspend fun lineFallbacks(track: Track, already: Map<String, Lyrics?> = emptyMap()): Lyrics? = coroutineScope {
             val title = cleanTitle(track.title)
             val artist = track.artist.substringBefore(",").trim()
             val durationSec = (track.durationMs / 1000).toInt()
             val netease = if (extraSources) async { asking("netease", track) { fromNetEase(title, artist, durationSec) } } else null
             val genius = if (extraSources && geniusOn) async { asking("genius", track) { fromGenius(title, artist) } } else null
+            val askedTitle = track.title.trim()
             val lrclib = asking("lrclib", track) {
                 val exact = async { lrclibGet(title, artist, track.album, durationSec) }
                 val fuzzy = async { lrclibSearch("$LRCLIB/search?track_name=${enc(title)}&artist_name=${enc(artist)}", title, artist, durationSec) }
@@ -621,7 +654,24 @@ object LyricsApi {
             when {
                 lrclib != null && lrclib.synced -> LyricsExtras.carry(lrclib, ne)
                 ne != null && ne.synced -> ne
-                else -> asking("kugou", track) { fromKugou(title, artist, track.durationMs) } ?: lrclib ?: ne ?: genius?.await()
+                else -> asking("kugou", track) { fromKugou(title, artist, track.durationMs) } ?: run {
+                    // The sources added from Spicy Lyrics Mobile: asked only now that the others missed
+                    // (those the word pass already asked keep their answer), at the same time, the rest cancelled once decided.
+                    val extras = EXTRA_SOURCES.map { id ->
+                        async {
+                            when {
+                                id in already -> already[id]
+                                !extraOn(id) -> null
+                                else -> within(EXTRA_WAIT_MS) { asking(id, track) { fromExtra(id, askedTitle, title, artist, track.album, track.durationMs) } }
+                            }
+                        }
+                    }
+                    try {
+                        extras.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.synced } }
+                            ?: lrclib ?: ne ?: genius?.await()
+                            ?: extras.firstNotNullOfOrNull { d -> d.await() }
+                    } finally { extras.forEach { it.cancel() } }
+                }
             }
     }
 
@@ -1099,6 +1149,101 @@ object LyricsApi {
         return durationMs <= 0 || candDurationMs <= 0 || kotlin.math.abs(candDurationMs - durationMs) <= 4_000
     }
 
+    // ── The sources added from Spicy Lyrics Mobile (Unison, LRCMux; QQ Music, Kuwo, RMM Revival opt-in) ──
+    // The order they are asked in is Astral's own: they come after the sources above.
+
+    /** The ids of the added sources, in the order they are asked. */
+    private val EXTRA_SOURCES = listOf("lrcmux", "unison", "kuwo", "rmm", "qq")
+
+    /** Those that can time words: asked in the word-by-word pass ([wordFirst]). QQ Music's lyrics are line-synced. */
+    private val EXTRA_WORD_SOURCES = listOf("lrcmux", "unison", "kuwo", "rmm")
+
+    /** How long the line-synced pass waits for an added source. */
+    private const val EXTRA_WAIT_MS = 6_000L
+
+    /** The added source [id] is on ([com.music.spotui.data.preferences.LyricsSourcePref]): off, it is never asked. */
+    private fun extraOn(id: String): Boolean = com.music.spotui.data.preferences.LyricsSourcePref.on(id)
+
+    private fun fromExtra(id: String, asked: String, title: String, artist: String, album: String, durationMs: Long): Lyrics? = when (id) {
+        "unison" -> fromUnison(title, artist)
+        "lrcmux" -> fromLrcMux(asked, album, title, artist, durationMs)
+        "qq" -> fromQq(title, artist, durationMs)
+        "kuwo" -> fromKuwo(asked, title, artist, durationMs)
+        "rmm" -> fromRmm(title, artist, durationMs)
+        else -> null
+    }
+
+    // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/UnisonLyricsProvider.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+    private fun fromUnison(title: String, artist: String): Lyrics? {
+        val hit = httpGet(UnisonLyrics.searchUrl(title, artist), timeoutMs = 5000, provider = "unison")
+            ?.let { UnisonLyrics.searchHit(it, title, artist) }
+        val id = hit?.optString("id")?.takeIf { it.isNotBlank() }
+        if (id != null) {
+            httpGet(UnisonLyrics.detailUrl(id), timeoutMs = 5000, provider = "unison")
+                ?.let { UnisonLyrics.detailData(it) }?.let { UnisonLyrics.lyricsOf(it) }?.let { return it }
+        }
+        val direct = httpGet(UnisonLyrics.directUrl(title, artist), timeoutMs = 5000, provider = "unison") ?: return null
+        return UnisonLyrics.directData(direct, title, artist)?.let { UnisonLyrics.lyricsOf(it) }
+    }
+
+    // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/LrcMuxLyricsProvider.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+    // (An MIT port of Lyrica's lrcmux adapter, as upstream credits it.)
+    private fun fromLrcMux(asked: String, album: String, title: String, artist: String, durationMs: Long): Lyrics? {
+        val body = httpGet(LrcMuxLyrics.url(title, artist, (durationMs / 1000).toInt()), timeoutMs = 6000, provider = "lrcmux") ?: return null
+        val root = runCatching { JSONObject(body) }.getOrNull() ?: return null
+        // The answer must say it is this song (title, artist, length): a wrong one must not replace Spotify's lines.
+        LrcMuxLyrics.answerTrack(root)?.let { t ->
+            if (!LrcMuxLyrics.sameTrack(t, title, artist, durationMs, ::sameSong)) return null
+        }
+        if (LrcMuxLyrics.otherVersion(root, "$asked $album")) return null
+        return LrcMuxLyrics.parse(root)
+    }
+
+    // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/QqAndKuwoProviders.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+    private fun fromQq(title: String, artist: String, durationMs: Long): Lyrics? {
+        val query = "$artist $title"
+        val json = mapOf("Referer" to QqLyrics.REFERER, "Content-Type" to "application/json")
+        val searched = httpFetch(QqLyrics.ENDPOINT, 6000, "qq", "POST", QqLyrics.searchBody(query).toByteArray(), json)
+            ?.toString(Charsets.UTF_8) ?: return null
+        // Throttled (a code, no list): the search box's own suggestions answer then, with the lengths from a details request.
+        val songs = QqLyrics.searchSongs(searched) ?: run {
+            val mids = httpFetch(QqLyrics.suggestUrl(query), 6000, "qq", headers = mapOf("Referer" to QqLyrics.REFERER))
+                ?.toString(Charsets.UTF_8)?.let { QqLyrics.suggestedMids(it) }?.takeIf { it.isNotEmpty() } ?: return null
+            httpFetch(QqLyrics.ENDPOINT, 6000, "qq", "POST", QqLyrics.trackInfoBody(mids).toByteArray(), json)
+                ?.toString(Charsets.UTF_8)?.let { QqLyrics.trackInfoSongs(it) } ?: return null
+        }
+        for (song in songs.filter { it.id.isNotBlank() && sameSong(it.title, it.artist, it.durationSec * 1000L, title, artist, durationMs) }.take(3)) {
+            httpFetch(QqLyrics.lyricUrl(song.id), 6000, "qq", headers = mapOf("Referer" to QqLyrics.REFERER))
+                ?.toString(Charsets.UTF_8)?.let { QqLyrics.lyricsOf(it) }?.let { return it }
+        }
+        return null
+    }
+
+    // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/QqAndKuwoProviders.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+    private fun fromKuwo(asked: String, title: String, artist: String, durationMs: Long): Lyrics? {
+        val referer = mapOf("Referer" to KuwoLyrics.REFERER)
+        val searched = httpFetch(KuwoLyrics.searchUrl("$artist $title"), 6000, "kuwo", headers = referer)?.toString(Charsets.UTF_8) ?: return null
+        val matched = KuwoLyrics.searchSongs(searched).filter {
+            sameSong(it.title, it.artist, it.durationSec * 1000L, title, artist, durationMs) && KuwoLyrics.notACut(it, asked)
+        }
+        // Up to three copies: the first word-timed one, else the first that has lyrics at all.
+        var fallback: Lyrics? = null
+        for (song in matched.take(KuwoLyrics.TRIES)) {
+            val bytes = httpFetch(KuwoLyrics.lyricUrl(song.id), 6000, "kuwo", headers = referer) ?: continue
+            val lyrics = runCatching { KuwoLyrics.parse(bytes) }.getOrNull() ?: continue
+            if (lyrics.wordSynced) return lyrics
+            if (fallback == null) fallback = lyrics
+        }
+        return fallback
+    }
+
+    // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/RmmRevivalLyricsProvider.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+    private fun fromRmm(title: String, artist: String, durationMs: Long): Lyrics? {
+        val id = httpGet(RmmRevivalLyrics.searchUrl(title, artist), timeoutMs = 5000, provider = "rmm")
+            ?.let { RmmRevivalLyrics.appleId(it, title, artist, durationMs) } ?: return null
+        return httpGet(RmmRevivalLyrics.lyricsUrl(id), timeoutMs = 6000, provider = "rmm")?.let { RmmRevivalLyrics.parse(it) }
+    }
+
     // ── Matching ──
     // Strip the noise Spotify puts in titles that other catalogues don't have:
     // "Song - 2011 Remaster", "Song (feat. X)", "Song [Bonus Track]".
@@ -1150,6 +1295,9 @@ object LyricsApi {
         return sorted.filterIndexed { i, l -> !(l.text == "♪" && i > 0 && sorted[i - 1].text == "♪") }
     }
 
+    /** [parseLrc] for the added sources' parsers. */
+    internal fun lrcLines(lrc: String): List<LyricLine> = parseLrc(lrc)
+
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     /**
@@ -1157,22 +1305,36 @@ object LyricsApi {
      * 429 or an exception counts against it, any other answer (a 404 too) is an answer; a provider
      * set aside is not asked at all, unless asked for by hand ([fetchFrom]).
      */
-    private fun httpGet(spec: String, timeoutMs: Int = 5000, provider: String? = null): String? {
+    private fun httpGet(spec: String, timeoutMs: Int = 5000, provider: String? = null): String? =
+        httpFetch(spec, timeoutMs, provider)?.toString(Charsets.UTF_8)
+
+    /**
+     * [httpGet] with what the extra sources need: another [method] with a [body] (a POST's JSON),
+     * more [headers] (a Referer), and the answer as bytes (Kuwo's is compressed). Same health,
+     * data saver and timeout rules as [httpGet].
+     */
+    private fun httpFetch(
+        spec: String, timeoutMs: Int = 5000, provider: String? = null,
+        method: String = "GET", body: ByteArray? = null, headers: Map<String, String> = emptyMap(),
+    ): ByteArray? {
         if (provider != null && bypass.get() != true) health.reason(provider)?.let {
             Log.d("LyricsApi", "$provider set aside ($it)")
             health.skipped()
             return null
         }
+        requestsAttempted.incrementAndGet()
         return runCatching {
             com.music.spotui.data.DataSaver.check()
             val conn = (URL(spec).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
+                requestMethod = method
                 connectTimeout = timeoutMs
                 readTimeout = timeoutMs
                 setRequestProperty("User-Agent", UA)
                 setRequestProperty("Accept", "application/json, text/html;q=0.9, */*;q=0.8")
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
             }
             try {
+                if (body != null) { conn.doOutput = true; conn.outputStream.use { it.write(body) } }
                 val code = conn.responseCode
                 if (code != 200) {
                     Log.d("LyricsApi", "HTTP $code for $spec")
@@ -1181,9 +1343,9 @@ object LyricsApi {
                     else health.answered(provider)
                     return null
                 }
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val bytes = conn.inputStream.use { it.readBytes() }
                 provider?.let(health::answered)
-                body
+                bytes
             } finally {
                 conn.disconnect()
             }

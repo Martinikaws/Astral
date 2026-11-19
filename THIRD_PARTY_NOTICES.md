@@ -11,6 +11,7 @@ Licence texts bundled in this repository:
 | Licence | File |
 | --- | --- |
 | GNU GPL-3.0 | [`LICENSE`](LICENSE), [`base/catalog/src/main/resources/app/myspoti/catalog/metadata/COPYING-GPL-3.0.txt`](base/catalog/src/main/resources/app/myspoti/catalog/metadata/COPYING-GPL-3.0.txt) |
+| GNU AGPL-3.0 | [`base/licenses/AGPL-3.0.txt`](base/licenses/AGPL-3.0.txt) (Part 5) |
 | GNU LGPL-3.0 | [`base/catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt`](base/catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt) |
 | Apache-2.0 | [`base/licenses/Apache-2.0.txt`](base/licenses/Apache-2.0.txt) |
 | SIL OFL 1.1 (Inter, Manrope) | [`base/licenses/Inter-OFL.txt`](base/licenses/Inter-OFL.txt), [`base/licenses/Manrope-OFL.txt`](base/licenses/Manrope-OFL.txt) |
@@ -269,7 +270,7 @@ https://github.com/google/material-design-icons, Copyright Google LLC. Apache Li
 Astral's Starry Night backdrop, its Glassify and LiquidMusic looks, its Spicy Lyrics-style display, its
 SpicyThemes-style colour presets and its BackMusic and Visualizer modules are Astral's own Kotlin / Jetpack
 Compose implementations. They are written from scratch after the look and behaviour of the projects below.
-No source code, stylesheet, image or other asset from these projects is included. Colour values and preset
+No source code, stylesheet, image or other asset from these projects is included, with one exception: Astral's Spicy Lyrics renderer and lyrics backgrounds are ported from Spicy Lyrics Mobile, AGPL-3.0 (see Part 5). Colour values and preset
 names are Astral's own. The Starry Night look follows an MIT-licensed theme, whose notice is quoted below.
 The projects are named to credit the inspiration; naming them does not imply endorsement, and their licences
 do not apply to Astral's code.
@@ -279,7 +280,7 @@ do not apply to Astral's code.
 | Starry Night backdrop & palette | [spicetify/spicetify-themes — StarryNight](https://github.com/spicetify/spicetify-themes/tree/master/StarryNight) | MIT (notice below) |
 | Glassify look | [sanoojes/spicetify-glassify](https://github.com/sanoojes/spicetify-glassify) | AGPL-3.0 |
 | LiquidMusic look | [fraustiz/LiquidMusic](https://github.com/fraustiz/LiquidMusic) | none published (all rights reserved) |
-| Spicy Lyrics-style lyrics display | [spikerko/spicy-lyrics](https://github.com/spikerko/spicy-lyrics), [spicylyrics/mobile](https://github.com/spicylyrics/mobile) | AGPL-3.0 |
+| Spicy Lyrics-style lyrics display | [spikerko/spicy-lyrics](https://github.com/spikerko/spicy-lyrics), [spicylyrics/mobile](https://github.com/spicylyrics/mobile) | AGPL-3.0 (the renderer is now ported code, see Part 5) |
 | Spicy Lyrics colour presets | [7xeh/SpicyThemes](https://github.com/7xeh/SpicyThemes) | ST Source-Available License v1.0 (not open source) |
 | BackMusic module | [rolandyangg/backmusic_extension](https://github.com/rolandyangg/backmusic_extension) | none published (all rights reserved) |
 | Visualizer module | [Konsl/spicetify-visualizer](https://github.com/Konsl/spicetify-visualizer) | MIT |
@@ -318,6 +319,7 @@ terms apply to it:
 - **Spicy Lyrics API** (`api.spicylyrics.org`): optional word-synced lyrics source (`SpicyLyricsProvider.kt`).
 - The other lyrics and metadata sources the app's settings list (LRCLIB, Genius, NetEase, Kugou, AMLL,
   LyricsPlus, MusicBrainz, Deezer, iTunes), plus SponsorBlock and Radio Browser.
+- **Unison, LRCMux, QQ Music, Kuwo and RMM Revival** (plus Apple's iTunes search, which RMM Revival uses): extra lyrics sources. Part 5 lists what each is sent; QQ Music, Kuwo and RMM Revival stay off until the user turns them on.
 - **GitHub Releases** (`Martinikaws/Astral`): in-app update check.
 
 ---
@@ -366,6 +368,69 @@ Software Development Kit License. They talk to the Google Play services app on t
 | Roborazzi | takahirom | Apache-2.0 |
 | kXML 2 | Stefan Haustein | MIT |
 | JSON-java (`org.json:json` 20240303) | Sean Leary | Public domain |
+
+---
+
+# Part 5: Spicy Lyrics Mobile
+
+Astral's Spicy Lyrics renderer and its lyrics background presets are ported from **Spicy Lyrics Mobile**
+by TheX24 and contributors (https://github.com/spicylyrics/mobile, commit `f005aaa`), licensed under the
+GNU Affero General Public License v3.0. The text is in [`base/licenses/AGPL-3.0.txt`](base/licenses/AGPL-3.0.txt).
+Section 13 of the GNU GPL v3 allows combining GPL-3.0 code with AGPL-3.0 code. The ported files keep the
+AGPL-3.0, and each starts with a header naming its upstream file. They live in
+`base/app/src/main/java/com/music/spotui/spicy/`, and the ported tests in `base/app/src/test/java/com/music/spotui/spicy/`.
+
+Spicy Lyrics Mobile itself adapts code from these projects. Their notices come with the ported code:
+
+| Project | What it covers in Astral | Licence |
+| --- | --- | --- |
+| [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) by Spikerko and contributors | The lyrics renderer: layout, word and line animation, scrolling, interludes | AGPL-3.0 |
+| [Spicy Lyrics fork](https://github.com/iPixelGalaxy/spicy-lyrics) by iPixelGalaxy | The Legacy background | AGPL-3.0 |
+| [@kawarp/core](https://github.com/better-lyrics/kawarp), Copyright (c) 2026 Better Lyrics | The Default (moving) background, `spicy/canvas/kawarp/` | MIT |
+| [cubic-spline](https://github.com/morganherlocker/cubic-spline), Copyright (c) 2014 Morgan Herlocker | Word-animation spline, `spicy/animation/CubicSplineInterpolator.kt` | MIT |
+| [spr](https://github.com/Fraktality/spr), Copyright (c) 2023 Fractality | Spring simulation, `spicy/animation/SpringSimulation.kt` | MIT |
+
+Not taken: the parts Spicy Lyrics Mobile credits to *mild-lyrics* (source fetching order, lyric blends,
+Genius romanization alignment), because that project publishes no licence. Their usage analytics were not
+taken either.
+
+The MIT licence text that applies to @kawarp/core, cubic-spline and spr:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+## Lyrics sources ported from Spicy Lyrics Mobile
+
+The fetch and parse code for these lyrics sources is ported from Spicy Lyrics Mobile
+(`core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/`), AGPL-3.0. It lives in
+`data/api/UnisonLyrics.kt`, `LrcMuxLyrics.kt`, `QqKuwoLyrics.kt`, `RmmRevivalLyrics.kt` and the marked blocks of
+`LyricsApi.kt`. The LRCMux source is Spicy Lyrics Mobile's MIT-licensed port of Lyrica's lrcmux adapter.
+
+| Source | Default | What Astral sends it |
+| --- | --- | --- |
+| [Unison](https://unison.boidu.dev) | on | the song's title and artist |
+| [LRCMux](https://lrcmux.dev) | on | title, artist and length |
+| QQ Music (`y.qq.com`) | off; asks first | title and artist |
+| Kuwo (`kuwo.cn`) | off; asks first | title and artist |
+| [RMM Revival](https://lyrics.rmmreviv.al) | off; asks first | title and artist to Apple's iTunes search, then the Apple Music ID |
+
+YouTube transcripts were left out on purpose, because they need YouTube's private app API. Each service's
+own terms apply to the lyrics it returns.
 
 ---
 

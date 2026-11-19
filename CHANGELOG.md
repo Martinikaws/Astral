@@ -1,5 +1,26 @@
 # Astral — Release Log
 
+## v1.0.3 — First Signed Stable Release, Spicy Lyrics Renderer & Backgrounds, More Lyrics Sources (2026-11-19)
+
+> **Reinstall once.** Every earlier stable release (v1.0.0–v1.0.2) shipped a debug build ("Astral dev", `app.astral.dev`) that never checks for updates. v1.0.3 is the first signed release (`app.astral`). Install it once from this page, and from then on Astral updates itself in the app. The old "Astral dev" app can be uninstalled afterwards. Its settings and downloads don't carry over.
+
+### Everything from v1.2.1-beta.1
+- Starry Night as its own Look, a distinct visual identity for each of the 6 Looks across the whole app, the full-bleed faded player cover, the colour glow around playlist and album covers, and the full-screen Spotify Canvas background with blur.
+
+### Spicy Lyrics renderer & background presets
+- Lyrics are drawn with a port of the **Spicy Lyrics Mobile** renderer (word and syllable animation, bloom, spring scrolling) in both the Interactive lyrics panel and the classic lyrics screen.
+- **7 background presets** in the lyrics view: Default (moving warp), Legacy, Auto, Artist Header, Cover Art, Color and Custom Color, with blur, a still option and an optional beat-reactive option (it fetches the song's beat data once). Pick them with the new palette button. A switch brings back the old lyrics view.
+
+### More lyrics sources
+- **On by default:** Unison and LRCMux.
+- **Opt-in** (they ask first and say what is sent): QQ Music, Kuwo and RMM Revival.
+- Switching a source on or off no longer clears saved lyrics.
+
+### Licences
+- Spicy Lyrics Mobile (AGPL-3.0) and the projects it builds on are credited in `THIRD_PARTY_NOTICES.md` Part 5, and the AGPL-3.0 text ships in `base/licenses/`.
+
+---
+
 ## v1.2.1-beta.1 — Signed Beta Release, Starry Night Look, Full-Bleed Player & Canvas Backdrop (2026-11-18)
 
 ### Signed Beta Release & Auto-Updater (`app.astral.beta`)

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="spicy_bg_button">Lyrics background</string>
+    <string name="spicy_bg_title">Lyrics background</string>
+    <string name="spicy_renderer">Spicy Lyrics renderer</string>
+    <string name="spicy_renderer_detail">Off: Astral\'s own lyrics and backdrop.</string>
+    <string name="spicy_preset">Preset</string>
+    <string name="spicy_blur">Blur  %1$d%2$s</string>
+    <string name="spicy_color">Color</string>
+    <string name="spicy_still">Still</string>
+    <string name="spicy_still_detail">Hold the background still.</string>
+    <string name="spicy_beat">Beat-reactive</string>
+    <string name="spicy_beat_detail">Moves with the beat; fetches the song\'s beat data once.</string>
+    <string name="spicy_lyrics_by">Lyrics by %1$s</string>
+</resources>
