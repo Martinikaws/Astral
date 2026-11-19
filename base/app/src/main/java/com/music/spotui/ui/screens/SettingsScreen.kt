@@ -533,6 +533,22 @@ fun SettingsScreen(navController: NavController) {
             if (tab == 5) {
             Section(R.string.settings_section_app)
             AboutRow()
+            var licensesOpen by remember { mutableStateOf(false) }
+            if (licensesOpen) com.music.spotui.ui.components.LicensesSheet(onDismiss = { licensesOpen = false })
+            Column(
+                Modifier.fillMaxWidth().clickable {
+                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/" + app.myspoti.engine.BuildConfig.UPDATE_REPO.ifBlank { "Martinikaws/Astral" })).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }.padding(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Text(stringResource(R.string.about_github), color = AppText, fontSize = 16.sp)
+                Text(stringResource(R.string.about_github_detail), color = AppMuted, fontSize = 12.sp)
+            }
+            Column(
+                Modifier.fillMaxWidth().clickable { licensesOpen = true }.padding(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Text(stringResource(R.string.licenses_title), color = AppText, fontSize = 16.sp)
+                Text(stringResource(R.string.licenses_detail), color = AppMuted, fontSize = 12.sp)
+            }
             // A18: the launch check can be turned off; the manual check below keeps working.
             OptionRow(
                 label = stringResource(R.string.settings_auto_update_title),

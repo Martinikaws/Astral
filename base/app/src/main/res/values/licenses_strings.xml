@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="licenses_title" tools:ignore="MissingTranslation">Open-source licences</string>
+    <string name="licenses_detail" tools:ignore="MissingTranslation">Astral\'s licence and the notices for the code and fonts it uses</string>
+    <string name="licenses_empty" tools:ignore="MissingTranslation">The licence texts are not included in this build. You can read them in the source repository on GitHub.</string>
+    <string name="licenses_load_failed" tools:ignore="MissingTranslation">This file could not be read.</string>
+    <string name="licenses_loading" tools:ignore="MissingTranslation">Loading…</string>
+    <string name="licenses_back" tools:ignore="MissingTranslation">Back</string>
+    <string name="licenses_open_github" tools:ignore="MissingTranslation">Open the repository on GitHub</string>
+    <string name="licenses_name_license" tools:ignore="MissingTranslation">Astral licence (GPL-3.0)</string>
+    <string name="licenses_name_third_party" tools:ignore="MissingTranslation">Third-party notices</string>
+    <string name="licenses_name_agpl" tools:ignore="MissingTranslation">GNU AGPL-3.0</string>
+    <string name="licenses_name_lgpl" tools:ignore="MissingTranslation">GNU LGPL-3.0</string>
+    <string name="licenses_name_apache" tools:ignore="MissingTranslation">Apache License 2.0</string>
+    <string name="licenses_name_inter" tools:ignore="MissingTranslation">Inter font (SIL OFL)</string>
+    <string name="licenses_name_manrope" tools:ignore="MissingTranslation">Manrope font (SIL OFL)</string>
+</resources>

@@ -14,3 +14,10 @@ keystore/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local agent / private files
+.claude/
+.env
+.env.*
+TASKS.md
+PROJECT_BRIEF.md

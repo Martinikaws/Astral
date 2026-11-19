@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in Astral does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For security problems do not use this form: see the security link on the issue chooser.
+  - type: input
+    id: version
+    attributes:
+      label: Astral version
+      description: Shown in Settings → About, for example 1.0.3.
+      placeholder: "1.0.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Stable or Beta
+      description: Stable is app.astral, Beta is app.astral.beta.
+      options:
+        - Stable
+        - Beta
+    validations:
+      required: true
+  - type: dropdown
+    id: look
+    attributes:
+      label: Look
+      description: Settings → Look.
+      options:
+        - Astral Basic
+        - Astral Interactive
+        - Spotifusion 1:1
+        - Glassify
+        - LiquidMusic
+        - Starry Night
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: "Pixel 8, Android 15"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, a screen recording, or the diagnostic report from Settings → App. Remove anything private first.

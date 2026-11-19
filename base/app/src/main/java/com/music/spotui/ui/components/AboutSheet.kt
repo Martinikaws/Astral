@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +56,8 @@ private fun openUrl(context: Context, url: String) {
 @Composable
 fun AboutSheet(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    var licenses by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (licenses) LicensesSheet(onDismiss = { licenses = false })
     com.music.spotui.extensions.ProtectedSurfaceEffect(app.myspoti.extensions.ProtectedSurface.ABOUT)
     // Opened in full: half open, it hid the support buttons at the bottom.
     LookSheet(
@@ -77,6 +81,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp))
             AboutRow(stringResource(R.string.about_discord), stringResource(R.string.about_discord_detail)) { openUrl(context, DISCORD_URL) }
             AboutRow(stringResource(R.string.about_github), stringResource(R.string.about_github_detail)) { openUrl(context, "https://github.com/$repo") }
+            AboutRow(stringResource(R.string.licenses_title), stringResource(R.string.licenses_detail)) { licenses = true }
             Text(stringResource(R.string.support_body), color = AppMuted, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp))
             Box(
