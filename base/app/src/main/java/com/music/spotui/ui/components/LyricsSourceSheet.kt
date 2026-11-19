@@ -12,9 +12,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.myspoti.engine.R
 import com.music.spotui.data.api.LyricsApi
+import com.music.spotui.data.preferences.LyricsSourcePref
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.theme.AppMuted
 import com.music.spotui.ui.theme.AppText
@@ -54,7 +58,16 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
     val state by vm.state.collectAsState()
     val trying by vm.trying.collectAsState()
     val current = (state as? LyricsViewModel.State.Loaded)?.lyrics?.let { LyricsApi.sourceOf(it) }
-    val sources = remember(track) { vm.sources(track) }
+    // Bumped when a source is switched on or off: the list is read again.
+    var changes by remember { mutableStateOf(0) }
+    val sources = remember(track, changes) { vm.sources(track) }
+    // The source whose one-time notice (who is asked, what is sent) is showing, before it is first switched on.
+    var notice by remember { mutableStateOf<LyricsApi.Source?>(null) }
+    fun switchSource(s: LyricsApi.Source) {
+        if (!s.enabled && s.id in LyricsSourcePref.OPT_IN && !LyricsSourcePref.noticeSeen(context, s.id)) { notice = s; return }
+        LyricsSourcePref.set(context, s.id, !s.enabled)
+        changes++
+    }
 
     // The answer to a try: new lyrics close the sheet, a provider with nothing says so.
     var asked by remember { mutableStateOf<String?>(null) }
@@ -80,7 +93,8 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                 val detail = listOfNotNull(
                     if (here) stringResource(R.string.lyrics_source_shown) else null,
                     if (s.words) stringResource(R.string.lyrics_source_words) else null,
-                    if (s.setAside != null) stringResource(R.string.lyrics_source_aside) else null,
+                    if (s.setAside != null && s.enabled) stringResource(R.string.lyrics_source_aside) else null,
+                    if (!s.enabled) "Off" else null,
                 ).joinToString(" · ")
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -88,8 +102,9 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                     modifier = Modifier
                         .fillMaxWidth()
                         // Set aside: dimmed, still tappable (asking by hand ignores the break).
-                        .alpha(if (s.setAside != null) 0.45f else 1f)
-                        .clickable(enabled = trying == null) { vm.loadFrom(track, s.id) }
+                        .alpha(if (s.setAside != null || !s.enabled) 0.45f else 1f)
+                        // A source that is off is switched on by a tap (after its notice), not asked.
+                        .clickable(enabled = trying == null) { if (s.enabled) vm.loadFrom(track, s.id) else switchSource(s) }
                         .padding(20.dp, 12.dp),
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -98,8 +113,39 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                     }
                     if (trying == s.id) CircularProgressIndicator(color = AppText, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                     else if (here) Icon(Icons.Default.Check, contentDescription = null, tint = AppText)
+                    if (s.toggle) Switch(checked = s.enabled, onCheckedChange = { switchSource(s) })
                 }
             }
         }
     }
+
+    notice?.let { s ->
+        AlertDialog(
+            onDismissRequest = { notice = null },
+            containerColor = tone(0xFF282828),
+            title = { Text(s.name, color = AppText) },
+            text = { Text(sourceNotice(s.id), color = AppText) },
+            confirmButton = {
+                TextButton(onClick = {
+                    LyricsSourcePref.markNoticeSeen(context, s.id)
+                    LyricsSourcePref.set(context, s.id, true)
+                    changes++
+                    notice = null
+                }) { Text("Turn on", color = AppText) }
+            },
+            dismissButton = { TextButton(onClick = { notice = null }) { Text("Not now", color = AppMuted) } },
+        )
+    }
+}
+
+/**
+ * The one-time notice of a source that is off until the user turns it on: who is asked and what is
+ * sent (the song's title and artist, and for some, its album or length). No account or device
+ * details go to any of them. Worded after Spicy Lyrics Mobile's privacy notes; brand names, in English.
+ */
+private fun sourceNotice(id: String): String = when (id) {
+    "qq" -> "Astral will ask QQ Music (Tencent) for this song's lyrics. It sends the song's title and artist. No account or device details are sent."
+    "kuwo" -> "Astral will ask Kuwo for this song's lyrics. It sends the song's title and artist. No account or device details are sent."
+    "rmm" -> "Astral will ask Apple's iTunes search for this song's Apple Music ID, sending its title and artist, then ask RMM Revival (lyrics.rmmreviv.al) for its lyrics with that ID. No account or device details are sent."
+    else -> "Astral will ask this source for the song's lyrics, sending its title and artist."
 }
