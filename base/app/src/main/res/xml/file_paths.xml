@@ -2,6 +2,8 @@
 <paths>
     <!-- Share-as-image cards (ShareCard.kt). -->
     <cache-path name="shared" path="shared/" />
-    <!-- Diagnostic reports (Logbook.export writes to getExternalFilesDir). -->
+    <!-- Diagnostic reports (Logbook.export writes diagnostic-*.txt straight into getExternalFilesDir, so the
+         root is the narrowest path that serves them; the updater uses PackageInstaller, no FileProvider.
+         Moving the reports into a subfolder (host-android) would let this be narrowed.) -->
     <external-files-path name="diagnostics" path="." />
 </paths>

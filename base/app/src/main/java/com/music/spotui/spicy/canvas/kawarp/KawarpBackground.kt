@@ -34,8 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
-import android.util.Log
-import java.util.Locale
 import kotlin.math.exp
 import android.graphics.ColorSpace
 import android.util.Half
@@ -336,16 +334,12 @@ fun KawarpBackground(
             stillChanges++
         }
         val frames = videoFrames ?: return@LaunchedEffect
-        val stats: VideoFrameStats? = null
         frames.collect { frame ->
-            val blurStart = System.nanoTime()
             val pixels = withContext(Dispatchers.Default) {
                 KawarpBlurCore.processFast(argbToFloatsUpsideDown(frame.pixels, frame.width, frame.height), frame.width, frame.height, blurPasses)
             }
-            val blurNanos = System.nanoTime() - blurStart
             // What's on screen now becomes the picture the new frame eases in from.
             val shown = shownBlend(System.currentTimeMillis())
-            val packStart = System.nanoTime()
             val (from, fromAlbum, toAlbum) = withContext(Dispatchers.Default) {
                 val mixed = albumPixels.shown(shown)
                 Triple(
@@ -354,13 +348,11 @@ fun KawarpBackground(
                     floatsToF16Bitmap(pixels, KawarpBlurCore.BLUR_SIZE),
                 )
             }
-            val mainStart = System.nanoTime()
             currentAlbum = fromAlbum
             nextAlbum = toAlbum
             albumPixels.current = from
             albumPixels.next = pixels
             videoSince = System.currentTimeMillis()
-            stats?.add(frame.copyNanos, blurNanos, mainStart - packStart, System.nanoTime() - mainStart)
         }
     }
 
@@ -489,41 +481,6 @@ private fun argbToFloatsUpsideDown(ints: IntArray, width: Int, height: Int): Flo
     }
     return out
 }
-
-/**
- * Debug builds: what following a video costs, averaged and logged every [VIDEO_LOG_EVERY] frames
- * under [VIDEO_LOG_TAG] (`adb logcat -s KawarpVideo`). Copy runs on the video's own GL thread, blur
- * and pack on a background thread; main is all the main thread spends on a frame. Uploading the two
- * textures happens on the render thread and isn't counted.
- */
-private class VideoFrameStats {
-    private var frames = 0
-    private var copy = 0L
-    private var blur = 0L
-    private var pack = 0L
-    private var main = 0L
-    private var since = System.nanoTime()
-
-    fun add(copyNanos: Long, blurNanos: Long, packNanos: Long, mainNanos: Long) {
-        frames++
-        copy += copyNanos; blur += blurNanos; pack += packNanos; main += mainNanos
-        if (frames < VIDEO_LOG_EVERY) return
-        val now = System.nanoTime()
-        fun ms(total: Long) = total / 1e6 / frames
-        Log.d(
-            VIDEO_LOG_TAG,
-            String.format(
-                Locale.ROOT,
-                "%.1f frames/s | per frame: copy %.2f ms (GL thread), blur %.2f ms + pack %.2f ms (background), main %.3f ms",
-                frames * 1e9 / (now - since), ms(copy), ms(blur), ms(pack), ms(main),
-            ),
-        )
-        frames = 0; copy = 0; blur = 0; pack = 0; main = 0; since = now
-    }
-}
-
-private const val VIDEO_LOG_TAG = "KawarpVideo"
-private const val VIDEO_LOG_EVERY = 60
 
 /** An unsized WebGL canvas's default 300x150 backbuffer. */
 internal const val CANVAS_WIDTH = 300

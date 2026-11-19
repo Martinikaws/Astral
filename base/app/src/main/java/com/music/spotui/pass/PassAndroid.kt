@@ -33,7 +33,9 @@ object PassAndroid {
         "extension_answers", "extension_isrcs", "catalog_scripts", "myspoti_last_track", "support_reminder",
         "new_releases", "RecentItems",
     )
-    private val NOT_SENT_PARTS = listOf("token", "device", "fingerprint", "profileinstaller", "android.app.", "cli", "pass")
+    private val NOT_SENT_PARTS = listOf("token", "device", "fingerprint", "profileinstaller", "android.app.", "cli", "pass",
+        // SpotiflacSession_*: session_secret and install_id belong to this install, never passed on.
+        "spotiflac")
 
     private fun prefsDir(c: Context) = File(c.applicationInfo.dataDir, "shared_prefs")
     private fun extensionsDir(c: Context) = File(c.filesDir, "extensions")
@@ -42,7 +44,7 @@ object PassAndroid {
     private val OWN_KEYS = mapOf("myspoti_prefs" to setOf("SetupDone"))
     private fun sentKey(file: String, key: String) = key !in OWN_KEYS[file].orEmpty()
 
-    private fun sent(name: String) = name !in NOT_SENT && NOT_SENT_PARTS.none { name.contains(it, ignoreCase = true) }
+    internal fun sent(name: String) = name !in NOT_SENT && NOT_SENT_PARTS.none { name.contains(it, ignoreCase = true) }
 
     /** Everything this app passes, read now. Off the main thread (the cookies are read on it). */
     suspend fun collect(c: Context): PassPayload {

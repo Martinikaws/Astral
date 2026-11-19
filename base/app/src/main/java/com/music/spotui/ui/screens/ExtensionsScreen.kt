@@ -613,7 +613,7 @@ internal fun rememberThemePicker(): () -> Unit {
                     Extensions.install(zip, pkg, setOf(Action.UI_STYLE.key), "file")
                     pkg
                 }.onSuccess { pkg ->
-                    Toast.makeText(ctx, "Theme \"${pkg.manifest.name}\" applied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, ctx.getString(R.string.theme_applied, pkg.manifest.name), Toast.LENGTH_SHORT).show()
                 }.onFailure { toastError(ctx, it) }
             }
         }
@@ -692,9 +692,9 @@ private fun ThemesTabContent(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("Create or port themes", color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.theme_create_title), color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "You can create custom themes or port Spicetify themes and extensions using FEED-EXTENSIONS.md with your own AI, then import the .json or .zip here.",
+                stringResource(R.string.theme_create_hint),
                 color = AppMuted,
                 fontSize = 12.sp,
             )
@@ -703,7 +703,7 @@ private fun ThemesTabContent(
 
     if (themes.isEmpty()) {
         Text(
-            "No custom themes installed yet. Import a .json theme or .zip package above.",
+            stringResource(R.string.themes_empty),
             color = AppMuted,
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),

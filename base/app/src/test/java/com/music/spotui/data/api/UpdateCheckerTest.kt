@@ -38,33 +38,54 @@ class UpdateCheckerTest {
     }
     @Test fun findsThisAppsApkForThisChannelAndAbi() {
         val r = org.json.JSONObject("""{"tag_name":"v2.5.0","assets":[
-            {"name":"Orpheon-2.5.0-TV.apk","browser_download_url":"https://x/tv.apk"},
-            {"name":"Orpheon-2.5.0-universal.apk","browser_download_url":"https://x/universal.apk"},
-            {"name":"Orpheon-2.5.0-ARMv7.apk","browser_download_url":"https://x/v7.apk"},
-            {"name":"Orpheon-2.5.0-ARMv8.apk","browser_download_url":"https://x/v8.apk"}]}""")
+            {"name":"Orpheon-2.5.0-TV.apk","browser_download_url":"https://github.com/x/tv.apk"},
+            {"name":"Orpheon-2.5.0-universal.apk","browser_download_url":"https://github.com/x/universal.apk"},
+            {"name":"Orpheon-2.5.0-ARMv7.apk","browser_download_url":"https://github.com/x/v7.apk"},
+            {"name":"Orpheon-2.5.0-ARMv8.apk","browser_download_url":"https://github.com/x/v8.apk"}]}""")
         // A 64-bit phone that also runs armeabi-v7a takes ARMv8, whatever the assets' order.
-        assertEquals("https://x/v8.apk", UpdateChecker.apkAsset(r, beta = false, abis = arm64, name = "Orpheon"))
-        assertEquals("https://x/v7.apk", UpdateChecker.apkAsset(r, beta = false, abis = listOf("armeabi-v7a", "armeabi"), name = "Orpheon"))
+        assertEquals("https://github.com/x/v8.apk", UpdateChecker.apkAsset(r, beta = false, abis = arm64, name = "Orpheon"))
+        assertEquals("https://github.com/x/v7.apk", UpdateChecker.apkAsset(r, beta = false, abis = listOf("armeabi-v7a", "armeabi"), name = "Orpheon"))
         // A stable release has no beta APK; an ABI the releases do not carry gets no link (the page opens).
         assertEquals("", UpdateChecker.apkAsset(r, beta = true, abis = arm64, name = "Orpheon"))
         assertEquals("", UpdateChecker.apkAsset(r, beta = false, abis = listOf("x86_64", "x86"), name = "Orpheon"))
         assertEquals("", UpdateChecker.apkAsset(r, beta = false, abis = emptyList(), name = "Orpheon"))
         assertEquals("", UpdateChecker.apkAsset(org.json.JSONObject("{}"), beta = false, abis = arm64, name = "Orpheon"))
         val b = org.json.JSONObject("""{"tag_name":"v2.5.0-beta.2","assets":[
-            {"name":"Orpheon-Beta-2.5.0-beta.2-ARMv8.apk","browser_download_url":"https://x/b8.apk"}]}""")
-        assertEquals("https://x/b8.apk", UpdateChecker.apkAsset(b, beta = true, abis = arm64, name = "Orpheon"))
+            {"name":"Orpheon-Beta-2.5.0-beta.2-ARMv8.apk","browser_download_url":"https://github.com/x/b8.apk"}]}""")
+        assertEquals("https://github.com/x/b8.apk", UpdateChecker.apkAsset(b, beta = true, abis = arm64, name = "Orpheon"))
         assertEquals("", UpdateChecker.apkAsset(b, beta = false, abis = arm64, name = "Orpheon"))
     }
     @Test fun anotherAppsApkIsNeverTaken() {
         // Myspoti's own releases (another package, Android cannot install it over this app), new
         // names or those of 2.3 and before: no link, so the release page opens.
         val myspoti = org.json.JSONObject("""{"tag_name":"v2.4.0","assets":[
-            {"name":"Myspoti-2.4.0-ARMv8.apk","browser_download_url":"https://x/m8.apk"},
-            {"name":"myspoti-stable-2.4.0-arm64-v8a.apk","browser_download_url":"https://x/legacy.apk"},
-            {"name":"myspoti-2.4.0.apk","browser_download_url":"https://x/single.apk"}]}""")
+            {"name":"Myspoti-2.4.0-ARMv8.apk","browser_download_url":"https://github.com/x/m8.apk"},
+            {"name":"myspoti-stable-2.4.0-arm64-v8a.apk","browser_download_url":"https://github.com/x/legacy.apk"},
+            {"name":"myspoti-2.4.0.apk","browser_download_url":"https://github.com/x/single.apk"}]}""")
         assertEquals("", UpdateChecker.apkAsset(myspoti, beta = false, abis = arm64, name = "Orpheon"))
         // And Myspoti's own build still finds its own.
-        assertEquals("https://x/m8.apk", UpdateChecker.apkAsset(myspoti, beta = false, abis = arm64, name = "Myspoti"))
+        assertEquals("https://github.com/x/m8.apk", UpdateChecker.apkAsset(myspoti, beta = false, abis = arm64, name = "Myspoti"))
+    }
+    @Test fun onlyGithubHostsOverHttpsAreDownloadLinks() {
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://github.com/Martinikaws/Astral/releases/download/v1/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://objects.githubusercontent.com/x/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://release-assets.githubusercontent.com/x/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("http://github.com/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("https://evil.example/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com.evil.example/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com@evil.example/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com:8443/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://github.com:443/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://GitHub.COM/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl(""))
+        val r = org.json.JSONObject("""{"tag_name":"v2.5.0","assets":[
+            {"name":"Orpheon-2.5.0-ARMv8.apk","browser_download_url":"https://evil.example/v8.apk"},
+            {"name":"Orpheon-2.5.0-universal.apk","browser_download_url":"https://github.com/x/universal.apk"}]}""")
+        // The untrusted ARMv8 link is no asset: the universal one is taken, and without it there is no link.
+        assertEquals("https://github.com/x/universal.apk", UpdateChecker.apkAsset(r, beta = false, abis = arm64, name = "Orpheon"))
+        val only = org.json.JSONObject("""{"tag_name":"v2.5.0","assets":[
+            {"name":"Orpheon-2.5.0-ARMv8.apk","browser_download_url":"https://evil.example/v8.apk"}]}""")
+        assertEquals("", UpdateChecker.apkAsset(only, beta = false, abis = arm64, name = "Orpheon"))
     }
     @Test fun onlyAVersionTagIsARelease() {
         assertTrue(UpdateChecker.isVersionTag("v2.4.0"))
@@ -77,8 +98,8 @@ class UpdateCheckerTest {
     /** Myspoti's releases share the repository: never this app's update, however high their number. */
     @Test fun onlyThisAppsReleasesAreOffered() {
         fun rel(tag: String, pre: Boolean, vararg apks: String) = org.json.JSONObject().put("tag_name", tag).put("prerelease", pre)
-            .put("html_url", "https://x/$tag").put("body", "")
-            .put("assets", org.json.JSONArray(apks.map { org.json.JSONObject().put("name", it).put("browser_download_url", "https://x/$it") }))
+            .put("html_url", "https://github.com/x/$tag").put("body", "")
+            .put("assets", org.json.JSONArray(apks.map { org.json.JSONObject().put("name", it).put("browser_download_url", "https://github.com/x/$it") }))
         val arm64 = listOf("arm64-v8a", "armeabi-v7a")
         val list = listOf(
             rel("v2.4.0", false, "Myspoti-2.4.0-ARMv8.apk"),

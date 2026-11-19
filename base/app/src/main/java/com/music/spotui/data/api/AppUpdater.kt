@@ -70,7 +70,9 @@ object AppUpdater {
         val result = runCatching {
             download(release, apk)
             val archivePkg = appContext.packageManager.getPackageArchiveInfo(apk.path, 0)?.packageName
-            if (archivePkg != null && archivePkg != appContext.packageName) {
+            if (archivePkg == null) {
+                _state.value = State.Failed(appContext.getString(app.myspoti.engine.R.string.sys_update_unreadable))
+            } else if (archivePkg != appContext.packageName) {
                 _state.value = State.Failed(appContext.getString(app.myspoti.engine.R.string.sys_update_conflict), onlyByHand = true)
             } else {
                 install(appContext, apk)
