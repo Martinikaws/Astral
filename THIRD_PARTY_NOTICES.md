@@ -413,7 +413,23 @@ The MIT licence text that applies to @kawarp/core, cubic-spline and spr:
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
 
-<!-- SOURCES-PLACEHOLDER -->
+## Lyrics sources ported from Spicy Lyrics Mobile
+
+The fetch and parse code for these lyrics sources is ported from Spicy Lyrics Mobile
+(`core/src/main/kotlin/com/tx24/spicyplayer/network/data/providers/`), AGPL-3.0. It lives in
+`data/api/UnisonLyrics.kt`, `LrcMuxLyrics.kt`, `QqKuwoLyrics.kt`, `RmmRevivalLyrics.kt` and the marked blocks of
+`LyricsApi.kt`. The LRCMux source is Spicy Lyrics Mobile's MIT-licensed port of Lyrica's lrcmux adapter.
+
+| Source | Default | What Astral sends it |
+| --- | --- | --- |
+| [Unison](https://unison.boidu.dev) | on | the song's title and artist |
+| [LRCMux](https://lrcmux.dev) | on | title, artist and length |
+| QQ Music (`y.qq.com`) | off; asks first | title and artist |
+| Kuwo (`kuwo.cn`) | off; asks first | title and artist |
+| [RMM Revival](https://lyrics.rmmreviv.al) | off; asks first | title and artist to Apple's iTunes search, then the Apple Music ID |
+
+YouTube transcripts were left out on purpose, because they need YouTube's private app API. Each service's
+own terms apply to the lyrics it returns.
 
 ---
 
