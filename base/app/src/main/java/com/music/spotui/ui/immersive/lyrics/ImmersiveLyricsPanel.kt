@@ -217,13 +217,40 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
     var spicySheet by remember { mutableStateOf(false) }
     if (spicySheet) SpicyBackgroundSheet { spicySheet = false }
     Box(modifier) {
-    if (useSpicy) SpicyBackgroundLayer(
+    // Hosted by the player: the background is drawn by it, full screen, from the request published here.
+    val backdropSlot = com.music.spotui.spicy.LocalSpicyBackdropSlot.current
+    val reduceMotionNow = rememberReduceMotion()
+    val playingNow = Graph.currentSongState.playingState.value
+    if (backdropSlot != null) {
+        val mine = remember { arrayOfNulls<com.music.spotui.spicy.SpicyBackdropRequest>(1) }
+        if (useSpicy) androidx.compose.runtime.SideEffect {
+            val r = com.music.spotui.spicy.SpicyBackdropRequest(
+                coverUri = song.coverUri.value,
+                artist = artist,
+                playing = playingNow,
+                positionMs = { lyricsPosition() },
+                settings = spicy,
+                reduceMotion = reduceMotionNow,
+            )
+            mine[0] = r
+            backdropSlot.request = r
+        }
+        androidx.compose.runtime.SideEffect {
+            if (!useSpicy && mine[0] != null) {
+                if (backdropSlot.request === mine[0]) backdropSlot.request = null
+                mine[0] = null
+            }
+        }
+        DisposableEffect(backdropSlot) {
+            onDispose { if (backdropSlot.request === mine[0]) backdropSlot.request = null }
+        }
+    } else if (useSpicy) SpicyBackgroundLayer(
         coverUri = song.coverUri.value,
         artist = artist,
-        playing = Graph.currentSongState.playingState.value,
+        playing = playingNow,
         positionMs = { lyricsPosition() },
         settings = spicy,
-        reduceMotion = rememberReduceMotion(),
+        reduceMotion = reduceMotionNow,
     )
     when (val current = state) {
         is LyricsViewModel.State.Loading -> LyricsSkeleton(
