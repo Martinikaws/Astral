@@ -62,6 +62,8 @@ object LyricsApi {
     )
     private val inFlight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Lyrics?>>()
     private val health = LyricsHealth()
+    /** How many requests [httpFetch] went on to make (not the ones set aside first): tests check a source that is off makes none. */
+    internal val requestsAttempted = java.util.concurrent.atomic.AtomicLong()
     // Set while one provider is asked by hand ([fetchFrom]): it is asked even when set aside.
     private val bypass = ThreadLocal<Boolean>()
     private val scope =
@@ -1191,7 +1193,7 @@ object LyricsApi {
         val root = runCatching { JSONObject(body) }.getOrNull() ?: return null
         // The answer must say it is this song (title, artist, length): a wrong one must not replace Spotify's lines.
         LrcMuxLyrics.answerTrack(root)?.let { t ->
-            if (t.title.isBlank() || t.artist.isBlank() || !sameSong(t.title, t.artist, t.durationMs, title, artist, durationMs)) return null
+            if (!LrcMuxLyrics.sameTrack(t, title, artist, durationMs, ::sameSong)) return null
         }
         if (LrcMuxLyrics.otherVersion(root, "$asked $album")) return null
         return LrcMuxLyrics.parse(root)
@@ -1320,6 +1322,7 @@ object LyricsApi {
             health.skipped()
             return null
         }
+        requestsAttempted.incrementAndGet()
         return runCatching {
             com.music.spotui.data.DataSaver.check()
             val conn = (URL(spec).openConnection() as HttpURLConnection).apply {

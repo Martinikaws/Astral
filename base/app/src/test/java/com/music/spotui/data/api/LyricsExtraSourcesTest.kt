@@ -145,9 +145,51 @@ class LyricsExtraSourcesTest {
         assertEquals("Dynamite", t.title)
         assertEquals("BTS", t.artist)
         assertEquals(199_400L, t.durationMs)
-        assertEquals(199_000L, LrcMuxLyrics.answerTrack(JSONObject("""{"track":{"title":"D","artists":["BTS"],"duration":199000}}"""))!!.durationMs)
-        assertEquals("BTS, V", LrcMuxLyrics.answerTrack(JSONObject("""{"track":{"title":"D","artists":["BTS","V"]}}"""))!!.artist)
+        val bare = LrcMuxLyrics.answerTrack(JSONObject("""{"track":{"title":"D"}}"""))!!
+        assertEquals("", bare.artist)
+        assertEquals(0L, bare.durationMs)
         assertNull(LrcMuxLyrics.answerTrack(JSONObject("{}")))
+    }
+
+    // A real answer of api.lrcmux.dev (Blinding Lights / The Weeknd, level=word), cut to three lines.
+    private val lrcMuxReal = """{"track":{"cover":{"small":"https://cdn-images.dzcdn.net/images/cover/fd00ebd6d30d7253f813dba3bb1c66a9/56x56-000000-80-0-0.jpg"},"isrc":"USUG11904206","title":"Blinding Lights","artist":"The Weeknd","album":"After Hours","duration":200},
+        "meta":{"source":{"id":"deezer","name":"Deezer","url":"https://www.deezer.com"},"level":"word"},
+        "lines":[{"text":"Yeah","start":13747,"end":13922,"words":[{"text":"Yeah","start":13747,"end":13922}]},
+        {"text":"I've been tryna call","start":27462,"end":28375,"words":[{"text":"I've ","start":27462,"end":27562},{"text":"been ","start":27587,"end":27675},{"text":"tryna ","start":27750,"end":28012},{"text":"call","start":28100,"end":28375}]},
+        {"text":"I've been on my own for long enough","start":30250,"end":32212,"words":[{"text":"I've ","start":30250,"end":30362},{"text":"been ","start":30400,"end":30525},{"text":"on ","start":30612,"end":30675},{"text":"my ","start":30737,"end":30825},{"text":"own ","start":30987,"end":31100},{"text":"for ","start":31262,"end":31362},{"text":"long ","start":31487,"end":31737},{"text":"enough","start":31862,"end":32212}]}]}"""
+
+    @Test fun lrcMuxRealAnswerParsesAndItsTrackIsTheSong() {
+        val root = JSONObject(lrcMuxReal)
+        val l = LrcMuxLyrics.parse(root)!!
+        assertTrue(l.wordSynced)
+        assertEquals("LRCMux · Deezer", l.provider)
+        assertEquals(listOf(13_747L, 27_462L, 30_250L), l.lines.map { it.timeMs })
+        assertEquals("I've been tryna call", l.lines[1].text)
+        assertEquals(listOf("I've ", "been ", "tryna ", "call"), l.lines[1].words!!.map { it.text })
+        val t = LrcMuxLyrics.answerTrack(root)!!
+        assertEquals(LrcMuxTrack("Blinding Lights", "The Weeknd", 200_000L), LrcMuxTrack(t.title, t.artist, t.durationMs))
+        assertTrue(sameTrack(t, "Blinding Lights", "The Weeknd", 200_000))
+        assertFalse(LrcMuxLyrics.otherVersion(root, "Blinding Lights After Hours"))
+    }
+
+    private data class LrcMuxTrack(val title: String, val artist: String, val durationMs: Long)
+
+    private fun sameTrack(t: LrcMuxLyrics.AnswerTrack, title: String, artist: String, durationMs: Long) =
+        LrcMuxLyrics.sameTrack(t, title, artist, durationMs, LyricsApi::sameSong)
+
+    @Test fun lrcMuxTrackIsCheckedFieldByFieldAndOnlyOnWhatItGives() {
+        val full = LrcMuxLyrics.AnswerTrack("Blinding Lights", "The Weeknd", 200_000)
+        assertTrue(sameTrack(full, "Blinding Lights", "The Weeknd", 201_000))
+        assertFalse(sameTrack(full, "Save Your Tears", "The Weeknd", 200_000))
+        assertFalse(sameTrack(full, "Blinding Lights", "Dua Lipa", 200_000))
+        assertFalse(sameTrack(full, "Blinding Lights", "The Weeknd", 230_000))
+        // A field the answer does not give is not checked; one it gives that differs still refuses it.
+        assertTrue(sameTrack(LrcMuxLyrics.AnswerTrack("Blinding Lights", "", 0), "Blinding Lights", "The Weeknd", 200_000))
+        assertFalse(sameTrack(LrcMuxLyrics.AnswerTrack("Other Song", "", 0), "Blinding Lights", "The Weeknd", 200_000))
+        assertTrue(sameTrack(LrcMuxLyrics.AnswerTrack("", "The Weeknd", 200_000), "Blinding Lights", "The Weeknd", 200_000))
+        assertFalse(sameTrack(LrcMuxLyrics.AnswerTrack("", "Dua Lipa", 200_000), "Blinding Lights", "The Weeknd", 200_000))
+        assertFalse(sameTrack(LrcMuxLyrics.AnswerTrack("", "", 260_000), "Blinding Lights", "The Weeknd", 200_000))
+        assertTrue(sameTrack(LrcMuxLyrics.AnswerTrack("", "", 0), "Blinding Lights", "The Weeknd", 200_000))
     }
 
     @Test fun lrcMuxUrlAsksForWords() {
@@ -336,19 +378,19 @@ class LyricsExtraSourcesTest {
         } finally { cache.remove("t-found"); cache.remove("t-miss") }
     }
 
-    private fun lostCount(): Long {
-        val health = LyricsApi::class.java.getDeclaredField("health").apply { isAccessible = true }.get(null) as LyricsHealth
-        return health.lostCount()
-    }
-
     @Test fun aSourceThatIsOffIsNotAskedByHandEither() {
         val track = LyricsApi.Track("", "Song", "Artist", "Album", 200_000)
-        val before = lostCount()
+        val before = LyricsApi.requestsAttempted.get()
         for (id in listOf("qq", "kuwo", "rmm")) {
             assertNull(id, kotlinx.coroutines.runBlocking { LyricsApi.fetchFrom(track, id) })
         }
-        // A request made (and failed, offline) would have counted as lost.
-        assertEquals(before, lostCount())
+        assertEquals("a source that is off made a request", before, LyricsApi.requestsAttempted.get())
+    }
+
+    @Test fun theRequestCounterCountsARealRequest() {
+        val before = LyricsApi.requestsAttempted.get()
+        withServer({ ex -> reply(ex, 200, "x") }) { base -> assertEquals("x", httpGet("$base/x")) }
+        assertEquals(before + 1, LyricsApi.requestsAttempted.get())
     }
 
     // ── HTTP ──
@@ -357,7 +399,9 @@ class LyricsExtraSourcesTest {
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0)
         server.createContext("/") { ex -> handler(ex); ex.close() }
         server.start()
-        try { block("http://127.0.0.1:${server.address.port}") } finally { server.stop(0) }
+        // The address the server is really bound to, in brackets when it is IPv6.
+        val host = server.address.address.hostAddress.substringBefore('%').let { if (':' in it) "[$it]" else it }
+        try { block("http://$host:${server.address.port}") } finally { server.stop(0) }
     }
 
     private fun reply(ex: com.sun.net.httpserver.HttpExchange, code: Int, body: String) {

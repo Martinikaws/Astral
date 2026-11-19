@@ -36,15 +36,26 @@ internal object LrcMuxLyrics {
     /** The track an answer says it is for: title, artists and length in ms (0: unknown). */
     class AnswerTrack(val title: String, val artist: String, val durationMs: Long)
 
-    /** The answer's `track`, or null without one. */
+    /**
+     * The answer's `track` (its real fields: `title`, `artist`, `album`, `duration` in seconds, `isrc`,
+     * `cover`), or null without one. A field it does not have is blank, or 0 for the length.
+     */
     fun answerTrack(root: JSONObject): AnswerTrack? {
         val t = root.optJSONObject("track") ?: return null
-        val artists = t.optJSONArray("artists")?.let { a -> (0 until a.length()).map { a.opt(it)?.toString().orEmpty() } }?.joinToString(", ")
-        val seconds = t.optDouble("duration", 0.0)
-        // Seconds, or milliseconds when it cannot be a song's length in seconds.
-        val ms = if (seconds > 10_000) seconds.toLong() else (seconds * 1000).toLong()
-        return AnswerTrack(t.optString("title"), t.optString("artist").ifBlank { artists.orEmpty() }, ms)
+        return AnswerTrack(t.optString("title"), t.optString("artist"), (t.optDouble("duration", 0.0) * 1000).toLong())
     }
+
+    /**
+     * Whether the answer's [track] is the song asked for ([same]: Astral's own comparison of title,
+     * artist and length). Each of the three is checked on its own: one the answer does not give is not
+     * checked, one it gives and that differs refuses the answer.
+     */
+    fun sameTrack(
+        track: AnswerTrack, title: String, artist: String, durationMs: Long,
+        same: (candTitle: String, candArtist: String, candDurationMs: Long, title: String, artist: String, durationMs: Long) -> Boolean,
+    ): Boolean = same(
+        track.title.ifBlank { title }, track.artist.ifBlank { artist }, track.durationMs, title, artist, durationMs,
+    )
 
     /** The lyrics in an answer: word-timed when its lines carry words, else line-synced, else plain. Null when empty. */
     fun parse(root: JSONObject): Lyrics? {
