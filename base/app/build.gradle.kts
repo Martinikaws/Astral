@@ -78,8 +78,11 @@ android {
     // with the debug key: without the release key the build stops. Plain local builds (no version) and
     // -PoverDev (the optimised build under the dev app's id) still fall back to the debug key.
     val explicitVersion = findProperty("appVersionName") != null && findProperty("overDev") == null
-    if (explicitVersion && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
-        throw GradleException("Refusing to build a release with -PappVersionName=$version without the release key (it would be signed with the debug key): set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
+    if (explicitVersion && !hasReleaseKey) gradle.taskGraph.whenReady {
+        // Whatever the entry point (assemble, build, aR, bundle...), what is scheduled decides.
+        if (allTasks.any { it.path == ":app:packageRelease" || it.path == ":app:packageReleaseBundle" })
+            throw GradleException("Refusing to build a release with -PappVersionName=$version without the release key (it would be signed with the debug key): set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
+    }
     signingConfigs {
         create("release") {
             if (envStore != null) {
@@ -161,13 +164,14 @@ abstract class CopyLicensesTask : DefaultTask() {
         lgpl.get().asFile.copyTo(out.resolve("LGPL-3.0.txt"))
     }
 }
-val copyLicenses = tasks.register<CopyLicensesTask>("copyLicenses") {
-    val root = rootProject.projectDir.parentFile
-    repoRoot.set(root); licensesDir.set(rootProject.file("licenses"))
-    lgpl.set(rootProject.file("catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt"))
-    sources.from(File(root, "LICENSE"), File(root, "THIRD_PARTY_NOTICES.md"), rootProject.fileTree("licenses"), lgpl)
-}
 androidComponents.onVariants { variant ->
+    // One task (and output dir) per variant: a shared one would be overwritten by the next variant.
+    val copyLicenses = tasks.register<CopyLicensesTask>("copy${variant.name.replaceFirstChar { it.uppercase() }}Licenses") {
+        val root = rootProject.projectDir.parentFile
+        repoRoot.set(root); licensesDir.set(rootProject.file("licenses"))
+        lgpl.set(rootProject.file("catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt"))
+        sources.from(File(root, "LICENSE"), File(root, "THIRD_PARTY_NOTICES.md"), rootProject.fileTree("licenses"), lgpl)
+    }
     variant.sources.assets?.addGeneratedSourceDirectory(copyLicenses, CopyLicensesTask::outputDir)
 }
 

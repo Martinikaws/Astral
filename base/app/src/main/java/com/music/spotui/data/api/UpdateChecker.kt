@@ -163,7 +163,7 @@ object UpdateChecker {
     /** Only GitHub's own hosts over https: the APK is installed over the app, so no other server is followed. */
     internal fun isTrustedDownloadUrl(url: String): Boolean {
         val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
-        return uri.scheme == "https" && uri.userInfo == null && uri.host?.lowercase() in TRUSTED_DOWNLOAD_HOSTS
+        return uri.scheme == "https" && uri.userInfo == null && (uri.port == -1 || uri.port == 443) && uri.host?.lowercase() in TRUSTED_DOWNLOAD_HOSTS
     }
 
     /** This phone's ABIs, most preferred first. */

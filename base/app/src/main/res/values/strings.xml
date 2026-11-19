@@ -40,4 +40,5 @@
     <string name="themes_empty" tools:ignore="MissingTranslation">No custom themes installed yet. Import a .json theme or .zip package above.</string>
     <string name="spotiflac_session_active" tools:ignore="MissingTranslation">Session active — tap to view or reset</string>
     <string name="spotiflac_verification_needed" tools:ignore="MissingTranslation">Verification needed — tap to verify</string>
+    <string name="sys_update_unreadable" tools:ignore="MissingTranslation">The downloaded update is not a readable APK, so nothing was installed.</string>
 </resources>

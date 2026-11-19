@@ -74,6 +74,9 @@ class UpdateCheckerTest {
         assertFalse(UpdateChecker.isTrustedDownloadUrl("https://evil.example/a.apk"))
         assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com.evil.example/a.apk"))
         assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com@evil.example/a.apk"))
+        assertFalse(UpdateChecker.isTrustedDownloadUrl("https://github.com:8443/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://github.com:443/a.apk"))
+        assertTrue(UpdateChecker.isTrustedDownloadUrl("https://GitHub.COM/a.apk"))
         assertFalse(UpdateChecker.isTrustedDownloadUrl(""))
         val r = org.json.JSONObject("""{"tag_name":"v2.5.0","assets":[
             {"name":"Orpheon-2.5.0-ARMv8.apk","browser_download_url":"https://evil.example/v8.apk"},
