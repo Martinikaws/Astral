@@ -270,7 +270,7 @@ https://github.com/google/material-design-icons, Copyright Google LLC. Apache Li
 Astral's Starry Night backdrop, its Glassify and LiquidMusic looks, its Spicy Lyrics-style display, its
 SpicyThemes-style colour presets and its BackMusic and Visualizer modules are Astral's own Kotlin / Jetpack
 Compose implementations. They are written from scratch after the look and behaviour of the projects below.
-No source code, stylesheet, image or other asset from these projects is included. Colour values and preset
+No source code, stylesheet, image or other asset from these projects is included, with one exception: Astral's Spicy Lyrics renderer and lyrics backgrounds are ported from Spicy Lyrics Mobile, AGPL-3.0 (see Part 5). Colour values and preset
 names are Astral's own. The Starry Night look follows an MIT-licensed theme, whose notice is quoted below.
 The projects are named to credit the inspiration; naming them does not imply endorsement, and their licences
 do not apply to Astral's code.
