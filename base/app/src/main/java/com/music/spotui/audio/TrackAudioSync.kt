@@ -537,6 +537,49 @@ object TrackAudioSync {
         )
     }
 
+    /**
+     * Asks, once, for Spotify's analysis of the playing track when it is not cached, by the same
+     * fetch (and retry and cache) [sample] uses; [peekMotion] then finds it. For a screen that
+     * follows the beat only when the user switched that on: it never runs otherwise. It does not
+     * touch the sampler's smoothing or beat state. Call it once per track, not per frame.
+     */
+    fun requestAnalysis() {
+        if (SongPlayer.adPlaying || SongPlayer.isEpisode) return
+        val id = extractSpotifyTrackId(SongPlayer.nowPlaying.value.uri, "") ?: return
+        if (synchronized(spotifyCache) { spotifyCache.containsKey(id) }) return
+        ensureReadyObserver()
+        maybeFetchSpotifyAnalysis(id, SystemClock.elapsedRealtime())
+    }
+
+    /** Loudness and beat pulse of the playing track at one position; see [peekMotion]. */
+    class MotionPeek(val energy: Float, val beatPulse: Float)
+
+    /**
+     * The playing track's loudness (0..1) and beat pulse (0..1) at [positionMs], read only from the
+     * analysis already held (Spotify's, cached by an earlier [sample], or AutoMix's local model); null
+     * when there is none. Unlike [sample] it fetches nothing, starts no observer and leaves the shared
+     * smoothing and beat state alone, so another screen's [sample] is not disturbed.
+     */
+    fun peekMotion(positionMs: Long): MotionPeek? {
+        if (SongPlayer.adPlaying || SongPlayer.isEpisode) return null
+        val id = extractSpotifyTrackId(SongPlayer.nowPlaying.value.uri, "")
+        // The local model is only the playing one's while the local player is what plays and holds that
+        // very file: [activeLocalModel] is cleared by [sample], which may not be running.
+        val localUri = if (LocalPlayer.active.value && !SongPlayer.routing) LocalPlayer.current()?.uri?.toString() else null
+        val model: TrackModel = activeLocalModel?.takeIf { localUri != null && it.sourceUri == localUri && it.sourceUri == currentLocalUri }
+            ?: id?.let { synchronized(spotifyCache) { spotifyCache[it] } }
+            ?: return null
+        val posSec = positionMs.coerceAtLeast(0L) / 1000.0
+        val energy = when (model) {
+            is SpotifyModel -> model.curve.movingAverage(posSec)
+            is AutoMixModel -> model.curve.movingAverage(posSec)
+        }
+        val beats = model.beats
+        val idx = findFloorIndex(beats, posSec)
+        val pulse = if (idx < 0) 0f else exp(-(posSec - beats[idx]).coerceAtLeast(0.0) / 0.15).toFloat()
+        return MotionPeek(energy.coerceIn(0f, 1f), pulse.coerceIn(0f, 1f))
+    }
+
     private fun resetForTrack(newKey: String) {
         activeTrackKey = newKey
         activeLocalModel = null
