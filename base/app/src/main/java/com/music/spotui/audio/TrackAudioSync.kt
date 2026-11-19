@@ -537,6 +537,32 @@ object TrackAudioSync {
         )
     }
 
+    /** Loudness and beat pulse of the playing track at one position; see [peekMotion]. */
+    class MotionPeek(val energy: Float, val beatPulse: Float)
+
+    /**
+     * The playing track's loudness (0..1) and beat pulse (0..1) at [positionMs], read only from the
+     * analysis already held (Spotify's, cached by an earlier [sample], or AutoMix's local model); null
+     * when there is none. Unlike [sample] it fetches nothing, starts no observer and leaves the shared
+     * smoothing and beat state alone, so another screen's [sample] is not disturbed.
+     */
+    fun peekMotion(positionMs: Long): MotionPeek? {
+        if (SongPlayer.adPlaying || SongPlayer.isEpisode) return null
+        val id = extractSpotifyTrackId(SongPlayer.nowPlaying.value.uri, "")
+        val model: TrackModel = activeLocalModel?.takeIf { it.sourceUri == currentLocalUri }
+            ?: id?.let { synchronized(spotifyCache) { spotifyCache[it] } }
+            ?: return null
+        val posSec = positionMs.coerceAtLeast(0L) / 1000.0
+        val energy = when (model) {
+            is SpotifyModel -> model.curve.movingAverage(posSec)
+            is AutoMixModel -> model.curve.movingAverage(posSec)
+        }
+        val beats = model.beats
+        val idx = findFloorIndex(beats, posSec)
+        val pulse = if (idx < 0) 0f else exp(-(posSec - beats[idx]).coerceAtLeast(0.0) / 0.15).toFloat()
+        return MotionPeek(energy.coerceIn(0f, 1f), pulse.coerceIn(0f, 1f))
+    }
+
     private fun resetForTrack(newKey: String) {
         activeTrackKey = newKey
         activeLocalModel = null

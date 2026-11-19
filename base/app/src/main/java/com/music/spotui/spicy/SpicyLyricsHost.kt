@@ -1,7 +1,17 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Astral's own code.
 package com.music.spotui.spicy
 
 import android.os.Build
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.myspoti.engine.R
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,19 +24,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import app.myspoti.power.EnergySettings
-import com.music.spotui.audio.AudioFrame
 import com.music.spotui.audio.TrackAudioSync
-import com.music.spotui.data.api.Response
+import app.myspoti.api.best
+import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.entity.Lyrics
 import com.music.spotui.data.preferences.SpicyBackgroundPref
 import com.music.spotui.data.preferences.SpicyBackgroundSettings
-import com.music.spotui.di.Graph
 import com.music.spotui.spicy.background.SpicySessionBackground
 import com.music.spotui.spicy.canvas.LyricsView
 import com.music.spotui.spicy.canvas.LyricsViewState
 import com.music.spotui.spicy.canvas.kawarp.MotionSource
 import com.music.spotui.spicy.canvas.kawarp.TrackMotion
-import kotlinx.coroutines.flow.first
 
 /** The renderer's look: Astral's own choices over upstream's defaults. */
 internal fun spicyRenderConfig(reduceMotion: Boolean): RenderConfig = RenderConfig(
@@ -108,27 +116,28 @@ fun SpicyBackgroundLayer(
 }
 
 /**
- * Where the moving background gets its beat: Astral's own [TrackAudioSync] (the loudness and beat
- * of the playing song, from Spotify's analysis or AutoMix's), read once a frame. When it has
- * nothing real for the song, [MotionSource.track] is null and the background keeps its steady,
- * unreactive motion. Nothing is fetched here beyond what [TrackAudioSync] already does for Astral.
+ * Where the moving background gets its beat: the loudness and beat Astral already holds for the
+ * playing song ([TrackAudioSync.peekMotion]: the analysis cached by an earlier look at it, or
+ * AutoMix's), read once a frame. It fetches nothing and leaves [TrackAudioSync]'s shared sampler
+ * alone. With nothing held for the song, [MotionSource.track] is null and the background keeps its
+ * steady, unreactive motion.
  */
 internal fun beatMotionSource(positionSeconds: () -> Float): MotionSource {
     val frameMotion = FrameMotion()
     return MotionSource(
         track = {
-            val frame = TrackAudioSync.sample()
-            if (frame.hasRealData) frameMotion.also { it.frame = frame } else null
+            val peek = TrackAudioSync.peekMotion((positionSeconds() * 1000f).toLong())
+            if (peek != null) frameMotion.also { it.peek = peek } else null
         },
         positionSeconds = positionSeconds,
     )
 }
 
-/** One frame of [TrackAudioSync], read as a [TrackMotion]. */
+/** One frame of [TrackAudioSync.peekMotion], read as a [TrackMotion]. */
 internal class FrameMotion : TrackMotion {
-    var frame: AudioFrame = AudioFrame.Empty
-    override fun energyAt(t: Float): Float = frame.amplitude.coerceIn(0f, 1f)
-    override fun beatPulse(): Float = frame.beatPulse.coerceIn(0f, 1f)
+    var peek: TrackAudioSync.MotionPeek = TrackAudioSync.MotionPeek(0f, 0f)
+    override fun energyAt(t: Float): Float = peek.energy
+    override fun beatPulse(): Float = peek.beatPulse
 }
 
 /** An artist's header picture: [url] null with none; [pending] while it is being looked up. */
@@ -141,7 +150,7 @@ internal fun primaryArtist(credit: String): String =
     credit.split(',', '&', ';').first().trim()
 
 /**
- * [artist]'s header picture from Astral's own artist page (the Api's cached overview), when
+ * [artist]'s header picture from Astral's artist page (a search and one page request), when
  * [enabled]; the cover stands in whenever it is not there.
  */
 @Composable
@@ -154,11 +163,17 @@ fun rememberArtistHeader(artist: String, enabled: Boolean): ArtistHeader {
         if (!enabled || name.isEmpty()) { value = ArtistHeader(null, false); return@produceState }
         headerCache[name]?.let { value = ArtistHeader(it.takeIf(String::isNotEmpty), false); return@produceState }
         value = ArtistHeader(null, true)
+        // Just the artist's search hit and its page's header images: not Api.getArtistOverview, which
+        // loads the discography too and registers the artist's top tracks as the playing context.
         val image = runCatching {
-            val result = Graph.api.getArtistOverview(name).first { it !is Response.Loading }
-            (result as? Response.Success)?.data?.headerImage.orEmpty()
-        }.getOrDefault("")
-        // A failed lookup is remembered as "none" for this run, the cover shows.
+            val api = MyspotiRuntime.api
+            val hits = api.search.artists(name, limit = 5).items
+            val artist = hits.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: hits.firstOrNull()
+            if (artist == null) "" else api.catalog.artistPage(artist.uri).headerImages.best(1280)?.url.orEmpty()
+        }.getOrNull()
+        // A failed lookup (offline, signed out) shows the cover now and is tried again next time;
+        // an artist with no header is remembered as having none.
+        if (image == null) { value = ArtistHeader(null, false); return@produceState }
         headerCache[name] = image
         value = ArtistHeader(image.takeIf(String::isNotEmpty), false)
     }
@@ -167,3 +182,24 @@ fun rememberArtistHeader(artist: String, enabled: Boolean): ArtistHeader {
 
 /** True where the moving Default preset can run its shader (Android 13+; older phones get its circles). */
 val kawarpAvailable: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+/**
+ * What the classic list prints around the lyrics, for the Spicy view: a note when they are not
+ * time-synced and who provided them. (The list's Genius hint is left out: the Spicy view has no
+ * long-press on a line to open a note.)
+ */
+@Composable
+fun SpicyLyricsNotices(lyrics: Lyrics, color: Color, modifier: Modifier = Modifier) {
+    val provider = lyrics.provider?.takeIf { it.isNotBlank() }
+    if (lyrics.synced && provider == null) return
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (!lyrics.synced) Text(
+            stringResource(R.string.lyrics_fullscreen_unsynced),
+            color = color.copy(alpha = 0.8f), fontSize = 13.sp,
+        )
+        if (provider != null) Text(
+            stringResource(R.string.spicy_lyrics_by, provider),
+            color = color.copy(alpha = 0.65f), fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        )
+    }
+}

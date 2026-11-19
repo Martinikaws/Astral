@@ -1,5 +1,5 @@
 // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, app/src/main/java/com/tx24/spicyplayer/lyrics/spicy/canvas/kawarp/KawarpBackground.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
-// Contains code adapted from @kawarp/core (https://github.com/better-lyrics/kawarp), Copyright (c) 2026 Better Lyrics, MIT.
+// Contains code adapted from @kawarp/core (https://github.com/better-lyrics/kawarp) 1.2.2, Copyright (c) 2026 Better Lyrics, MIT.
 package com.music.spotui.spicy.canvas.kawarp
 
 import android.annotation.SuppressLint
@@ -46,7 +46,7 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 
 /**
- * 1:1 port of @kawarp/core 1.2.0 (MIT), with the options in [SPICY_OPTIONS].
+ * 1:1 port of @kawarp/core 1.2.2 (MIT), with the options in [SPICY_OPTIONS].
  *
  * Image-change path (KawarpBlurCore): tint → 8 Kawase passes at 128×128, stored as
  * RGBA_F16 "album" bitmaps (half-float FBO parity). Per-frame path: one fused AGSL

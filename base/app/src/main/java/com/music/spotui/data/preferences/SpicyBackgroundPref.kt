@@ -1,3 +1,4 @@
+// Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, app/src/main/java/com/tx24/spicyplayer/ui/settings/AppSettings.kt, BackgroundType) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
 package com.music.spotui.data.preferences
 
 import android.content.Context

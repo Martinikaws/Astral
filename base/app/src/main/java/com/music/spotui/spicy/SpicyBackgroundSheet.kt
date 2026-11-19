@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Astral's own code.
 package com.music.spotui.spicy
 
 import androidx.compose.foundation.background
@@ -31,6 +33,11 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import app.myspoti.engine.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +55,7 @@ import com.music.spotui.data.preferences.SpicyBackgroundType
 /** The small round button of the lyrics view's top bar that opens [SpicyBackgroundSheet]. */
 @Composable
 fun SpicyBackgroundButton(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Color.White) {
+    val bgDescription = stringResource(R.string.spicy_bg_button)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -55,7 +63,7 @@ fun SpicyBackgroundButton(onClick: () -> Unit, modifier: Modifier = Modifier, ti
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.14f))
             .clickable(onClick = onClick)
-            .semantics { contentDescription = "Lyrics background" },
+            .semantics { contentDescription = bgDescription },
     ) {
         Icon(Icons.Rounded.Palette, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
     }
@@ -81,14 +89,14 @@ fun SpicyBackgroundSheet(onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Lyrics background", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.spicy_bg_title), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             SheetSwitch(
-                "Spicy Lyrics renderer",
-                "Off: Astral's own lyrics and backdrop.",
+                stringResource(R.string.spicy_renderer),
+                stringResource(R.string.spicy_renderer_detail),
                 settings.renderer,
             ) { on -> change { it.copy(renderer = on) } }
             if (settings.renderer) {
-                Text("Preset", fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
+                Text(stringResource(R.string.spicy_preset), fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SpicyBackgroundType.entries.forEach { type ->
                         val selected = type == settings.type
@@ -107,16 +115,23 @@ fun SpicyBackgroundSheet(onDismiss: () -> Unit) {
                 }
                 if (settings.type.blurs) {
                     val unit = if (settings.type == SpicyBackgroundType.DEFAULT) "%" else "dp"
-                    Text("Blur  ${settings.blur}$unit", fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
+                    // Held in the slider while it is dragged, stored once when the finger lifts.
+                    var dragging by remember(settings.type) { mutableStateOf<Float?>(null) }
+                    val shownBlur = dragging ?: settings.blur.toFloat()
+                    Text(stringResource(R.string.spicy_blur, shownBlur.toInt(), unit), fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
                     Slider(
-                        value = settings.blur.toFloat(),
-                        onValueChange = { v -> change { it.withBlur(v.toInt()) } },
+                        value = shownBlur,
+                        onValueChange = { v -> dragging = v },
+                        onValueChangeFinished = {
+                            dragging?.let { v -> change { it.withBlur(v.toInt()) } }
+                            dragging = null
+                        },
                         valueRange = 0f..settings.maxBlur.toFloat(),
                         colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White),
                     )
                 }
                 if (settings.type == SpicyBackgroundType.CUSTOM) {
-                    Text("Color", fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text(stringResource(R.string.spicy_color), fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         CUSTOM_COLORS.forEach { argb ->
                             Box(
@@ -135,12 +150,12 @@ fun SpicyBackgroundSheet(onDismiss: () -> Unit) {
                     }
                 }
                 if (settings.type.moving) {
-                    SheetSwitch("Still", "Hold the background still.", settings.still) { on -> change { it.copy(still = on) } }
+                    SheetSwitch(stringResource(R.string.spicy_still), stringResource(R.string.spicy_still_detail), settings.still) { on -> change { it.copy(still = on) } }
                 }
                 if (settings.type == SpicyBackgroundType.DEFAULT) {
                     SheetSwitch(
-                        "Beat-reactive",
-                        "Flow and swell with the song's loudness and beat. Songs Astral has no beat data for keep their steady motion.",
+                        stringResource(R.string.spicy_beat),
+                        stringResource(R.string.spicy_beat_detail),
                         settings.beatReactive,
                     ) { on -> change { it.copy(beatReactive = on) } }
                 }

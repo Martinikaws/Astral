@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Astral's own code.
 package com.music.spotui.spicy
 
 import com.music.spotui.data.entity.LyricLine
@@ -25,7 +27,7 @@ data class SpicyDocument(
  * - Otherwise [LyricsType.Line].
  *
  * A lead line is followed by its backing vocals (a BACKGROUND line of the same group), the lead's
- * window widened to cover them. Blank and "♪" lines are the source's own breaks: they are not
+ * window widened to cover them. In line-synced lyrics they are one whole-line line over the lead. Blank and "♪" lines are the source's own breaks: they are not
  * drawn, the interlude dots come from the gap they leave ([buildDisplayTimeline]). A second singer
  * ([LyricLine.voice] above 1) is drawn on the opposite side.
  *
@@ -68,7 +70,7 @@ fun spicyDocument(lyrics: Lyrics, songDurationMs: Long = 0L, romanize: Boolean =
         }
 
         // The backing vocals, under the lead, in the same group.
-        val background = backgroundLine(line, limit, type, id, agent, opposite)
+        val background = backgroundLine(line, limit, type, id, agent, opposite, leadStart, leadEnd)
         if (background != null) {
             leadEnd = maxOf(leadEnd, background.endMs)
         }
@@ -89,6 +91,9 @@ private fun staticLines(lyrics: Lyrics, romanize: Boolean): List<Line> = lyrics.
     if (text.isBlank() || text.trim() == "♪") return@mapNotNull null
     Line(listOf(Word(text.trim(), 0L, 0L)), 0L, 0L, oppositeAligned = (line.voice ?: 1) > 1)
 }
+
+/** Whether anything is left to draw once the source's own breaks ("" and "♪") are dropped. */
+fun hasDrawableLines(lyrics: Lyrics): Boolean = lyrics.lines.any { !isBreak(it) }
 
 /** A line the source uses as a break between two sung ones. */
 internal fun isBreak(line: LyricLine): Boolean {
@@ -144,8 +149,19 @@ internal fun syllableWords(lineText: String, words: List<LyricWord>, lineEnd: Lo
     return out
 }
 
-private fun backgroundLine(line: LyricLine, limit: Long?, type: LyricsType, group: Int, agent: String?, opposite: Boolean): Line? {
-    if (type != LyricsType.Syllable) return null
+private fun backgroundLine(
+    line: LyricLine, limit: Long?, type: LyricsType, group: Int, agent: String?, opposite: Boolean,
+    leadStart: Long, leadEnd: Long,
+): Line? {
+    if (type == LyricsType.Line) {
+        // Line-synced lyrics have no timing for the backing vocals: they are sung over the whole lead.
+        val text = line.background?.replace("(", "")?.replace(")", "")?.trim().orEmpty()
+        if (text.isEmpty()) return null
+        return Line(
+            words = listOf(Word(text, leadStart, leadEnd)), startMs = leadStart, endMs = leadEnd,
+            agent = agent, role = LineRole.BACKGROUND, groupId = group, oppositeAligned = opposite,
+        )
+    }
     val timed = line.backgroundWords.orEmpty()
         .map { it.copy(text = it.text.replace("(", "").replace(")", "")) }
         .filter { it.text.isNotBlank() }

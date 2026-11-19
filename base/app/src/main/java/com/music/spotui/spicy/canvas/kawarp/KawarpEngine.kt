@@ -1,9 +1,9 @@
 // Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, app/src/main/java/com/tx24/spicyplayer/lyrics/spicy/canvas/kawarp/KawarpEngine.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
-// Contains code adapted from @kawarp/core (https://github.com/better-lyrics/kawarp), Copyright (c) 2026 Better Lyrics, MIT.
+// Contains code adapted from @kawarp/core (https://github.com/better-lyrics/kawarp) 1.2.2, Copyright (c) 2026 Better Lyrics, MIT.
 package com.music.spotui.spicy.canvas.kawarp
 
 /**
- * Options mirror @kawarp/core 1.2.0 `KawarpOptions` defaults exactly.
+ * Options mirror @kawarp/core 1.2.2 `KawarpOptions` defaults exactly.
  * The background overrides some at the call site (see KawarpBackground).
  */
 data class KawarpOptions(

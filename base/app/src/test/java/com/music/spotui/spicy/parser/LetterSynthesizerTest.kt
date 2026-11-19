@@ -1,3 +1,4 @@
+// Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, app/src/test/java/com/tx24/spicyplayer/lyrics/spicy/parser/LetterSynthesizerTest.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
 package com.music.spotui.spicy.parser
 
 import com.music.spotui.spicy.RenderConfig

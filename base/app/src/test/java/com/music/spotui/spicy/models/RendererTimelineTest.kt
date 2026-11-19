@@ -1,3 +1,4 @@
+// Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile, core/src/test/kotlin/com/tx24/spicyplayer/lyrics/spicy/models/RendererTimelineTest.kt) by TheX24 and contributors, AGPL-3.0. Modified for Astral.
 package com.music.spotui.spicy.models
 
 import com.music.spotui.spicy.models.Line

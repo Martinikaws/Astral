@@ -40,6 +40,7 @@ internal fun SpicyImmersiveLyrics(
         playing = playing && isSynced,
         onSeek = { timeMs ->
             head.announceJump()
+            SongPlayer.logLyricJump(timeMs)
             SongPlayer.seekTo(timeMs)
         },
         modifier = modifier.padding(contentPadding).padding(horizontal = Immersive.Gutter),

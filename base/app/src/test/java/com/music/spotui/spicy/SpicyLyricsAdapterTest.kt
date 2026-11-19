@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Astral's own code.
 package com.music.spotui.spicy
 
 import com.music.spotui.data.entity.LyricLine
@@ -111,5 +113,40 @@ class SpicyLyricsAdapterTest {
     @Test fun `a lead keeps its first singer null agent`() {
         val doc = spicyDocument(lyrics(LyricLine(1_000, "a"), LyricLine(2_000, "b")))
         assertNull(doc.lines.first { it.role == LineRole.LEAD }.agent)
+    }
+
+    @Test fun `line synced backing vocals are one whole-line line over the lead`() {
+        val doc = spicyDocument(lyrics(LyricLine(1_000, "lead", background = "(ooh)"), LyricLine(4_000, "next")))
+        assertEquals(LyricsType.Line, doc.type)
+        val lead = doc.lines.first { it.role == LineRole.LEAD }
+        val bg = doc.lines.first { it.role == LineRole.BACKGROUND }
+        assertEquals(lead.groupId, bg.groupId)
+        assertEquals("ooh", bg.words.single().text)
+        assertEquals(lead.startMs, bg.startMs)
+        assertEquals(lead.endMs, bg.endMs)
+        assertEquals(lead.endMs, bg.words.single().endMs)
+    }
+
+    @Test fun `equal and non-increasing timestamps give zero-length lines`() {
+        // Locks in today's behaviour: nothing is reordered or dropped.
+        val doc = spicyDocument(lyrics(LyricLine(1_000, "a"), LyricLine(1_000, "b"), LyricLine(500, "c")))
+        val lead = doc.lines.filter { it.role == LineRole.LEAD }
+        assertEquals(listOf("a", "b", "c"), lead.map { it.words.single().text })
+        assertEquals(1_000L, lead[0].endMs)
+        assertEquals(1_000L, lead[1].endMs)
+        assertEquals(500L, lead[2].startMs)
+        assertTrue(lead[2].endMs >= lead[2].startMs)
+    }
+
+    @Test fun `only breaks leave nothing to draw`() {
+        assertFalse(hasDrawableLines(lyrics(LyricLine(1_000, ""), LyricLine(2_000, "♪"))))
+        assertFalse(hasDrawableLines(lyrics()))
+        assertTrue(hasDrawableLines(lyrics(LyricLine(1_000, "x"))))
+    }
+
+    @Test fun `the first artist of a credit is looked up`() {
+        assertEquals("A", primaryArtist("A, B"))
+        assertEquals("A", primaryArtist("A & B"))
+        assertEquals("Solo", primaryArtist("Solo"))
     }
 }
