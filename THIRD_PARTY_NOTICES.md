@@ -319,6 +319,7 @@ terms apply to it:
 - **Spicy Lyrics API** (`api.spicylyrics.org`): optional word-synced lyrics source (`SpicyLyricsProvider.kt`).
 - The other lyrics and metadata sources the app's settings list (LRCLIB, Genius, NetEase, Kugou, AMLL,
   LyricsPlus, MusicBrainz, Deezer, iTunes), plus SponsorBlock and Radio Browser.
+- **Unison, LRCMux, QQ Music, Kuwo and RMM Revival** (plus Apple's iTunes search, which RMM Revival uses): extra lyrics sources. Part 5 lists what each is sent; QQ Music, Kuwo and RMM Revival stay off until the user turns them on.
 - **GitHub Releases** (`Martinikaws/Astral`): in-app update check.
 
 ---
