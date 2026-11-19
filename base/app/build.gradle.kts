@@ -74,11 +74,12 @@ android {
     // Release key from the CI secrets (env), else keystore/keystore.properties.
     val envStore = System.getenv("MYSPOTI_KEYSTORE")
     val hasReleaseKey = envStore != null || keystorePropertiesFile.exists()
-    // A stable release (a version without "-beta", given by CI) is never signed with the debug key:
-    // without the release key the build stops. Local builds (no version) and -PoverDev are not stable releases.
-    val stableRelease = !beta && findProperty("overDev") == null
-    if (stableRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
-        throw GradleException("A stable release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
+    // A release with an explicit version (-PappVersionName, any channel, as CI passes it) is never signed
+    // with the debug key: without the release key the build stops. Plain local builds (no version) and
+    // -PoverDev (the optimised build under the dev app's id) still fall back to the debug key.
+    val explicitVersion = findProperty("appVersionName") != null && findProperty("overDev") == null
+    if (explicitVersion && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
+        throw GradleException("Refusing to build a release with -PappVersionName=$version without the release key (it would be signed with the debug key): set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
     signingConfigs {
         create("release") {
             if (envStore != null) {
@@ -141,6 +142,33 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+// assets/licenses/ in every APK: the app's licence, the third-party notices and the full texts they refer to.
+abstract class CopyLicensesTask : DefaultTask() {
+    @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE) abstract val sources: ConfigurableFileCollection
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+    @get:Internal abstract val repoRoot: DirectoryProperty
+    @get:Internal abstract val licensesDir: DirectoryProperty
+    @get:Internal abstract val lgpl: RegularFileProperty
+
+    @TaskAction fun copy() {
+        val out = outputDir.get().asFile.resolve("licenses")
+        out.deleteRecursively(); out.mkdirs()
+        repoRoot.get().asFile.resolve("LICENSE").copyTo(out.resolve("LICENSE.txt"))
+        repoRoot.get().asFile.resolve("THIRD_PARTY_NOTICES.md").copyTo(out.resolve("THIRD_PARTY_NOTICES.md"))
+        licensesDir.get().asFile.listFiles { f -> f.isFile }!!.forEach { it.copyTo(out.resolve(it.name)) }
+        lgpl.get().asFile.copyTo(out.resolve("LGPL-3.0.txt"))
+    }
+}
+val copyLicenses = tasks.register<CopyLicensesTask>("copyLicenses") {
+    val root = rootProject.projectDir.parentFile
+    repoRoot.set(root); licensesDir.set(rootProject.file("licenses"))
+    lgpl.set(rootProject.file("catalog/src/main/resources/app/myspoti/catalog/metadata/LICENSE-LGPL-3.0.txt"))
+    sources.from(File(root, "LICENSE"), File(root, "THIRD_PARTY_NOTICES.md"), rootProject.fileTree("licenses"), lgpl)
+}
+androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(copyLicenses, CopyLicensesTask::outputDir)
 }
 
 dependencies {

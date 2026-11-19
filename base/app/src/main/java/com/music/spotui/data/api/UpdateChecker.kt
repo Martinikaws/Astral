@@ -151,8 +151,19 @@ object UpdateChecker {
         val supported = abis.filter { it in RELEASE_ABIS }
         if (supported.isEmpty()) return ""
         return supported.map { "$named-${RELEASE_ABIS.getValue(it)}.apk" }
-            .firstNotNullOfOrNull { byName[it] }?.optString("browser_download_url").orEmpty()
-            .ifEmpty { byName["$named-universal.apk"]?.optString("browser_download_url").orEmpty() }
+            .firstNotNullOfOrNull { byName[it] }?.let(::trustedDownloadUrl).orEmpty()
+            .ifEmpty { byName["$named-universal.apk"]?.let(::trustedDownloadUrl).orEmpty() }
+    }
+
+    private val TRUSTED_DOWNLOAD_HOSTS = setOf("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
+
+    private fun trustedDownloadUrl(asset: JSONObject): String =
+        asset.optString("browser_download_url").takeIf(::isTrustedDownloadUrl).orEmpty()
+
+    /** Only GitHub's own hosts over https: the APK is installed over the app, so no other server is followed. */
+    internal fun isTrustedDownloadUrl(url: String): Boolean {
+        val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+        return uri.scheme == "https" && uri.userInfo == null && uri.host?.lowercase() in TRUSTED_DOWNLOAD_HOSTS
     }
 
     /** This phone's ABIs, most preferred first. */

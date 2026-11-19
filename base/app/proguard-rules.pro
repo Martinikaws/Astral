@@ -39,8 +39,8 @@
 -dontwarn java.beans.Introspector
 -dontwarn java.beans.PropertyDescriptor
 -dontwarn javax.script.**
-# do not add -keep class org.mozilla.javascript.** - it pulls in classes
-# referencing java.beans.* which breaks ART install-time verification
+# Rhino itself is kept for NewPipe further down, minus org.mozilla.javascript.tools.** (the shell and
+# debugger reference java.beans.*, which breaks ART install-time verification); never keep the tools.
 
 -dontwarn java.lang.instrument.**
 
@@ -62,7 +62,9 @@
 
 # NewPipeExtractor (YouTube music videos): reflection / Rhino JS engine, as in NewPipe.
 -keep class org.schabi.newpipe.extractor.** { *; }
--keep class org.mozilla.javascript.** { *; }
+# Rhino loads its own built-in objects by class name (LazilyLoadedCtor, Kit.classOrNull), so its runtime is
+# kept whole, as NewPipe does, except the tools (see the java.beans note above).
+-keep class !org.mozilla.javascript.tools.**,org.mozilla.javascript.** { *; }
 -keep class org.mozilla.classfile.ClassFileWriter
 -dontwarn org.mozilla.javascript.tools.**
 -dontwarn javax.script.**

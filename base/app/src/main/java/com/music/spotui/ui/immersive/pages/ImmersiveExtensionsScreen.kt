@@ -255,9 +255,9 @@ fun ImmersiveExtensionsScreen(navController: NavController) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ImmersiveButton("Import Theme", onClick = pickTheme)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Create or port themes", style = Immersive.BodyStrong)
+                        Text(androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.theme_create_title), style = Immersive.BodyStrong)
                         Text(
-                            "You can create custom themes or port Spicetify themes and extensions using FEED-EXTENSIONS.md with your own AI, then import the .json or .zip here.",
+                            androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.theme_create_hint),
                             style = Immersive.Caption,
                         )
                     }
@@ -266,7 +266,7 @@ fun ImmersiveExtensionsScreen(navController: NavController) {
             if (installedThemes.isEmpty()) {
                 immersiveBlock("themes:empty") {
                     Text(
-                        "No custom themes installed yet. Import a .json theme or .zip package above.",
+                        androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.themes_empty),
                         style = Immersive.Subhead,
                     )
                 }

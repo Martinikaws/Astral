@@ -34,4 +34,10 @@
     <string name="lyrics_notice_kuwo" tools:ignore="MissingTranslation">Astral will ask Kuwo for this song\'s lyrics. It sends the song\'s title and artist. No account or device details are sent.</string>
     <string name="lyrics_notice_rmm" tools:ignore="MissingTranslation">Astral will ask Apple\'s iTunes search for this song\'s Apple Music ID, sending its title and artist, then ask RMM Revival (lyrics.rmmreviv.al) for its lyrics with that ID. No account or device details are sent.</string>
     <string name="lyrics_notice_generic" tools:ignore="MissingTranslation">Astral will ask this source for the song\'s lyrics, sending its title and artist.</string>
+    <string name="theme_applied" tools:ignore="MissingTranslation">Theme \"%1$s\" applied</string>
+    <string name="theme_create_title" tools:ignore="MissingTranslation">Create or port themes</string>
+    <string name="theme_create_hint" tools:ignore="MissingTranslation">You can create custom themes or port Spicetify themes and extensions using FEED-EXTENSIONS.md with your own AI, then import the .json or .zip here.</string>
+    <string name="themes_empty" tools:ignore="MissingTranslation">No custom themes installed yet. Import a .json theme or .zip package above.</string>
+    <string name="spotiflac_session_active" tools:ignore="MissingTranslation">Session active — tap to view or reset</string>
+    <string name="spotiflac_verification_needed" tools:ignore="MissingTranslation">Verification needed — tap to verify</string>
 </resources>

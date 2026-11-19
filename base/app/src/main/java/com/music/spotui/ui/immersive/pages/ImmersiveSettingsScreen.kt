@@ -761,7 +761,7 @@ private fun DownloadsPage(navController: NavController, open: (SettingsPage) -> 
                 }
                 ImmersiveGroupRow(
                     "SpotiFLAC Verification",
-                    detail = if (spotiflacActive) "Session active — tap to view or reset" else "Verification needed — tap to verify",
+                    detail = androidx.compose.ui.res.stringResource(if (spotiflacActive) app.myspoti.engine.R.string.spotiflac_session_active else app.myspoti.engine.R.string.spotiflac_verification_needed),
                     chevron = true,
                     onClick = { navController.navigate(Routes.Spotiflac.route) },
                 )
