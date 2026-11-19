@@ -86,6 +86,19 @@ object LocalPlayer {
         .also(::tune)
         .also { p -> lastSegueStage?.let { segueStages[p] = it } }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    internal fun buildPreviewDeck(): Pair<ExoPlayer, com.music.spotui.automix.SegueProcessor> {
+        val p = build(main = false, deck = true)
+        p.skipSilenceEnabled = false
+        p.playbackParameters = androidx.media3.common.PlaybackParameters(1f)
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setAudioOffloadPreferences(androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                .setAudioOffloadMode(androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED).build())
+            .build()
+        val stage = segueStages[p] ?: com.music.spotui.automix.SegueProcessor().also { segueStages[p] = it }
+        return p to stage
+    }
+
     /**
      * The default renderers, with the equalizer and the spatial stage after it in the audio chain
      * (each player its own, see EqualizerProcessor and SpatialProcessor), ahead of the silence
@@ -573,6 +586,7 @@ object LocalPlayer {
         exo?.let { it.stop(); it.clearMediaItems() }
         tracks.clear(); unshuffled = null
         queued.clear(); playingQueued = null; radioSongs.clear()
+        com.music.spotui.automix.TransitionEditorBridge.refresh()
         SongPlayer.restoreEngineQueue()
     }
 
@@ -777,6 +791,9 @@ object LocalPlayer {
     private fun spoken(a: LocalTrack?, b: LocalTrack?): Boolean =
         !com.music.spotui.automix.AutoMix.mixPodcasts && (a?.speech == true || b?.speech == true)
 
+    internal fun transitionTrackId(t: LocalTrack): String =
+        spotifyId(t).ifBlank { com.music.spotui.automix.AutoMix.key(t.uri) }
+
     /** The plan for this pair: the analysed one, else (once the end is near) a fade on the songs' lengths. */
     private fun planFor(p: ExoPlayer, next: Int, nextId: String): app.myspoti.automix.MixPlan? {
         val cur = p.currentMediaItemIndex
@@ -788,7 +805,8 @@ object LocalPlayer {
         }
         // Policies are checked before a cached plan: a setting must apply immediately.
         if (spoken(a, b)) { planned = null; whyNot(com.music.spotui.automix.AutoMix.Reason.Podcast); return null }
-        if (followsOnAlbum(a, b)) { planned = null; whyNot(com.music.spotui.automix.AutoMix.Reason.Album); return null }
+        val custom = com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(a), transitionTrackId(b), listUri)
+        if (custom == null && followsOnAlbum(a, b)) { planned = null; whyNot(com.music.spotui.automix.AutoMix.Reason.Album); return null }
         val ahead = "$cur|$nextId|${a.uri}|${b.uri}|${if (next + 1 < p.mediaItemCount) p.getMediaItemAt(next + 1).mediaId else ""}"
         val now = android.os.SystemClock.uptimeMillis()
         if (asking != ahead || now - askedAt >= 5_000) {
@@ -799,12 +817,28 @@ object LocalPlayer {
                         cuePair = ""
                         if (exo?.isPlaying == true) { handler.removeCallbacks(tick); handler.post(tick) }
                     }
+                    com.music.spotui.automix.TransitionEditorBridge.refresh()
                 }
             }
         }
         val ra = com.music.spotui.automix.AutoMix.analysis(a.uri)
         val rb = com.music.spotui.automix.AutoMix.analysis(b.uri)
         val old = planned?.takeIf { it.fromIndex == cur && it.toId == nextId }
+        if (custom != null) {
+            if (old != null && old.analysisA === ra && old.analysisB === rb && old.plan.exitA * 1000 > p.currentPosition + MixPreparation.MIN_LEAD_MS) {
+                return old.plan
+            }
+            val customPlan = com.music.spotui.automix.CustomTransitionStore.toMixPlan(custom, ra, rb)
+            if (p.currentPosition / 1000.0 + 0.5 < customPlan.exitA) {
+                planned = Planned(cur, nextId, customPlan, ra, rb)
+                whyNot(null)
+                updateCue()
+                com.music.spotui.automix.TransitionEditorBridge.refresh()
+                com.music.spotui.automix.AutoMix.journal("custom plan ${a.title} → ${b.title}: $customPlan")
+                return customPlan
+            }
+            return old?.plan
+        }
         val enoughLead = old != null && old.plan.exitA * 1000 > p.currentPosition + MixPreparation.MIN_LEAD_MS
         val upgraded = preparationFailures < 2 && old != null && MixPreparation.mayReplacePlan(mix?.state?.let { it >= MixState.PREROLL } == true, old.provisional, ra != null && rb != null)
         if (enoughLead && !upgraded && (old!!.provisional || old.analysisA === ra && old.analysisB === rb)) return old.plan
@@ -959,11 +993,16 @@ object LocalPlayer {
         val b = tracks.getOrNull(next)?.let { com.music.spotui.automix.AutoMix.analysis(it.uri) } ?: return
         val trackA = tracks.getOrNull(p.currentMediaItemIndex) ?: return
         val trackB = tracks.getOrNull(next) ?: return
-        val earliest = (p.currentPosition + RUN_UP_MS + startLead + 500) / 1000.0
-        if (!segueDecided(trackA, trackB, a, b, earliest)) return
-        // Once per completed analysis pair, including pairs with no future musical cue.
-        planned = Planned(p.currentMediaItemIndex, nextId, run.plan, a, b)
-        val plan = choosePlan(a, b, earliest)
+        val custom = com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(trackA), transitionTrackId(trackB), listUri)
+        val plan = if (custom != null) {
+            com.music.spotui.automix.CustomTransitionStore.toMixPlan(custom, a, b)
+        } else {
+            val earliest = (p.currentPosition + RUN_UP_MS + startLead + 500) / 1000.0
+            if (!segueDecided(trackA, trackB, a, b, earliest)) return
+            // Once per completed analysis pair, including pairs with no future musical cue.
+            planned = Planned(p.currentMediaItemIndex, nextId, run.plan, a, b)
+            choosePlan(a, b, earliest)
+        }
         if (plan == null) {
             // The policy says no effect: the prepared fade goes too.
             if (com.music.spotui.automix.AutoMix.segueActive) { noMixFor = a to b; cancelMix("no mix for this pair", again = true) }
@@ -1405,6 +1444,46 @@ object LocalPlayer {
         }
     }
 
+    internal fun onCustomTransitionsChanged() {
+        runCatching {
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                autoMixSettingsChanged()
+            } else {
+                handler.post { autoMixSettingsChanged() }
+            }
+        }
+    }
+
+    internal data class EditorPairSnapshot(
+        val fromTrack: LocalTrack,
+        val toTrack: LocalTrack,
+        val listUri: String,
+        val currentPlan: app.myspoti.automix.MixPlan?,
+        val durationAMs: Long,
+    )
+
+    internal fun editorPairSnapshot(): EditorPairSnapshot? {
+        if (!active.value || CastPlayback.active) return null
+        val p = exo ?: return null
+        val cur = p.currentMediaItemIndex
+        val next = p.nextMediaItemIndex
+        if (next == C.INDEX_UNSET || LocalRepeat.loopsSong(repeat, p.mediaItemCount)) return null
+        val fromTrack = tracks.getOrNull(cur) ?: return null
+        val toTrack = tracks.getOrNull(next) ?: return null
+        if (fromTrack.isRadio || toTrack.isRadio) return null
+        val nextId = if (next in 0 until p.mediaItemCount) p.getMediaItemAt(next).mediaId else ""
+        val currentPlan = mix?.takeIf { it.toIndex == next && it.state < MixState.MIXING }?.plan
+            ?: planned?.takeIf { it.fromIndex == cur && it.toId == nextId }?.plan
+        val durationAMs = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: fromTrack.durationMs
+        return EditorPairSnapshot(
+            fromTrack = fromTrack,
+            toTrack = toTrack,
+            listUri = listUri,
+            currentPlan = currentPlan,
+            durationAMs = durationAMs,
+        )
+    }
+
     fun autoMixEqChanged() {
         if (!com.music.spotui.automix.AutoMix.djEq) {
             deckEq?.neutral(); mix?.eqA?.neutral(); mix?.eq?.neutral()
@@ -1461,7 +1540,11 @@ object LocalPlayer {
         val run = mix?.takeIf { it.state <= MixState.MIXING }
         val plan: app.myspoti.automix.MixPlan?
         val from: Int; val to: Int
-        if (p == null || !active.value || !com.music.spotui.automix.AutoMix.on && run == null) { cueState.value = null; return }
+        if (p == null || !active.value || !com.music.spotui.automix.AutoMix.on && run == null) {
+            cueState.value = null
+            com.music.spotui.automix.TransitionEditorBridge.refresh()
+            return
+        }
         if (run != null) {
             plan = run.plan; to = run.toIndex
             from = if (run.state == MixState.MIXING) (to - 1).coerceAtLeast(0) else p.currentMediaItemIndex
@@ -1469,7 +1552,11 @@ object LocalPlayer {
             val pl = planned?.takeIf { it.fromIndex == p.currentMediaItemIndex && p.nextMediaItemIndex != C.INDEX_UNSET && it.toId == p.getMediaItemAt(p.nextMediaItemIndex).mediaId }
             plan = pl?.plan; from = p.currentMediaItemIndex; to = p.nextMediaItemIndex
         }
-        if (plan == null) { cueState.value = null; return }
+        if (plan == null) {
+            cueState.value = null
+            com.music.spotui.automix.TransitionEditorBridge.refresh()
+            return
+        }
         val a = tracks.getOrNull(from); val b = tracks.getOrNull(to)
         val pair = "${a?.uri}|${b?.uri}"
         if (pair != cuePair) {
@@ -1481,6 +1568,7 @@ object LocalPlayer {
             plan.style, run?.state == MixState.MIXING, run?.skip == true,
         )
         if (cueState.value != cue) cueState.value = cue
+        com.music.spotui.automix.TransitionEditorBridge.refresh()
     }
 
     /**

@@ -55,6 +55,7 @@ fun MyNavHost(
 ) {
 
     val context = LocalContext.current
+    androidx.compose.runtime.remember(context) { com.music.spotui.data.preferences.TransitionEditorPref.installRecorder(); true }
     val startDestination = Routes.Home.route
     // The look (Settings > Display) is read through State objects: the graph builder and the
     // transitions keep the same lambdas, so a switch never rebuilds the graph (or the back stack).
@@ -119,6 +120,10 @@ fun MyNavHost(
         // The local player's equalizer, speed and silence skipping (Settings > Playback, the player's menu).
         page(Routes.Equalizer.route) {
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveEqualizerScreen(navHostController) else com.music.spotui.ui.screens.EqualizerScreen(navHostController)
+        }
+
+        page(Routes.TransitionEditor.route) {
+            com.music.spotui.ui.screens.TransitionEditorScreen(navHostController)
         }
 
         page(Routes.NewReleases.route) {

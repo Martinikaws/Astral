@@ -132,7 +132,7 @@ fun SettingsScreen(navController: NavController) {
         }
         if (sub == SUB_TRANSITIONS) {
             Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-                TransitionsRow()
+                TransitionsRow(navController)
                 Spacer(Modifier.height(com.music.spotui.ui.components.bottomBarsSpace()))
             }
             return@Column
@@ -817,7 +817,7 @@ private fun accentChipInk(): Color =
  * what the choice does in one line.
  */
 @Composable
-private fun TransitionsRow() {
+private fun TransitionsRow(navController: NavController) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val transition = com.music.spotui.data.preferences.TransitionPref
     val automix = com.music.spotui.automix.AutoMix
@@ -932,6 +932,35 @@ private fun TransitionsRow() {
         AutoMixDiagnosticsPanel()
         AutoMixCacheRow()
     }
+    Divider()
+    Text("EXPERIMENTAL", color = com.music.spotui.ui.theme.AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp))
+    OptionRow(
+        label = "DJ Transition Editor (Experimental)",
+        detail = "Edit overlap bars, cue points, and volume curves between songs on Astral's local player (lossless/extension streams, downloads, or local files).",
+        checked = com.music.spotui.data.preferences.TransitionEditorPref.enabled,
+        onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setEnabled(ctx, it) },
+    )
+    if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+                .clickable { navController.navigate(com.music.spotui.ui.navigation.Routes.TransitionEditor.route) }
+                .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Open Transition Editor", color = AppText, fontSize = 16.sp)
+                Text("Fine-tune the mix between the currently playing song and the next track in queue.", color = AppMuted, fontSize = 12.sp)
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppMuted)
+        }
+    }
+    OptionRow(
+        label = "Dump Spotify mixed-playlist data (Debug)",
+        detail = "When opening a playlist, save its raw redacted GraphQL JSON response to mixed-playlists/ so Spotify mix transition fields can be inspected.",
+        checked = com.music.spotui.data.preferences.TransitionEditorPref.dumpMixedPlaylists,
+        onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setDumpMixedPlaylists(ctx, it) },
+    )
     if (intro) androidx.compose.material3.AlertDialog(
         onDismissRequest = { intro = false; com.music.spotui.ui.components.AutoMixIntro.markSeen() },
         containerColor = tone(0xFF282828),

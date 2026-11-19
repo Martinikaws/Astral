@@ -1,13 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package app.myspoti.automix
 
-import kotlin.math.max
-import kotlin.math.min
-
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlin.math.ceil
+import kotlin.math.exp
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /** Distance of measured beats from a grid: its median and 95th percentile, microseconds. */
 data class PhaseStats(val medianUs: Long, val p95Us: Long)
@@ -69,14 +73,152 @@ class TrackAnalysis(
     val barDownConfidence: FloatArray = FloatArray(0),
     /** [barVocalRisk] comes from the song's timed lyrics, not from the spectral estimate. Not stored: lyrics come and go. */
     val voiceKnown: Boolean = false,
+    /** Raw 10 Hz amplitude envelope in 0f..1f across 0.0..[duration]; synthesized lazily when empty. */
+    val rawWaveform10Hz: FloatArray = FloatArray(0),
 ) {
     val bars get() = barStarts.size
+
+    /** Camelot wheel code for this song's [key], e.g. "5A", "8B", "—". */
+    val camelotKey: String get() = camelotOf(key)
+
+    /** 10 samples/sec normalized 0f..1f amplitude envelope across 0.0..[duration]. */
+    val waveform10Hz: FloatArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        if (rawWaveform10Hz.isNotEmpty()) {
+            FloatArray(rawWaveform10Hz.size) { i -> rawWaveform10Hz[i].coerceIn(0f, 1f) }
+        } else {
+            synthesizeWaveform10Hz()
+        }
+    }
+
+    private fun synthesizeWaveform10Hz(): FloatArray {
+        val count = max(1, ceil(max(0.1, duration) * WAVEFORM_HZ).toInt())
+        val baseLoud = if (loudnessDb.isFinite() && loudnessDb > -80.0) loudnessDb else -18.0
+        var minDb = baseLoud - 24.0
+        var maxDb = baseLoud + 6.0
+        if (barDb.size >= 4) {
+            val sorted = barDb.filter { it.isFinite() && it > -100f }.sorted()
+            if (sorted.size >= 2) {
+                val p05 = sorted[((sorted.size - 1) * 0.05).toInt()].toDouble()
+                val p98 = sorted[((sorted.size - 1) * 0.98).toInt()].toDouble()
+                if (p98 > p05 + 3.0) {
+                    minDb = min(minDb, p05 - 3.0)
+                    maxDb = max(maxDb, p98 + 1.5)
+                }
+            }
+        }
+        val dbSpan = max(6.0, maxDb - minDb)
+        val out = FloatArray(count)
+        for (i in 0 until count) {
+            val t = (i + 0.5) / WAVEFORM_HZ
+            if (t < contentStart || t > contentEnd) {
+                val dist = if (t < contentStart) contentStart - t else t - contentEnd
+                out[i] = (0.04f * exp(-dist * 3.0).toFloat()).coerceIn(0f, 1f)
+                continue
+            }
+            val barLevelDb = if (bars == 0) {
+                baseLoud
+            } else {
+                val b = barAt(t)
+                when {
+                    b < 0 -> barDb[0].toDouble()
+                    b >= bars - 1 -> barDb[bars - 1].toDouble()
+                    else -> {
+                        val t0 = barStarts[b]
+                        val t1 = barStarts[b + 1]
+                        val frac = if (t1 > t0) ((t - t0) / (t1 - t0)).coerceIn(0.0, 1.0) else 0.0
+                        barDb[b] + (barDb[b + 1] - barDb[b]) * frac
+                    }
+                }
+            }
+            val normBar = (0.08 + 0.77 * ((barLevelDb - minDb) / dbSpan).coerceIn(0.0, 1.0)).toFloat()
+            var accent = 0f
+            if (beats.isNotEmpty()) {
+                var lo = 0
+                var hi = beats.size - 1
+                var best = -1
+                while (lo <= hi) {
+                    val m = (lo + hi) ushr 1
+                    if (beats[m] <= t) {
+                        best = m
+                        lo = m + 1
+                    } else {
+                        hi = m - 1
+                    }
+                }
+                if (best >= 0) {
+                    val dt = t - beats[best]
+                    if (dt in 0.0..0.18) {
+                        val bIdx = barAt(t).coerceIn(0, max(0, bars - 1))
+                        val lowWeight = if (barLowDb.isNotEmpty() && bIdx < barLowDb.size) {
+                            ((barLowDb[bIdx] - minDb) / dbSpan).coerceIn(0.35, 1.0).toFloat()
+                        } else {
+                            0.75f
+                        }
+                        accent = 0.15f * lowWeight * exp(-dt / 0.05).toFloat()
+                    }
+                }
+            }
+            out[i] = (normBar + accent).coerceIn(0f, 1f)
+        }
+        return out
+    }
+
+    /**
+     * Resamples [waveform10Hz] over [fromSec]..[toSec] into [bins] values in 0f..1f.
+     * Sub-intervals outside 0.0..[duration] are padded with 0f.
+     */
+    fun sampleWaveform(fromSec: Double, toSec: Double, bins: Int): FloatArray {
+        val n = bins.coerceAtLeast(0)
+        val out = FloatArray(n)
+        if (n == 0 || duration <= 0.0 || !fromSec.isFinite() || !toSec.isFinite() || toSec <= fromSec) return out
+        val wf = waveform10Hz
+        if (wf.isEmpty()) return out
+        val span = toSec - fromSec
+        for (b in 0 until n) {
+            val t0 = fromSec + span * b / n
+            val t1 = fromSec + span * (b + 1) / n
+            if (t1 <= 0.0 || t0 >= duration) {
+                out[b] = 0f
+                continue
+            }
+            val c0 = t0.coerceIn(0.0, duration)
+            val c1 = t1.coerceIn(0.0, duration)
+            if (c1 <= c0) {
+                out[b] = 0f
+                continue
+            }
+            val coverage = ((c1 - c0) / (t1 - t0)).coerceIn(0.0, 1.0).toFloat()
+            val s0 = c0 * WAVEFORM_HZ
+            val s1 = c1 * WAVEFORM_HZ
+            val value = if (s1 - s0 <= 1.0) {
+                val mid = ((s0 + s1) * 0.5 - 0.5).coerceIn(0.0, (wf.size - 1).toDouble())
+                val idx = mid.toInt()
+                val next = min(wf.size - 1, idx + 1)
+                val frac = (mid - idx).toFloat()
+                wf[idx] + (wf[next] - wf[idx]) * frac
+            } else {
+                val i0 = s0.toInt().coerceIn(0, wf.size - 1)
+                val i1 = ceil(s1).toInt().coerceIn(i0 + 1, wf.size)
+                var peak = 0f
+                var sumSq = 0.0
+                for (i in i0 until i1) {
+                    val v = wf[i]
+                    if (v > peak) peak = v
+                    sumSq += v * v
+                }
+                val rms = sqrt(sumSq / (i1 - i0)).toFloat()
+                0.65f * peak + 0.35f * rms
+            }
+            out[b] = (value * coverage).coerceIn(0f, 1f)
+        }
+        return out
+    }
 
     /** This analysis with its voices judged by [VocalRisk.learned], for a song without timed lyrics. Kept out of the stored analysis so no song is analysed again. */
     fun withLearnedVoices(): TrackAnalysis = TrackAnalysis(duration, contentStart, contentEnd, loudnessDb, key, keyStrength, bpm, steady, head, tail, beats, barStarts,
         barDb, barLowDb, barHighDb, barCentre, barNovelty, phraseOffset, stereo, headDown, tailDown, note,
         VocalRisk.learned(barVocalRisk, barDb, barLowDb, barHighDb, barCentre, barNovelty), audioKey, barBassDb,
-        headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDownConfidence)
+        headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDownConfidence, rawWaveform10Hz = rawWaveform10Hz)
 
     /** This analysis with its voices taken from [spans], seconds from the song's start where it is known to be sung. */
     fun withSung(spans: List<Pair<Double, Double>>): TrackAnalysis {
@@ -107,7 +249,7 @@ class TrackAnalysis(
         }
         return TrackAnalysis(duration, contentStart, contentEnd, loudnessDb, key, keyStrength, bpm, steady, head, tail, beats, barStarts,
             barDb, barLowDb, barHighDb, barCentre, barNovelty, phraseOffset, stereo, headDown, tailDown, note, risk, audioKey, barBassDb,
-            headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDownConfidence, voiceKnown = true)
+            headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDownConfidence, voiceKnown = true, rawWaveform10Hz = rawWaveform10Hz)
     }
     /** Identify the grids a plan relies on: a new analysis with another grid invalidates the plan. */
     val headGridKey: String? by lazy(LazyThreadSafetyMode.PUBLICATION) { head?.let { gridKey(it, headDown) } }
@@ -161,6 +303,10 @@ class TrackAnalysis(
         writePhase(o, headPhase); writePhase(o, tailPhase); o.writeFloat(headMetre); o.writeFloat(tailMetre)
         o.writeInt(modelBeats.size); modelBeats.forEach(o::writeDouble)
         o.writeInt(barDownConfidence.size); barDownConfidence.forEach(o::writeFloat)
+        val wf = waveform10Hz
+        o.writeInt(WAVEFORM_MAGIC)
+        o.writeInt(wf.size)
+        for (v in wf) o.writeByte((v.coerceIn(0f, 1f) * 255f).roundToInt())
         o.flush()
     }
 
@@ -171,6 +317,15 @@ class TrackAnalysis(
         private const val UNSUNG_RISK = 0.02f
 
         const val VERSION = 4_10
+        const val WAVEFORM_HZ = 10.0
+        const val WAVEFORM_MAGIC = 0x57463130
+
+        /** Camelot wheel code for [key] (0..11 major, 12..23 minor, -1 unknown), e.g. "5A", "8B", "—". */
+        fun camelotOf(key: Int): String {
+            if (key !in 0..23) return "—"
+            val (num, major) = MixPlanner.camelot(key)
+            return "$num${if (major) "B" else "A"}"
+        }
 
         fun read(input: InputStream): TrackAnalysis? {
             val i = DataInputStream(input)
@@ -189,9 +344,20 @@ class TrackAnalysis(
             val headPhase = readPhase(i); val tailPhase = readPhase(i); val headMetre = i.readFloat(); val tailMetre = i.readFloat()
             val modelBeats = DoubleArray(i.readInt()) { i.readDouble() }
             val barDown = FloatArray(i.readInt()) { i.readFloat() }
+            val rawWaveform = try {
+                val magic = i.readInt()
+                val len = i.readInt()
+                if (magic == WAVEFORM_MAGIC && len in 0..200_000) {
+                    FloatArray(len) { i.readUnsignedByte() / 255f }
+                } else {
+                    FloatArray(0)
+                }
+            } catch (_: EOFException) {
+                FloatArray(0)
+            }
             return TrackAnalysis(duration, cs, ce, loud, key, ks, bpm, steady, head, tail, beats, starts,
                 arrays[0], arrays[1], arrays[2], arrays[3], arrays[4], phrase, stereo, headDown, tailDown, note, vocal,
-                audioKey, bass, headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDown)
+                audioKey, bass, headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDown, rawWaveform10Hz = rawWaveform)
         }
 
         private fun gridKey(g: Grid, down: Double): String = app.myspoti.automix.segue.SegueCodec.hex(

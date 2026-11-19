@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.ThumbDownOffAlt
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -330,7 +331,15 @@ fun SongOptionsSheet(
             if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {
                 MenuRow(Icons.Outlined.GraphicEq, stringResource(R.string.equalizer_title)) {
                     onDismiss()
+                    com.music.spotui.ui.navigation.PlayerSheet.close()
                     navController.navigate(com.music.spotui.ui.navigation.Routes.Equalizer.route)
+                }
+                if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) {
+                    MenuRow(Icons.Outlined.Tune, "Transition Editor") {
+                        onDismiss()
+                        com.music.spotui.ui.navigation.PlayerSheet.close()
+                        navController.navigate(com.music.spotui.ui.navigation.Routes.TransitionEditor.route)
+                    }
                 }
             }
             MenuRow(Icons.Outlined.Share, stringResource(R.string.context_menu_share), enabled = hasId || isRadio) {
