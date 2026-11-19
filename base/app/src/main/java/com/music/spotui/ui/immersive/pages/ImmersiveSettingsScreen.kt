@@ -1252,6 +1252,8 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val check = com.music.spotui.data.api.rememberUpdateCheckState(ctx)
+    var licensesOpen by remember { mutableStateOf(false) }
+    if (licensesOpen) com.music.spotui.ui.components.LicensesSheet(onDismiss = { licensesOpen = false })
     ImmersivePage(title = stringResource(R.string.settings_section_app), onBack = back) {
         immersiveGroup("updates") {
             row {
@@ -1276,6 +1278,12 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
                             androidx.compose.material3.Icon(Icons.Rounded.Refresh, stringResource(R.string.settings_update_refresh), tint = Immersive.Accent)
                         }
                     },
+                )
+            }
+            row {
+                ImmersiveGroupRow(
+                    stringResource(R.string.licenses_title), detail = stringResource(R.string.licenses_detail),
+                    onClick = { licensesOpen = true },
                 )
             }
         }
