@@ -119,7 +119,6 @@ import com.music.spotui.data.preferences.SpicyBackgroundPref
 import com.music.spotui.data.preferences.SpicyThemePreset
 import com.music.spotui.spicy.SpicyBackgroundButton
 import com.music.spotui.spicy.SpicyBackgroundSheet
-import com.music.spotui.spicy.SpicyLyricsNotices
 import com.music.spotui.spicy.hasDrawableLines
 import com.music.spotui.spicy.SpicyBackgroundLayer
 import com.music.spotui.data.preferences.StarryNightPref
@@ -207,12 +206,31 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
     androidx.activity.compose.BackHandler(enabled = selecting) { vm.stopSelecting() }
     DisposableEffect(vm) { onDispose { vm.stopSelecting() } }
 
+    // The Spicy Lyrics renderer and its background preset, unless it is switched off in the background
+    // sheet, a translation is shown, lines are being picked to share (the classic list carries those),
+    // or the lyrics have nothing to draw (the list shows its dots). Above the `when`, so the one engine
+    // survives Loading and NotFound as well as the change of song: covers crossfade in it.
+    val spicy by SpicyBackgroundPref.state.collectAsState()
+    val loaded = state as? LyricsViewModel.State.Loaded
+    val useSpicy = spicy.renderer && !selecting &&
+        (loaded == null || (!loaded.showTranslation && hasDrawableLines(loaded.lyrics)))
+    var spicySheet by remember { mutableStateOf(false) }
+    if (spicySheet) SpicyBackgroundSheet { spicySheet = false }
+    Box(modifier) {
+    if (useSpicy) SpicyBackgroundLayer(
+        coverUri = song.coverUri.value,
+        artist = artist,
+        playing = Graph.currentSongState.playingState.value,
+        positionMs = { lyricsPosition() },
+        settings = spicy,
+        reduceMotion = rememberReduceMotion(),
+    )
     when (val current = state) {
         is LyricsViewModel.State.Loading -> LyricsSkeleton(
-            modifier.padding(contentPadding).padding(horizontal = Immersive.Gutter),
+            Modifier.fillMaxSize().padding(contentPadding).padding(horizontal = Immersive.Gutter),
         )
         is LyricsViewModel.State.NotFound -> Box(
-            modifier.padding(contentPadding).padding(horizontal = Immersive.Gutter),
+            Modifier.fillMaxSize().padding(contentPadding).padding(horizontal = Immersive.Gutter),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -222,23 +240,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             )
         }
         is LyricsViewModel.State.Loaded -> {
-            // The Spicy Lyrics renderer and its background preset, unless it is switched off in the
-            // background sheet, a translation is shown, lines are being picked to share (the classic
-            // list carries those), or the lyrics have nothing to draw (the list shows its dots).
-            val spicy by SpicyBackgroundPref.state.collectAsState()
-            val useSpicy = spicy.renderer && !selecting && !current.showTranslation && hasDrawableLines(current.lyrics)
-            var spicySheet by remember { mutableStateOf(false) }
-            if (spicySheet) SpicyBackgroundSheet { spicySheet = false }
-            Box(modifier) {
-            // Outside the key: a new song's cover crossfades in the one engine, which is not rebuilt.
-            if (useSpicy) SpicyBackgroundLayer(
-                coverUri = song.coverUri.value,
-                artist = artist,
-                playing = Graph.currentSongState.playingState.value,
-                positionMs = { lyricsPosition() },
-                settings = spicy,
-                reduceMotion = rememberReduceMotion(),
-            )
+            Box(Modifier.fillMaxSize()) {
             key(trackKey) {
                 val reduceMotion = rememberReduceMotion()
                 val coverUri = song.coverUri.value
@@ -304,10 +306,6 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                             glowTint = glowTint,
                         )
                     }
-                    if (useSpicy) SpicyLyricsNotices(
-                        current.lyrics, Immersive.TextSecondary,
-                        Modifier.align(Alignment.BottomStart).padding(contentPadding).padding(horizontal = Immersive.Gutter),
-                    )
                     val target = com.music.spotui.ui.components.readerLanguage()
                     val canRomanize = current.lyrics.hasRomanization
                     val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
@@ -348,6 +346,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             }
             }
         }
+    }
     }
 }
 

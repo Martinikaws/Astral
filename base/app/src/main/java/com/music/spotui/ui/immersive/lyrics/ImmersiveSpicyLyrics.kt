@@ -47,5 +47,6 @@ internal fun SpicyImmersiveLyrics(
         romanize = romanizing,
         songDurationMs = songDurationMs,
         reduceMotion = rememberReduceMotion(),
+        noticeColor = Immersive.TextSecondary,
     )
 }

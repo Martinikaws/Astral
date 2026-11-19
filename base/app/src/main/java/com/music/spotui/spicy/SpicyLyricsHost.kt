@@ -9,7 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.music.spotui.di.Graph
 import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +34,9 @@ import androidx.compose.ui.graphics.Color
 import app.myspoti.power.EnergySettings
 import com.music.spotui.audio.TrackAudioSync
 import app.myspoti.api.best
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.entity.Lyrics
 import com.music.spotui.data.preferences.SpicyBackgroundPref
@@ -60,23 +71,37 @@ fun SpicyLyricsLayer(
     songDurationMs: Long = 0L,
     reduceMotion: Boolean = false,
     viewState: LyricsViewState? = null,
-    /** How far up from the bottom the lyrics are covered (controls drawn over them): they fade out above it. */
+    /** How far up from the bottom the lyrics are covered (notices drawn over them): they fade out above it. */
     maskBottomPx: () -> Float = { 0f },
+    /** The colour of the notices under the lyrics (unsynced note, provider credit). */
+    noticeColor: Color = Color.White,
 ) {
     val doc = remember(lyrics, romanize, songDurationMs) { spicyDocument(lyrics, songDurationMs, romanize) }
     val config = remember(reduceMotion) { spicyRenderConfig(reduceMotion) }
+    // The notices sit over the bottom of the view: the lyrics fade out above them (and 12dp clear of
+    // them) and scroll no further under them.
+    var noticeHeightPx by remember { mutableIntStateOf(0) }
+    val clearPx = with(LocalDensity.current) { 12.dp.toPx() }
+    val noticeHeight by rememberUpdatedState(noticeHeightPx)
+    Box(modifier) {
     LyricsView(
         lines = doc.lines,
         documentId = "$documentKey|${lyrics.provider}|${lyrics.lines.size}|${lyrics.lines.firstOrNull()?.timeMs}",
         currentTimeMs = currentTimeMs,
         onSeekWord = onSeek,
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         config = config,
         lyricsType = doc.type,
         isPlaying = playing,
         viewState = viewState,
-        maskBottomPx = maskBottomPx,
+        maskBottomPx = { maxOf(maskBottomPx(), if (noticeHeight > 0) noticeHeight + clearPx else 0f) },
     )
+    SpicyLyricsNotices(
+        lyrics, noticeColor,
+        Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp),
+        onHeight = { noticeHeightPx = it },
+    )
+    }
 }
 
 /**
@@ -101,6 +126,11 @@ fun SpicyBackgroundLayer(
     val motion = remember(settings.beatReactive) {
         if (settings.beatReactive) beatMotionSource { position() / 1000f } else null
     }
+    // One deliberate fetch per track, and only while beat-reactive is on.
+    if (settings.beatReactive) {
+        val track = Graph.currentSongState.title.value + "|" + Graph.currentSongState.singer.value
+        LaunchedEffect(track) { TrackAudioSync.requestAnalysis() }
+    }
     SpicySessionBackground(
         artworkUri = coverUri.takeIf { it.isNotBlank() },
         isPlaying = playing,
@@ -116,11 +146,11 @@ fun SpicyBackgroundLayer(
 }
 
 /**
- * Where the moving background gets its beat: the loudness and beat Astral already holds for the
- * playing song ([TrackAudioSync.peekMotion]: the analysis cached by an earlier look at it, or
- * AutoMix's), read once a frame. It fetches nothing and leaves [TrackAudioSync]'s shared sampler
- * alone. With nothing held for the song, [MotionSource.track] is null and the background keeps its
- * steady, unreactive motion.
+ * Where the moving background gets its beat: the loudness and beat Astral holds for the playing
+ * song ([TrackAudioSync.peekMotion]: Spotify's analysis, or AutoMix's), read once a frame without
+ * touching [TrackAudioSync]'s shared sampler. Only built when the user turned beat-reactive on; the
+ * song's beat data is then asked for once ([TrackAudioSync.requestAnalysis]). With none for the
+ * song, [MotionSource.track] is null and the background keeps its steady, unreactive motion.
  */
 internal fun beatMotionSource(positionSeconds: () -> Float): MotionSource {
     val frameMotion = FrameMotion()
@@ -165,12 +195,18 @@ fun rememberArtistHeader(artist: String, enabled: Boolean): ArtistHeader {
         value = ArtistHeader(null, true)
         // Just the artist's search hit and its page's header images: not Api.getArtistOverview, which
         // loads the discography too and registers the artist's top tracks as the playing context.
-        val image = runCatching {
-            val api = MyspotiRuntime.api
-            val hits = api.search.artists(name, limit = 5).items
-            val artist = hits.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: hits.firstOrNull()
-            if (artist == null) "" else api.catalog.artistPage(artist.uri).headerImages.best(1280)?.url.orEmpty()
-        }.getOrNull()
+        val image = try {
+            withContext(Dispatchers.IO) {
+                val api = MyspotiRuntime.api
+                val hits = api.search.artists(name, limit = 5).items
+                val artist = hits.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: hits.firstOrNull()
+                if (artist == null) "" else api.catalog.artistPage(artist.uri).headerImages.best(1280)?.url.orEmpty()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
         // A failed lookup (offline, signed out) shows the cover now and is tried again next time;
         // an artist with no header is remembered as having none.
         if (image == null) { value = ArtistHeader(null, false); return@produceState }
@@ -189,10 +225,13 @@ val kawarpAvailable: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODE
  * long-press on a line to open a note.)
  */
 @Composable
-fun SpicyLyricsNotices(lyrics: Lyrics, color: Color, modifier: Modifier = Modifier) {
+fun SpicyLyricsNotices(lyrics: Lyrics, color: Color, modifier: Modifier = Modifier, onHeight: (Int) -> Unit = {}) {
     val provider = lyrics.provider?.takeIf { it.isNotBlank() }
-    if (lyrics.synced && provider == null) return
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    if (lyrics.synced && provider == null) {
+        onHeight(0)
+        return
+    }
+    Column(modifier.onSizeChanged { onHeight(it.height) }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (!lyrics.synced) Text(
             stringResource(R.string.lyrics_fullscreen_unsynced),
             color = color.copy(alpha = 0.8f), fontSize = 13.sp,

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="spicy_bg_button">Lyrics background</string>
     <string name="spicy_bg_title">Lyrics background</string>
     <string name="spicy_renderer">Spicy Lyrics renderer</string>
@@ -10,6 +10,6 @@
     <string name="spicy_still">Still</string>
     <string name="spicy_still_detail">Hold the background still.</string>
     <string name="spicy_beat">Beat-reactive</string>
-    <string name="spicy_beat_detail">Flow and swell with the song\'s loudness and beat. Songs Astral has no beat data for yet keep their steady motion.</string>
+    <string name="spicy_beat_detail">Moves with the beat; fetches the song\'s beat data once.</string>
     <string name="spicy_lyrics_by">Lyrics by %1$s</string>
 </resources>

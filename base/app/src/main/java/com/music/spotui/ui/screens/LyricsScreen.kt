@@ -168,7 +168,6 @@ import com.music.spotui.spicy.SpicyBackgroundButton
 import com.music.spotui.spicy.SpicyBackgroundLayer
 import com.music.spotui.spicy.SpicyBackgroundSheet
 import com.music.spotui.spicy.SpicyLyricsLayer
-import com.music.spotui.spicy.SpicyLyricsNotices
 import com.music.spotui.spicy.hasDrawableLines
 import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.data.preferences.getLyricTranslateLang
@@ -1209,23 +1208,18 @@ fun LyricsScreen(
                     val spicyRomanize = LyricsRomanizationPref.on && l.hasRomanization
                     // A source that calls itself synced with no real time on any line is static, as in the Immersive panel.
                     val spicyLyrics = if (l.synced && l.lines.none { it.timeMs > 0L }) l.copy(synced = false) else l
-                    Box(Modifier.fillMaxSize()) {
-                        SpicyLyricsLayer(
-                            lyrics = spicyLyrics,
-                            documentKey = "$title|$artist",
-                            currentTimeMs = position,
-                            playing = playing && spicyLyrics.synced,
-                            onSeek = { jumpTo(it) },
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                            romanize = spicyRomanize,
-                            songDurationMs = songDurationMs,
-                            reduceMotion = reduceMotion,
-                        )
-                        SpicyLyricsNotices(
-                            spicyLyrics, palette.highlight,
-                            Modifier.align(Alignment.BottomStart).padding(horizontal = 24.dp, vertical = 8.dp),
-                        )
-                    }
+                    SpicyLyricsLayer(
+                        lyrics = spicyLyrics,
+                        documentKey = "$title|$artist",
+                        currentTimeMs = position,
+                        playing = playing && spicyLyrics.synced,
+                        onSeek = { jumpTo(it) },
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                        romanize = spicyRomanize,
+                        songDurationMs = songDurationMs,
+                        reduceMotion = reduceMotion,
+                        noticeColor = palette.highlight,
+                    )
                     return@Crossfade
                 }
                 val active by remember(l) { derivedStateOf { activeIndexFor(l, position()) } }
