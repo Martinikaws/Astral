@@ -128,8 +128,8 @@ fun SpicyBackgroundLayer(
     }
     // One deliberate fetch per track, and only while beat-reactive is on.
     if (settings.beatReactive) {
-        val track = Graph.currentSongState.title.value + "|" + Graph.currentSongState.singer.value
-        LaunchedEffect(track) { TrackAudioSync.requestAnalysis() }
+        // Keyed on the track's uri: a remaster after the original (same title and artist) still fetches.
+        LaunchedEffect(com.music.spotui.di.SongPlayer.nowPlaying.value.uri) { TrackAudioSync.requestAnalysis() }
     }
     SpicySessionBackground(
         artworkUri = coverUri.takeIf { it.isNotBlank() },
