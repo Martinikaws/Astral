@@ -114,4 +114,16 @@ class UpdateCheckerTest {
         val stable = list + rel("v1.0.0", false, "Orpheon-1.0.0-ARMv8.apk")
         assertEquals("1.0.0", UpdateChecker.newest(stable, beta = false, abis = arm64, name = "Orpheon")?.version)
     }
+
+    @Test fun aLocalBuildInstalledAsBetaDoesNotCheckForUpdates() {
+        val repo = "Martinikaws/Astral"
+        // Published channels check.
+        assertEquals(true, UpdateChecker.isUpdatableBuild(repo, "app.astral", "1.0.4"))
+        assertEquals(true, UpdateChecker.isUpdatableBuild(repo, "app.astral.beta", "1.2.1-beta.1"))
+        // A local test build: Astral Beta labelled with a stable version kept being offered an older beta.
+        assertEquals(false, UpdateChecker.isUpdatableBuild(repo, "app.astral.beta", "1.0.4"))
+        assertEquals(false, UpdateChecker.isUpdatableBuild(repo, "app.astral.beta.dev", "1.0.4"))
+        // No repo: never.
+        assertEquals(false, UpdateChecker.isUpdatableBuild("", "app.astral", "1.0.4"))
+    }
 }

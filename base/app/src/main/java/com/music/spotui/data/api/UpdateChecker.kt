@@ -52,7 +52,7 @@ object UpdateChecker {
      */
     suspend fun check(context: Context, manual: Boolean = false): Release? = withContext(Dispatchers.IO) {
         val repo = BuildConfig.UPDATE_REPO
-        if (repo.isBlank()) return@withContext null
+        if (!checksUpdates) return@withContext null
         val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         if (now - prefs.getLong("checked_at", 0L) < INTERVAL_MS || now - prefs.getLong("tried_at", 0L) < RETRY_MS) return@withContext pending(prefs, manual)
@@ -66,7 +66,7 @@ object UpdateChecker {
      */
     suspend fun refresh(context: Context): Outcome = withContext(Dispatchers.IO) {
         val repo = BuildConfig.UPDATE_REPO
-        if (repo.isBlank()) return@withContext Outcome.UpToDate
+        if (!checksUpdates) return@withContext Outcome.UpToDate
         val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
         val result = fetch(repo, force = true)
         store(prefs, result, System.currentTimeMillis())
@@ -124,6 +124,7 @@ object UpdateChecker {
 
     /** The latest release known, if newer than this build and (unless [manual]) not dismissed. */
     private fun pending(prefs: android.content.SharedPreferences, manual: Boolean = false): Release? {
+        if (!checksUpdates) return null
         val version = prefs.getString("version", null) ?: return null
         val url = prefs.getString("url", null) ?: return null
         if (!manual && prefs.getString("dismissed", null) == version) return null
@@ -200,6 +201,18 @@ object UpdateChecker {
         val base = packageName.removeSuffix(".dev")
         return base == PACKAGE_STABLE || base == PACKAGE_BETA
     }
+
+    /**
+     * Whether this build looks for updates at all. Not without a repo (debug builds), and not a
+     * build installed as Astral Beta whose version isn't a beta (a local test build made without
+     * `-PappVersionName`, labelled e.g. "1.0.4"): on the beta channel any published beta looked
+     * newer than it ("1.2.1-beta.1" > "1.0.4"), so it kept offering an older beta.
+     */
+    val checksUpdates: Boolean
+        get() = isUpdatableBuild(BuildConfig.UPDATE_REPO, BuildConfig.APPLICATION_ID, BuildConfig.VERSION_NAME)
+
+    internal fun isUpdatableBuild(repo: String, applicationId: String, versionName: String): Boolean =
+        repo.isNotBlank() && !(applicationId.removeSuffix(".dev") == PACKAGE_BETA && !versionName.contains("-beta"))
 
     /** This build is on the Astral Beta channel (`app.astral.beta` or `-beta` version tag). */
     val isBeta: Boolean
