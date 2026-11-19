@@ -54,6 +54,7 @@ object AutoMix {
         // The Spotify songs' fade follows: a short one with AutoMix on (see TransitionPref).
         com.music.spotui.data.preferences.applyCrossfade(com.music.spotui.data.preferences.CrossfadePref.seconds)
         journal("AutoMix ${if (value) "on" else "off"}")
+        runCatching { TransitionEditorBridge.refresh() }
     }
 
     /**
@@ -351,6 +352,43 @@ object AutoMix {
         }
     }
 
+    /**
+     * Ensures [uris] are decoded and analysed for the Transition Editor even when [on] is false,
+     * invoking [onUpdate] on the main thread as each track analysis becomes available.
+     */
+    fun ensureAnalyzedForEditor(vararg uris: Uri, onUpdate: () -> Unit = {}) {
+        val songs = uris.distinctBy(::requestId)
+        if (songs.isEmpty()) return
+        wanted = wanted + songs.map(::requestId)
+        val epoch = cacheEpoch
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        worker.execute {
+            for (uri in songs) {
+                if (epoch != cacheEpoch) continue
+                val id = requestId(uri)
+                wanted = wanted + id
+                refreshFileVersion(uri)
+                prepareStreamKey(uri)
+                val k = key(uri)
+                if (synchronized(memory) { memory.containsKey(k) }) {
+                    mainHandler.post(onUpdate)
+                    continue
+                }
+                val cached = if (uri.scheme != ExtensionAudio.SCHEME || ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) != null) load(k) else null
+                if (cached != null) {
+                    synchronized(memory) { memory[k] = cached; refused -= id }
+                    mainHandler.post(onUpdate)
+                    continue
+                }
+                val result = analyse(uri, epoch)
+                if (result != null && epoch == cacheEpoch && result.first == key(uri)) {
+                    synchronized(memory) { memory[result.first] = result.second; refused -= id; retry.succeeded(result.first) }
+                    mainHandler.post(onUpdate)
+                }
+            }
+        }
+    }
+
     @Volatile private var pageWaited = false
 
     /**
@@ -446,6 +484,7 @@ object AutoMix {
 
     // ── Plans ──
 
+    fun plan(a: TrackAnalysis, b: TrackAnalysis): MixPlan? = planFor(a, b)
     fun planFor(a: TrackAnalysis, b: TrackAnalysis): MixPlan? = MixPlanner.planBounded(a, b, settings())
     fun planAfter(a: TrackAnalysis, b: TrackAnalysis, earliestExit: Double): MixPlan? = MixPlanner.planAfter(a, b, earliestExit, settings())
 

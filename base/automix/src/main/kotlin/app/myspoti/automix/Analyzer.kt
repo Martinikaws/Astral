@@ -2,6 +2,7 @@
 package app.myspoti.automix
 
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -176,10 +177,33 @@ object Analyzer {
         val vocalRisk = VocalRisk.estimate(barDb, barMid, absoluteCentre, barCentre, f.stereo)
         val (key, keyStrength) = key(f, level, gate)
         val loud = loudness(f.rmsDb, peak - 20f)
+        val rawWaveform10Hz = buildWaveform10Hz(f.rmsDb, f.durationSec, loud)
         return TrackAnalysis(f.durationSec, contentStart, contentEnd, loud, key, keyStrength, bpm, steady, head, tail,
             beats, barStarts, barDb, barLow, barHigh, barCentre, novelty, phraseOffset, f.stereo, headDown, tailDown, why.toString().trimEnd(' ', ';'), vocalRisk,
             signalKey(mid, side, length), barBass, phaseStats(head, mb, headSpan), phaseStats(tail, mb, tailSpan), metre(head, headSpan), metre(tail, tailSpan),
-            mb, barDownConfidence)
+            mb, barDownConfidence, rawWaveform10Hz = rawWaveform10Hz)
+    }
+
+    private const val SILENCE_DB = -70f
+
+    private fun buildWaveform10Hz(rmsDb: FloatArray, durationSec: Double, loudnessDb: Double): FloatArray {
+        val wfSize = max(1, ceil(max(0.1, durationSec) * TrackAnalysis.WAVEFORM_HZ).toInt())
+        if (rmsDb.isEmpty()) return FloatArray(wfSize)
+        val loDb = loudnessDb - 28.0
+        val hiDb = loudnessDb + 6.0
+        val spanDb = max(6.0, hiDb - loDb)
+        val framesPerBin = FPS / TrackAnalysis.WAVEFORM_HZ
+        return FloatArray(wfSize) { bin ->
+            val f0 = (bin * framesPerBin).toInt().coerceIn(0, rmsDb.size - 1)
+            val f1 = ceil((bin + 1) * framesPerBin).toInt().coerceIn(f0 + 1, rmsDb.size)
+            var peakDb = -120f
+            for (j in f0 until f1) if (rmsDb[j] > peakDb) peakDb = rmsDb[j]
+            if (peakDb <= SILENCE_DB) 0f else {
+                val meanDb = powerMean(rmsDb, f0, f1)
+                val blendDb = 0.65 * peakDb + 0.35 * meanDb
+                ((blendDb - loDb) / spanDb).toFloat().coerceIn(0f, 1f)
+            }
+        }
     }
 
     /** The model's beats against a grid: median and 95th percentile of their distance; null with too few to tell. */

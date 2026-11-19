@@ -47,6 +47,7 @@ sealed class Routes(
     /** A repository's extension, before it is installed (by id). */
     object ExtensionEntry : Routes(0, "ExtensionEntry", "extension-store")
     object Profile : Routes(0, "Profile", "profile")
+    object TransitionEditor : Routes(0, "TransitionEditor", "transition-editor")
 }
 
 /** A Spotify user's profile, by user id (the part after spotify:user:). */

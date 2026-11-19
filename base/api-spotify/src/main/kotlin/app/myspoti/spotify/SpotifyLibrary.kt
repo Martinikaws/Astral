@@ -202,15 +202,25 @@ class SpotifyLibrary(private val bridge: Bridge, private val gql: Gql) : Library
 private const val ADDED_BY_PAGE = 300
 
 class SpotifyPlaylists(private val gql: Gql, private val bridge: Bridge, private val http: SpotifyHttp) : Playlists {
-    override suspend fun playlist(uri: Uri): Playlist =
-        playlist(gql.query("fetchPlaylist", vars(
+    companion object {
+        @Volatile
+        var rawPlaylistRecorder: ((uri: String, op: String, rawJson: String) -> Unit)? = null
+    }
+
+    override suspend fun playlist(uri: Uri): Playlist {
+        val raw = gql.query("fetchPlaylist", vars(
             "uri" to uri, "offset" to 0, "limit" to 1, "enableWatchFeedEntrypoint" to false, "includeEpisodeContentRatingsV2" to true,
-        )).entity("data.playlistV2", "fetchPlaylist")) ?: throw GqlException("fetchPlaylist", "bad playlist")
+        ))
+        runCatching { rawPlaylistRecorder?.invoke(uri, "fetchPlaylist", raw.toString()) }
+        return playlist(raw.entity("data.playlistV2", "fetchPlaylist")) ?: throw GqlException("fetchPlaylist", "bad playlist")
+    }
 
     override suspend fun tracks(uri: Uri, offset: Int, limit: Int): Page<Track> {
-        val p = gql.query("fetchPlaylistContents", vars(
+        val raw = gql.query("fetchPlaylistContents", vars(
             "uri" to uri, "offset" to offset, "limit" to limit, "includeEpisodeContentRatingsV2" to true,
-        )).entity("data.playlistV2", "fetchPlaylistContents")
+        ))
+        runCatching { rawPlaylistRecorder?.invoke(uri, "fetchPlaylistContents", raw.toString()) }
+        val p = raw.entity("data.playlistV2", "fetchPlaylistContents")
         val content = p.at("content")
         val items = content.list("items").mapNotNull { playlistItem(it.at("itemV2.data"), it.str("uid"))?.copy(addedAt = it.str("addedAt.isoString")) }
         val total = content.int("totalCount") ?: items.size

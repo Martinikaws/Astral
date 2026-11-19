@@ -143,7 +143,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
             SettingsPage.Lyrics -> LyricsPage(open, back)
             SettingsPage.StreamingWifi -> StreamingPage(cellular = false, back)
             SettingsPage.StreamingCell -> StreamingPage(cellular = true, back)
-            SettingsPage.Crossfade -> CrossfadePage(back)
+            SettingsPage.Crossfade -> CrossfadePage(navController, back)
             SettingsPage.Downloads -> DownloadsPage(navController, open, back)
             SettingsPage.DownloadQuality -> DownloadQualityPage(back)
             SettingsPage.Storage -> StoragePage(back)
@@ -553,7 +553,7 @@ private fun StreamingPage(cellular: Boolean, back: () -> Unit) {
 
 /** Transitions: off, a crossfade of a chosen length, or AutoMix with its options. */
 @Composable
-private fun CrossfadePage(back: () -> Unit) {
+private fun CrossfadePage(navController: NavController, back: () -> Unit) {
     val ctx = LocalContext.current
     val transition = com.music.spotui.data.preferences.TransitionPref
     val automix = com.music.spotui.automix.AutoMix
@@ -685,6 +685,32 @@ private fun CrossfadePage(back: () -> Unit) {
                             }
                         }) { Text(stringResource(R.string.settings_automix_cache_clear), color = if ((cacheBytes ?: 0L) > 0L) Immersive.Accent else Immersive.TextSecondary) }
                     },
+                )
+            }
+        }
+        immersiveGroup("transition-experimental") {
+            row {
+                ImmersiveSwitchRow(
+                    "DJ Transition Editor (Experimental)",
+                    checked = com.music.spotui.data.preferences.TransitionEditorPref.enabled,
+                    onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setEnabled(ctx, it) },
+                    detail = "Edit overlap bars, cue points, and volume curves between songs on Astral's local player (lossless/extension streams, downloads, or local files).",
+                )
+            }
+            if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) row {
+                ImmersiveGroupRow(
+                    "Open Transition Editor",
+                    detail = "Fine-tune the mix between the currently playing song and the next track in queue.",
+                    chevron = true,
+                    onClick = { navController.navigate(Routes.TransitionEditor.route) },
+                )
+            }
+            row {
+                ImmersiveSwitchRow(
+                    "Dump Spotify mixed-playlist data (Debug)",
+                    checked = com.music.spotui.data.preferences.TransitionEditorPref.dumpMixedPlaylists,
+                    onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setDumpMixedPlaylists(ctx, it) },
+                    detail = "When opening a playlist, save its raw redacted GraphQL JSON response to mixed-playlists/ so Spotify mix transition fields can be inspected.",
                 )
             }
         }
