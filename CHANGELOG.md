@@ -1,5 +1,7 @@
 # Astral — Release Log
 
+> **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
+
 ## v1.0.3 — First Signed Stable Release, Spicy Lyrics Renderer & Backgrounds, More Lyrics Sources (2026-11-19)
 
 > **Reinstall once.** Every earlier stable release (v1.0.0–v1.0.2) shipped a debug build ("Astral dev", `app.astral.dev`) that never checks for updates. v1.0.3 is the first signed release (`app.astral`). Install it once from this page, and from then on Astral updates itself in the app. The old "Astral dev" app can be uninstalled afterwards. Its settings and downloads don't carry over.
