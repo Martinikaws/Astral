@@ -34,8 +34,8 @@ object LyricsSourcePref {
     fun set(c: Context, id: String, value: Boolean) {
         state[id] = value
         prefs(c).edit().putBoolean(key(id), value).apply()
-        // What was found without (or with) this source is not kept: songs are read again when next shown.
-        com.music.spotui.data.api.LyricsApi.forgetAll()
+        // Songs not found are asked again; what was found (maybe picked by hand) is kept.
+        com.music.spotui.data.api.LyricsApi.forgetMisses()
     }
 
     /** Whether the one-time notice ("who is asked, what is sent") was already shown for [id]. */

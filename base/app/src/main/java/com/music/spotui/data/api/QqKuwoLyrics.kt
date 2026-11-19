@@ -84,7 +84,7 @@ internal object QqLyrics {
     fun lyricsOf(body: String): Lyrics? {
         var text = runCatching { JSONObject(body).optString("lyric") }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
         if (!text.trim().startsWith("[")) text = runCatching { String(Base64.getDecoder().decode(text.trim()), Charsets.UTF_8) }.getOrDefault(text)
-        val lines = LyricsApi.lrcLines(text).filterNot { it.text.contains('：') && it.text.length < 40 }
+        val lines = LyricsApi.lrcLines(text).filterNot { KuwoLyrics.isCredit(it.text) }
         return lines.takeIf { it.size >= 3 }?.let { Lyrics(lines = it, synced = true, provider = NAME) }
     }
 }
@@ -182,7 +182,7 @@ internal object KuwoLyrics {
                 LyricWord(start, start + Math.floorDiv(kotlin.math.abs(x - y), 2L * k2), w)
             }
             val line = words.joinToString("") { it.text }.trim()
-            if (line.isEmpty()) null else LyricLine(at, line, words)
+            if (line.isEmpty() || isCredit(line)) null else LyricLine(at, line, words)
         }.toList()
         return out.takeIf { it.size >= 3 }?.let { Lyrics(lines = it, synced = true, provider = NAME) }
     }
@@ -192,9 +192,13 @@ internal object KuwoLyrics {
         val lrc = text.lineSequence().map { it.trimEnd('\r') }
             .filterNot { it.startsWith("[kuwo:") || it.startsWith("[ml:") || NOTE.containsMatchIn(it) }
             .joinToString("\n")
-        val lines = LyricsApi.lrcLines(lrc).filter { it.text.isNotBlank() }
+        val lines = LyricsApi.lrcLines(lrc).filter { it.text.isNotBlank() && !isCredit(it.text) }
         return lines.takeIf { it.size >= 3 }?.let { Lyrics(lines = it, synced = true, provider = NAME) }
     }
+
+    /** The credit lines that open the lyrics ("作词：…", "作曲：…"): not lyrics, as Kugou's are not. */
+    fun isCredit(text: String) = text.contains('：') || CREDIT.containsMatchIn(text)
+    private val CREDIT = Regex("^(?:作词|作曲|编曲|词|曲|制作人?|混音|录音|监制)\\s*:")
 
     private fun indexOf(haystack: ByteArray, needle: ByteArray): Int {
         outer@ for (i in 0..haystack.size - needle.size) {

@@ -146,6 +146,13 @@ object LyricsApi {
     /** A setting changed what is looked for: every song is read again when next shown. */
     fun forgetAll() { cache.clear(); health.forgetAll(); scope.launch { LyricsDisk.clear() } }
 
+    /**
+     * A source was switched on or off: the songs not found (or found only in part) are asked again.
+     * What was found stays, in memory and on storage (it may be lyrics picked by hand), and so does
+     * the providers' health.
+     */
+    fun forgetMisses() { synchronized(cache) { cache.values.removeAll { it is Miss || it is Partial } } }
+
     /** Bumped when the lyrics extensions changed and the cache was dropped: an open lyrics view reads its song again. */
     val sourcesTick = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
@@ -570,12 +577,14 @@ object LyricsApi {
         val ownWords = (spicyResult?.takeIf { it.wordSynced } ?: amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
             ?: netease.await()?.takeIf { it.wordSynced } ?: kugou.await())?.takeIf { it.wordSynced }
         val words = ownWords ?: more.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.wordSynced } }
+        // Nobody had words: what these answered (line-synced or nothing) goes on to the line pass, which does not ask them again.
+        val alreadyAsked = if (words == null) EXTRA_WORD_SOURCES.zip(more.map { it.await() }).toMap() else emptyMap()
         more.forEach { it.cancel() }
         when {
             words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, spicy, amll, plus, red) } ?: sp
             spicyResult != null -> spicyResult.copy(colors = sp?.colors)
             sp != null -> sp
-            else -> lineFallbacks(track)
+            else -> lineFallbacks(track, alreadyAsked)
         }
     }
 
@@ -625,15 +634,13 @@ object LyricsApi {
     private const val MAX_ALIGN_SHIFT_MS = 20_000L
 
     /** Nothing from Spotify: LRCLIB, then (opt-in) NetEase and Genius, then Kugou. */
-    private suspend fun lineFallbacks(track: Track): Lyrics? = coroutineScope {
+    private suspend fun lineFallbacks(track: Track, already: Map<String, Lyrics?> = emptyMap()): Lyrics? = coroutineScope {
             val title = cleanTitle(track.title)
             val artist = track.artist.substringBefore(",").trim()
             val durationSec = (track.durationMs / 1000).toInt()
             val netease = if (extraSources) async { asking("netease", track) { fromNetEase(title, artist, durationSec) } } else null
             val genius = if (extraSources && geniusOn) async { asking("genius", track) { fromGenius(title, artist) } } else null
-            // The sources added from Spicy Lyrics Mobile, asked at the same time; used after Kugou.
-            val asked = track.title.trim()
-            val extras = EXTRA_SOURCES.map { id -> async { if (!extraOn(id)) null else within(EXTRA_WAIT_MS) { asking(id, track) { fromExtra(id, asked, title, artist, track.album, track.durationMs) } } } }
+            val askedTitle = track.title.trim()
             val lrclib = asking("lrclib", track) {
                 val exact = async { lrclibGet(title, artist, track.album, durationSec) }
                 val fuzzy = async { lrclibSearch("$LRCLIB/search?track_name=${enc(title)}&artist_name=${enc(artist)}", title, artist, durationSec) }
@@ -642,16 +649,28 @@ object LyricsApi {
             }
             val ne = netease?.await()
             // Synced beats plain; NetEase's translation and romanization follow the lines of LRCLIB when it wins.
-            val result = when {
+            when {
                 lrclib != null && lrclib.synced -> LyricsExtras.carry(lrclib, ne)
                 ne != null && ne.synced -> ne
-                else -> asking("kugou", track) { fromKugou(title, artist, track.durationMs) }
-                    ?: extras.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.synced } }
-                    ?: lrclib ?: ne ?: genius?.await()
-                    ?: extras.firstNotNullOfOrNull { d -> d.await() }
+                else -> asking("kugou", track) { fromKugou(title, artist, track.durationMs) } ?: run {
+                    // The sources added from Spicy Lyrics Mobile: asked only now that the others missed
+                    // (those the word pass already asked keep their answer), at the same time, the rest cancelled once decided.
+                    val extras = EXTRA_SOURCES.map { id ->
+                        async {
+                            when {
+                                id in already -> already[id]
+                                !extraOn(id) -> null
+                                else -> within(EXTRA_WAIT_MS) { asking(id, track) { fromExtra(id, askedTitle, title, artist, track.album, track.durationMs) } }
+                            }
+                        }
+                    }
+                    try {
+                        extras.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.synced } }
+                            ?: lrclib ?: ne ?: genius?.await()
+                            ?: extras.firstNotNullOfOrNull { d -> d.await() }
+                    } finally { extras.forEach { it.cancel() } }
+                }
             }
-            extras.forEach { it.cancel() }
-            result
     }
 
     // ── 1. Spotify color-lyrics ──
@@ -1170,6 +1189,10 @@ object LyricsApi {
     private fun fromLrcMux(asked: String, album: String, title: String, artist: String, durationMs: Long): Lyrics? {
         val body = httpGet(LrcMuxLyrics.url(title, artist, (durationMs / 1000).toInt()), timeoutMs = 6000, provider = "lrcmux") ?: return null
         val root = runCatching { JSONObject(body) }.getOrNull() ?: return null
+        // The answer must say it is this song (title, artist, length): a wrong one must not replace Spotify's lines.
+        LrcMuxLyrics.answerTrack(root)?.let { t ->
+            if (t.title.isBlank() || t.artist.isBlank() || !sameSong(t.title, t.artist, t.durationMs, title, artist, durationMs)) return null
+        }
         if (LrcMuxLyrics.otherVersion(root, "$asked $album")) return null
         return LrcMuxLyrics.parse(root)
     }
@@ -1306,9 +1329,9 @@ object LyricsApi {
                 setRequestProperty("User-Agent", UA)
                 setRequestProperty("Accept", "application/json, text/html;q=0.9, */*;q=0.8")
                 headers.forEach { (k, v) -> setRequestProperty(k, v) }
-                if (body != null) { doOutput = true; outputStream.use { it.write(body) } }
             }
             try {
+                if (body != null) { conn.doOutput = true; conn.outputStream.use { it.write(body) } }
                 val code = conn.responseCode
                 if (code != 200) {
                     Log.d("LyricsApi", "HTTP $code for $spec")

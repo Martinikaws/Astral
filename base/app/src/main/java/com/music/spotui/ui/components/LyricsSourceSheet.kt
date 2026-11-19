@@ -94,7 +94,7 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                     if (here) stringResource(R.string.lyrics_source_shown) else null,
                     if (s.words) stringResource(R.string.lyrics_source_words) else null,
                     if (s.setAside != null && s.enabled) stringResource(R.string.lyrics_source_aside) else null,
-                    if (!s.enabled) "Off" else null,
+                    if (!s.enabled) stringResource(R.string.lyrics_source_off) else null,
                 ).joinToString(" · ")
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -124,28 +124,24 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
             onDismissRequest = { notice = null },
             containerColor = tone(0xFF282828),
             title = { Text(s.name, color = AppText) },
-            text = { Text(sourceNotice(s.id), color = AppText) },
+            text = { Text(stringResource(sourceNotice(s.id)), color = AppText) },
             confirmButton = {
                 TextButton(onClick = {
                     LyricsSourcePref.markNoticeSeen(context, s.id)
                     LyricsSourcePref.set(context, s.id, true)
                     changes++
                     notice = null
-                }) { Text("Turn on", color = AppText) }
+                }) { Text(stringResource(R.string.lyrics_source_turn_on), color = AppText) }
             },
-            dismissButton = { TextButton(onClick = { notice = null }) { Text("Not now", color = AppMuted) } },
+            dismissButton = { TextButton(onClick = { notice = null }) { Text(stringResource(R.string.lyrics_source_not_now), color = AppMuted) } },
         )
     }
 }
 
-/**
- * The one-time notice of a source that is off until the user turns it on: who is asked and what is
- * sent (the song's title and artist, and for some, its album or length). No account or device
- * details go to any of them. Worded after Spicy Lyrics Mobile's privacy notes; brand names, in English.
- */
-private fun sourceNotice(id: String): String = when (id) {
-    "qq" -> "Astral will ask QQ Music (Tencent) for this song's lyrics. It sends the song's title and artist. No account or device details are sent."
-    "kuwo" -> "Astral will ask Kuwo for this song's lyrics. It sends the song's title and artist. No account or device details are sent."
-    "rmm" -> "Astral will ask Apple's iTunes search for this song's Apple Music ID, sending its title and artist, then ask RMM Revival (lyrics.rmmreviv.al) for its lyrics with that ID. No account or device details are sent."
-    else -> "Astral will ask this source for the song's lyrics, sending its title and artist."
+/** The one-time notice of a source that is off until the user turns it on: who is asked and what is sent. */
+private fun sourceNotice(id: String): Int = when (id) {
+    "qq" -> R.string.lyrics_notice_qq
+    "kuwo" -> R.string.lyrics_notice_kuwo
+    "rmm" -> R.string.lyrics_notice_rmm
+    else -> R.string.lyrics_notice_generic
 }

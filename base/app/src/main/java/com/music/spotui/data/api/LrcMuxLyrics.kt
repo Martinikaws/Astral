@@ -23,21 +23,27 @@ internal object LrcMuxLyrics {
     fun url(title: String, artist: String, durationSec: Int) =
         "https://api.lrcmux.dev/get?artist=${enc(artist)}&title=${enc(title)}&duration=$durationSec&format=json&level=word"
 
-    private val versionMarker = Regex(
-        "remix|live|acoustic|instrumental|karaoke|sped up|slowed|nightcore|cover|demo|version|edit|mix",
-        RegexOption.IGNORE_CASE,
-    )
-
     /**
      * LRCMux matches on title and length alone, so a remix as long as the song can answer for it
      * ("Dynamite (NightTime Version)" runs six seconds behind the original). True when its track
-     * carries a version marker (remix, live, ...) that [asked] does not.
+     * names a version (in brackets or after a dash) that [ours] ("title album") does not.
      */
-    fun otherVersion(root: JSONObject, asked: String): Boolean {
+    fun otherVersion(root: JSONObject, ours: String): Boolean {
         val track = root.optJSONObject("track") ?: return false
-        val theirs = listOf(track.optString("title"), track.optString("album")).joinToString(" ")
-        val wanted = versionMarker.findAll(asked).map { it.value.lowercase() }.toSet()
-        return versionMarker.findAll(theirs).any { it.value.lowercase() !in wanted }
+        return LyricsVersions.otherVersion(listOf(track.optString("title"), track.optString("album")).joinToString(" "), ours)
+    }
+
+    /** The track an answer says it is for: title, artists and length in ms (0: unknown). */
+    class AnswerTrack(val title: String, val artist: String, val durationMs: Long)
+
+    /** The answer's `track`, or null without one. */
+    fun answerTrack(root: JSONObject): AnswerTrack? {
+        val t = root.optJSONObject("track") ?: return null
+        val artists = t.optJSONArray("artists")?.let { a -> (0 until a.length()).map { a.opt(it)?.toString().orEmpty() } }?.joinToString(", ")
+        val seconds = t.optDouble("duration", 0.0)
+        // Seconds, or milliseconds when it cannot be a song's length in seconds.
+        val ms = if (seconds > 10_000) seconds.toLong() else (seconds * 1000).toLong()
+        return AnswerTrack(t.optString("title"), t.optString("artist").ifBlank { artists.orEmpty() }, ms)
     }
 
     /** The lyrics in an answer: word-timed when its lines carry words, else line-synced, else plain. Null when empty. */
