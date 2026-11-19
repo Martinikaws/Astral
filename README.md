@@ -51,12 +51,16 @@ Astral has no analytics, crash reporting or telemetry of its own. The build pull
 It still talks to other services, and they see what the request needs:
 
 - **Spotify**: sign-in, playback, your library and account, as in any Spotify client.
-- **Lyrics and metadata services** receive the track title, artist, duration and sometimes the ISRC or Spotify track id: LRCLIB, AMLL (`amll-ttml-db` on GitHub), LyricsPlus, NetEase, Kugou, Genius, Spicy Lyrics, Unison, LRCMux, lrc.red, MusicBrainz and ListenBrainz (with Cover Art Archive), Deezer and iTunes. **QQ Music, Kuwo and RMM Revival** are off until you turn them on, and Astral asks first.
+- **Lyrics and metadata services** receive the track title, artist, duration and sometimes the ISRC or Spotify track id: LRCLIB, AMLL (`amll-ttml-db` on GitHub), LyricsPlus, NetEase, Kugou, Genius, **Spicy Lyrics (asked by default, with the Spotify track id)**, Unison, LRCMux, lrc.red, MusicBrainz and ListenBrainz (with Cover Art Archive), Deezer (and its image CDN, `cdn-images.dzcdn.net`), iTunes and YouTube Music (as a metadata provider). **QQ Music, Kuwo and RMM Revival** are off until you turn them on, and Astral asks first.
 - **Lyric translation** sends the lyric text to Google Translate (`translate.googleapis.com`), only when you use translation.
-- **Lossless audio**: lossless is on by default. To find a FLAC for a track, Astral sends its title, artist, duration, ISRC and Spotify id to the lossless backends: the SpotiFLAC session gateway (`api.zarz.moe`), community servers whose list is fetched from a GitHub gist (default `*.anandserver.cfd`), and Tidal and Qobuz public endpoints. The background queue preloader uses this, and falls back to YouTube through NewPipeExtractor, for the current and upcoming tracks. You can turn lossless off in Settings.
-- **YouTube** (via NewPipeExtractor) for music videos and as the audio fallback above; **SponsorBlock** (`sponsor.ajay.app`) for podcast and video sponsor segments, if you enable it.
+- **Lossless audio**: lossless is on by default. To find a FLAC for a track, Astral sends its title, artist, duration, ISRC and Spotify id to the lossless backends: the SpotiFLAC session gateway (`api.zarz.moe`), community servers whose list is fetched from a GitHub gist (default `*.anandserver.cfd`), and Tidal and Qobuz public endpoints. You can turn lossless off in Settings.
+- **Background preloader**: Astral caches the current and next two tracks ahead of time, whether lossless is on or off. There is no setting for it; Data Saver or offline mode stops it. When lossless is off, or finds nothing, it searches YouTube (through NewPipeExtractor) with the track title, artist and duration.
+- **YouTube** (via NewPipeExtractor) for music videos and for the preloader fallback above.
+- **SponsorBlock** (`sponsor.ajay.app`): podcast sponsor skipping only when you turn it on (off by default). For YouTube music videos Astral always looks up segments, sending a hashed prefix of the video id.
+- **Podcasts**: episode downloads and playback contact the podcast publisher's servers, including any tracking redirects they use.
+- **Radio**: `*.api.radio-browser.info` for the station directory, then each station's own stream server (any host).
+- **Extensions**: an installed extension can contact the hosts you granted it.
 - **GitHub**: update checks (`api.github.com`), release downloads, and the extension and metadata-script indexes.
-- **Radio Browser** (`*.api.radio-browser.info`) for radio stations.
 
 ---
 

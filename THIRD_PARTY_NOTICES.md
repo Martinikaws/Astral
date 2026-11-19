@@ -343,12 +343,13 @@ from them may be copied into Astral. Contributors: please keep it that way.
 
 Astral talks to these services at run time. Their data is not part of this repository, and their own
 terms apply to it:
-- **Spicy Lyrics API** (`api.spicylyrics.org`): optional word-synced lyrics source (`SpicyLyricsProvider.kt`).
+- **Spicy Lyrics API** (`api.spicylyrics.org`): word-synced lyrics source, asked by default with the Spotify track id (`SpicyLyricsProvider.kt`).
 - The other lyrics and metadata sources the app's settings list: LRCLIB (`lrclib.net`), Genius (`genius.com`),
   NetEase (`music.163.com`), Kugou (`lyrics.kugou.com`), AMLL (`raw.githubusercontent.com/amll-dev/amll-ttml-db`),
   LyricsPlus (`lyricsplus.binimum.org`, `lyricsplus.prjktla.my.id`), lrc.red (`lrc.red`), MusicBrainz
   (`musicbrainz.org`), ListenBrainz labs (`labs.api.listenbrainz.org`), Cover Art Archive (`coverartarchive.org`),
-  Deezer (`api.deezer.com`) and iTunes (`itunes.apple.com`). They are sent the track title, artist, duration and,
+  Deezer (`api.deezer.com`, images from `cdn-images.dzcdn.net`), iTunes (`itunes.apple.com`) and YouTube Music as a
+  metadata provider. They are sent the track title, artist, duration and,
   for some, the ISRC or Spotify track id.
 - **Unison** (`unison.boidu.dev`), **LRCMux** (`api.lrcmux.dev`), **QQ Music** (`*.y.qq.com`), **Kuwo** (`*.kuwo.cn`) and
   **RMM Revival** (`lyrics.rmmreviv.al`, plus Apple's iTunes search, which RMM Revival uses): extra lyrics sources. Part 5
@@ -357,13 +358,18 @@ terms apply to it:
 - **Spotify** (`*.spotify.com`, `*.scdn.co`, `*.spotifycdn.com`): sign-in, playback, library, account, artwork. Astral is not
   affiliated with Spotify.
 - **YouTube** (`youtube.com`, `music.youtube.com`), through NewPipeExtractor: music videos, and the audio fallback of the
-  playback preloader.
+  background preloader (see below).
 - **Lossless backends**, on by default (Settings can turn lossless off): the SpotiFLAC session gateway (`api.zarz.moe`), the community
   servers listed in a registry gist fetched from `gist.githubusercontent.com` (defaults `tidal.anandserver.cfd` and
   `amazon.anandserver.cfd`; the registry can add others), and the Tidal (`tidal.com`) and Qobuz (`qobuz.com`) public
   endpoints. They are sent the track title, artist, duration, ISRC and Spotify track id.
-- **SponsorBlock** (`sponsor.ajay.app`): sponsor segments of podcasts and videos, if enabled.
-- **Radio Browser** (`*.api.radio-browser.info`): radio station directory.
+- **SponsorBlock** (`sponsor.ajay.app`): podcast skipping only if enabled (off by default); for YouTube music videos,
+  segments are always looked up by a hashed video-id prefix.
+- **Background preloader**: caches the current and next two tracks whether lossless is on or off (no setting; Data Saver
+  or offline mode stops it). Without a lossless hit it searches YouTube with the title, artist and duration.
+- **Podcast publishers' servers** and their tracking redirects: episode download and playback.
+- **Radio Browser** (`*.api.radio-browser.info`): radio station directory; each station's own stream server (any host).
+- **Hosts granted to installed extensions**: an extension can contact the hosts the user granted it.
 - **GitHub** (`Martinikaws/Astral`): in-app update check and release download (`api.github.com`), plus the extension
   and metadata-script indexes on `raw.githubusercontent.com`.
 

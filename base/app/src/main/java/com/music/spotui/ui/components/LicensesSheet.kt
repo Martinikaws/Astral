@@ -5,11 +5,22 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,7 +44,7 @@ import com.music.spotui.ui.theme.AppText
 import com.music.spotui.ui.theme.tone
 
 private const val LICENSES_DIR = "licenses"
-private const val REPO_URL = "https://github.com/Martinikaws/Astral"
+private val REPO_URL get() = "https://github.com/" + app.myspoti.engine.BuildConfig.UPDATE_REPO.ifBlank { "Martinikaws/Astral" }
 
 /** The licence files shipped in the APK's assets, known ones first in a fixed order. */
 private fun licenseFiles(context: Context): List<String> {
@@ -69,32 +80,49 @@ fun LicensesSheet(onDismiss: () -> Unit) {
         val current = open
         if (current != null) {
             BackHandler { open = null }
-            val text = remember(current) {
-                runCatching { context.assets.open("$LICENSES_DIR/$current").bufferedReader().use { it.readText() } }.getOrNull()
+            // null while loading; an empty list when the file could not be read.
+            val paragraphs by produceState<List<String>?>(null, current) {
+                value = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.assets.open("$LICENSES_DIR/$current").bufferedReader().use { it.readText() }
+                    }.getOrNull()?.replace("\r\n", "\n")?.split(Regex("\n\\s*\n"))?.filter { it.isNotBlank() }.orEmpty()
+                }
             }
             Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp)) {
                 Text(stringResource(R.string.licenses_back), color = AppAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { open = null }.padding(vertical = 8.dp))
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { open = null }
+                        .wrapContentHeight(Alignment.CenterVertically))
                 Text(licenseTitle(current), color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 10.dp))
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)) {
-                    Text(text ?: stringResource(R.string.licenses_load_failed), color = AppMuted, fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace, lineHeight = 15.sp,
-                        modifier = Modifier.horizontalScroll(rememberScrollState()))
+                    modifier = Modifier.padding(bottom = 10.dp).semantics { heading() })
+                val list = paragraphs
+                when {
+                    list == null -> Text(stringResource(R.string.licenses_loading), color = AppMuted, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 12.dp))
+                    list.isEmpty() -> Text(stringResource(R.string.licenses_load_failed), color = AppMuted, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 12.dp))
+                    else -> LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(bottom = 20.dp)) {
+                        items(list) { p ->
+                            Text(p.trimEnd(), color = AppMuted, fontSize = 12.sp, lineHeight = 17.sp,
+                                fontFamily = FontFamily.Monospace, modifier = Modifier.padding(bottom = 12.dp))
+                        }
+                    }
                 }
             }
         } else {
             Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 20.dp)) {
                 Text(stringResource(R.string.licenses_title), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() })
                 if (files.isEmpty()) {
                     Text(stringResource(R.string.licenses_empty), color = AppMuted, fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                     Text(stringResource(R.string.licenses_open_github), color = AppAccent, fontSize = 16.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { openRepo(context) }.padding(horizontal = 20.dp, vertical = 12.dp))
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { openRepo(context) }
+                            .padding(horizontal = 20.dp, vertical = 12.dp))
                 } else for (f in files) {
                     Text(licenseTitle(f), color = AppText, fontSize = 16.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { open = f }.padding(horizontal = 20.dp, vertical = 12.dp))
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { open = f }
+                            .padding(horizontal = 20.dp, vertical = 12.dp))
                 }
             }
         }

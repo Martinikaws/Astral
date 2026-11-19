@@ -537,7 +537,7 @@ fun SettingsScreen(navController: NavController) {
             if (licensesOpen) com.music.spotui.ui.components.LicensesSheet(onDismiss = { licensesOpen = false })
             Column(
                 Modifier.fillMaxWidth().clickable {
-                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Martinikaws/Astral")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/" + app.myspoti.engine.BuildConfig.UPDATE_REPO.ifBlank { "Martinikaws/Astral" })).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(stringResource(R.string.about_github), color = AppText, fontSize = 16.sp)
