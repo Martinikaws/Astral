@@ -137,7 +137,7 @@ interface MediaLibrary {
 class PlaybackService : MediaBrowserServiceCompat() {
     private lateinit var session: MediaSessionCompat
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var foreground = false
+    @Volatile private var foreground = false
     private var lastCoverUrl: String? = null
     private var cover: Bitmap? = null
     private var coverJob: Job? = null
@@ -864,6 +864,9 @@ class PlaybackService : MediaBrowserServiceCompat() {
         /** True while the service runs (its notification is up): the app may be in the background. */
         val isRunning: Boolean get() = instance != null
 
+        /** True once the service has entered foreground via startForeground(). */
+        val isForeground: Boolean get() = instance?.foreground == true
+
         /** Current now-playing snapshot held by the service, if any. */
         fun currentInfo(): NowPlayingInfo? = current
 
@@ -921,7 +924,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
          * up is refused and pauses itself (seen with the engine played from the background).
          */
         fun ensureStarted(context: Context) {
-            if (instance != null) return
+            if (isForeground) return
             runCatching { androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java)) }
                 .onFailure { Logbook.logEvery("service-start", 10_000, "service not started for playback: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
         }

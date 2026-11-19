@@ -236,8 +236,8 @@ private fun ExpandedTabs(
     // (recorded below); without it, the plain lifted pill carries the whole motion.
     val page = LocalImmersiveBackdrop.current
     val glassPill = page != null
-    val barGlass = rememberLayerBackdrop()
-    val tabRow = rememberLayerBackdrop()
+    val barGlass = if (glassPill) rememberLayerBackdrop() else null
+    val tabRow = if (glassPill) rememberLayerBackdrop() else null
 
     var rowSize by remember { mutableStateOf(IntSize.Zero) }
     var lastHapticTab by remember { mutableIntStateOf(selectedTabIndex) }
@@ -275,11 +275,15 @@ private fun ExpandedTabs(
         restSize
     }
     // Where the pill's centre is in the row, for a position in tab steps.
-    val pillCenterInRow: (Float) -> Offset = { position ->
-        val x = position * tabStepPx + tabWidthPx / 2f
-        Offset(if (isRtl) rowSize.width - x else x, rowHeightPx / 2f)
+    val pillCenterInRow: (Float) -> Offset = remember(tabStepPx, tabWidthPx, rowHeightPx, isRtl, rowSize.width) {
+        { position ->
+            val x = position * tabStepPx + tabWidthPx / 2f
+            Offset(if (isRtl) rowSize.width - x else x, rowHeightPx / 2f)
+        }
     }
     val showPill = selectedTabIndex >= 0 && tabWidthPx > 0f
+    // Only record & export the bar's glass and tab row while the lifted lens is actually active.
+    val exportGlass = glassPill && showPill && !pill.isFlat
 
     LaunchedEffect(selectedTabIndex) {
         if (selectedTabIndex >= 0) {
@@ -297,8 +301,8 @@ private fun ExpandedTabs(
     // Unclipped: the lifted pill stands past the bar's edges, so it is drawn
     // here, over the bar, rather than inside the bar's clip.
     Box(modifier = modifier) {
-        // The bar's glass is exported for the lens to refract.
-        CompositionLocalProvider(LocalGlassExport provides if (glassPill) barGlass else null) {
+        // The bar's glass is exported for the lens to refract only while the pill is lifted.
+        CompositionLocalProvider(LocalGlassExport provides if (exportGlass) barGlass else null) {
         Box(
             modifier = Modifier
                 .background(colors.backgroundColor, shapes.tabBarShape)
@@ -325,7 +329,7 @@ private fun ExpandedTabs(
                 modifier = Modifier
                     .fillMaxWidth()
                     .onSizeChanged { rowSize = it }
-                    .then(if (glassPill) Modifier.layerBackdrop(tabRow) else Modifier)
+                    .then(if (exportGlass && tabRow != null) Modifier.layerBackdrop(tabRow) else Modifier)
                     // Keyed on whether a pill tab is selected too: the bar can be (re)composed with
                     // Search selected (it has no pill), and a handler that returned then would stay
                     // dead after the user came back to Home or Library.
@@ -369,7 +373,7 @@ private fun ExpandedTabs(
             ) {
                 scope.tabs.forEach { tab ->
                     val isSelected = tab.key == selectedTabKey
-                    val iconScale by animateFloatAsState(
+                    val iconScale = animateFloatAsState(
                         targetValue = if (isSelected) 1.08f else 1f,
                         animationSpec = selectionSpec,
                         label = "immersiveTabScale",
@@ -378,8 +382,9 @@ private fun ExpandedTabs(
                         icon = {
                             Box(
                                 Modifier.graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
+                                    val s = iconScale.value
+                                    scaleX = s
+                                    scaleY = s
                                 },
                             ) {
                                 tab.icon()
@@ -411,7 +416,7 @@ private fun ExpandedTabs(
                     center = { pillCenterInRow(pill.position) + Offset(padLeftPx, padTopPx) },
                     size = { pill.liveSize(restSize, liftedSize) },
                 )
-            if (page != null) {
+            if (page != null && barGlass != null && tabRow != null) {
                 GlassSelectionPill(
                     motion = pill,
                     fillColor = colors.indicatorColor,

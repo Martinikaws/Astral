@@ -2,6 +2,26 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.4 — Wear OS Battery & Performance, Faster Playback Startup, App-Wide Performance & Full-Screen Spicy Lyrics Background (2026-11-19)
+
+### Wear OS Battery Life & Performance Overhaul
+- **Zero Idle Bluetooth & CPU Drain**: Gated phone-to-watch Data Layer publishing on reachable watch presence (`CapabilityClient` / `NodeClient`) and active watch UI state (`watch_open` / `watch_close` on `LifecycleStartEffect`), eliminating background `.setUrgent()` radio wakeups, redundant Spotify `audio-analysis` downloads, and main-thread 1 Hz tickers when the watch screen is off.
+- **Stable Artwork Caching & Split DataItems**: Cached `MediaMetadataCompat` with stable artwork keys (avoiding Binder bitmap unparceling and 100% cache misses), moved to a single-scale `64×64` Q68 artwork pipeline, split `/remote/state`, `/remote/art`, and `/remote/viz` DataItems with semantic deduplication, and moved watch JSON + `RGB_565` bitmap decoding off the main thread.
+- **Watch Visualizer & AMOLED Efficiency**: Optimized `NcsVisualizer` (`24×24` grid, 2-octave hoisted Perlin noise, 2 draw passes, zero per-frame allocations, 30 fps normal / 15 fps Battery Saver pacing, `RESUMED` lifecycle gating), debounced rotary volume events, added `TransformingLazyColumn` content types, and switched watch player surfaces to true `#000000` AMOLED black.
+
+### Faster Playback Startup (Native Engine, Audio Extensions & LocalPlayer)
+- **Native Audio Engine Startup & Switch Speedups**: Parallelized `storage-resolve` and `seektables` requests, overlapped `ackCommand`/`finalize` reporting with `resolver.resolve()` and `player.load()`, pre-warmed the engine and Widevine certificate/licence URL at startup, parallelized CDN `init` + `segment 0` prefetching, and reduced initial playback buffer threshold to `500 ms`.
+- **Faster Audio-Source Extensions & DASH FLAC**: Reduced `LocalPlayer` startup buffer from `2,500 ms` to `500 ms`, increased `SafeNet` per-host HTTP concurrency (`32` per host / `128` max), pre-fetched DASH `segment 0` during `DashLive.open()`, parallelized audio-source extension initialization, and deferred upcoming-queue preloading by `3 s` so active track startup gets full bandwidth.
+
+### App-Wide UI Performance & CoverGlow Fixes
+- **Pre-Blurred Off-Main-Thread Artwork Halos (`SoftBlurBitmap` & `CoverGlow`)**: Replaced per-frame full-resolution `Modifier.blur` RenderEffects in `CoverGlow`, `GlassifyAmbientBackdrop`, `PlayerCoverArt`, `ModulesScreen`, and `ImmersiveSheet` with one-shot off-main-thread premultiplied-alpha 3-pass box-blurred bitmaps, fixed `CoverGlow` load failure and Glide bitmap ownership handling, and added top cover spacing in classic `ContextScreen`.
+- **Single-Layer Liquid Glass & Frame-Paced Backdrops**: Eliminated double `hazeSource` + `layerBackdrop` recording, made `LayerBackdropModifier` and `ImmersivePlayerOverlay` event-driven with zero idle timers, fixed `ShapeProvider` equality to stop AGSL shader rebuilds, frame-paced `StarryNightBackdrop`, `MeshGradient`, `ModulesScreen`, and `ShimmerClock` with lifecycle and Battery Saver gating, and made `TrackAudioSync.sample()` lock-free and allocation-free.
+
+### Full-Screen Spicy Lyrics Background
+- **Full-Screen Lyrics Backdrop in Interactive Player**: The Interactive lyrics panel now publishes its active **Spicy Lyrics** background into a full-screen player backdrop slot (`SpicyBackdropSlot`), filling the entire player edge-to-edge in both portrait and landscape and crossfading smoothly when switching between lyrics, cover, and queue.
+
+---
+
 ## v1.0.3 — First Signed Stable Release, Spicy Lyrics Renderer & Backgrounds, More Lyrics Sources (2026-11-19)
 
 > **Reinstall once.** Every earlier stable release (v1.0.0–v1.0.2) shipped a debug build ("Astral dev", `app.astral.dev`) that never checks for updates. v1.0.3 is the first signed release (`app.astral`). Install it once from this page, and from then on Astral updates itself in the app. The old "Astral dev" app can be uninstalled afterwards. Its settings and downloads don't carry over.

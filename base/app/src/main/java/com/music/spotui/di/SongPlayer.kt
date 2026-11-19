@@ -540,7 +540,7 @@ object SongPlayer {
         // A play, pause or skip still waiting (a slow page, a page still loading) belongs to the
         // session that ends: it is dropped, not sent once the next account's page is ready.
         sessionGen.incrementAndGet()
-        transportGen.incrementAndGet()
+        transportGenFlow.value = transportGen.incrementAndGet()
         runningTransport?.cancel()
         pendingTrackId = null
         pendingItemUri = null
@@ -1049,6 +1049,7 @@ object SongPlayer {
 
     private val transportLock = kotlinx.coroutines.sync.Mutex()
     private val transportGen = java.util.concurrent.atomic.AtomicInteger()
+    private val transportGenFlow = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     /** Moved by [clearSession]: a transport started for an account that signed out is never sent. */
     private val sessionGen = java.util.concurrent.atomic.AtomicInteger()
@@ -1081,6 +1082,7 @@ object SongPlayer {
         block: suspend (isLatest: () -> Boolean) -> Unit,
     ) {
         val gen = transportGen.incrementAndGet()
+        transportGenFlow.value = gen
         val session = sessionGen.get()
         runningTransport?.let { job ->
             val held = SystemClock.elapsedRealtime() - runningSince
@@ -1164,9 +1166,12 @@ object SongPlayer {
      */
     private suspend fun playChecked(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit) {
         play()
+        if (api.player.state.value?.item?.uri == itemUri || (NativeAudio.on && NativeAudio.now.value?.uri == itemUri) || !isLatest()) return
         repeat(2) { attempt ->
             val moved = kotlinx.coroutines.withTimeoutOrNull(PLAY_CHECK_MS) {
-                api.player.state.first { it?.item?.uri == itemUri || !isLatest() }
+                kotlinx.coroutines.flow.combine(api.player.state, NativeAudio.now, transportGenFlow) { s, n, _ ->
+                    s?.item?.uri == itemUri || (NativeAudio.on && n?.uri == itemUri) || !isLatest()
+                }.first { it }
             }
             if (moved != null || !isLatest()) return
             if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); play() }
@@ -1357,7 +1362,8 @@ object SongPlayer {
         if (pickedSong != null) {
             showOptimistic(pickedSong, ctx.orEmpty(), knownContextName(ctx.orEmpty()))
         }
-        transport { isLatest ->
+        val waitReady = !(episodeId == null && NativeAudio.on && MyspotiRuntime.spotify.http.hasToken() && _activeDevice.value == null)
+        transport(waitReady = waitReady, checkAfter = !NativeAudio.on) { isLatest ->
             playChecked(itemUri, isLatest) {
                 Log.d(TAG, "playing $itemUri in ${ctx ?: "no context"}: ${queueTag()}")
                 if (ctx != null) {
@@ -2272,7 +2278,7 @@ object SongPlayer {
      * How long the device list read by [takeBackPlayback] is trusted. Long enough that a burst of
      * taps pays for it once, short enough that a device taking playback in between is noticed.
      */
-    private const val DEVICES_FRESH_MS = 10_000L
+    private const val DEVICES_FRESH_MS = 5_000L
     /** A transport command waits that long for the page to load before it is dropped. */
     private const val READY_WAIT_MS = 30_000L
 
@@ -2822,21 +2828,24 @@ object SongPlayer {
     @Volatile private var devicesFreshUntil = 0L
 
     private suspend fun takeBackPlayback() {
-        // The device list as Spotify has it now: the one kept here is only refreshed on a song
-        // change, and after a cold start it does not know a device that took playback before.
-        // But this used to run on EVERY tap, i.e. a server round trip before the song was even
-        // asked for: measured 963 ms from tap to sound against 554 ms for a skip, which takes the
-        // same playback path without this call. The list is read again only once the entry is
-        // older than [DEVICES_FRESH_MS] — a takeover within those seconds is still caught by the
-        // play check (the page does not move, the play is sent again) and by the next read.
-        // Measured (15/10 run): this refresh answers from the page's cache in 8-36 ms, so it is not
-        // what makes a tap slower than a skip (963 vs 554 ms then) — keeping it unconditional keeps
-        // "a device that took playback is pulled back at once" (beta.7 behaviour). The timing stays
-        // in the log because the day it becomes slow, that line says so.
-        devicesFreshUntil = 0L
-        val started = System.currentTimeMillis()
-        kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
-        Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
+        if (NativeAudio.on) {
+            val cluster = NativeAudio.current.value?.cluster?.value
+            val ownId = NativeAudio.deviceId
+            if (NativeAudio.holdsPlayback || (cluster != null && (cluster.activeDeviceId == null || cluster.activeDeviceId == ownId))) {
+                if (_activeDevice.value != null) {
+                    _activeDevice.value = null
+                    PlaybackService.setPlaybackDevice(false, remoteVolume)
+                }
+                return
+            }
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now >= devicesFreshUntil) {
+            val started = System.currentTimeMillis()
+            val refreshed = kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
+            Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
+            if (refreshed?.isSuccess == true) devicesFreshUntil = SystemClock.elapsedRealtime() + DEVICES_FRESH_MS
+        }
         val active = api.devices.devices.value.firstOrNull { it.active }
         _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
         val remote = _activeDevice.value ?: return

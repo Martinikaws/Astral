@@ -91,7 +91,35 @@ object AppShuffle {
         if (!Graph.currentSongState.shuffle.value || !usable(p.uri) || !dealable(p.uri) || song.spotifyTrackId.isBlank()) return false
         val first = TRACK + song.spotifyTrackId
         if (p.complete) return start(p.uri, p.tracks, first, plain)
-        // The list is still loading: every page of it first, so all its songs are dealt.
+        if (p.tracks.any { it.spotifyTrackId == song.spotifyTrackId } && start(p.uri, p.tracks, first, plain)) {
+            val g = gen.get()
+            MyspotiRuntime.scope.launch {
+                val all = load(p.uri)?.takeIf { l -> l.any { it.spotifyTrackId == song.spotifyTrackId } } ?: return@launch
+                if (all.size == p.tracks.size && all.map { it.spotifyTrackId } == p.tracks.map { it.spotifyTrackId }) return@launch
+                main.post {
+                    if (g != gen.get()) return@post
+                    if (noted?.uri == p.uri) noted = Noted(p.uri, all, plain, true)
+                    val np = SongPlayer.nowPlaying.value
+                    if (LocalPlayer.active.value || np.contextUri != p.uri) return@post
+                    val songs = all.filter { it.spotifyTrackId.isNotBlank() }.associateBy { TRACK + it.spotifyTrackId }
+                    val allUris = songs.keys.toList()
+                    val curUri = np.uri.takeIf { it.startsWith(TRACK) } ?: first
+                    val updated = synchronized(this@AppShuffle) {
+                        if (g != gen.get() || list != p.uri || order.isEmpty()) null
+                        else {
+                            val curAt = order.indexOf(curUri).takeIf { it >= 0 } ?: at.coerceIn(0, order.lastIndex)
+                            val refreshed = ShuffleOrder.refresh(order, curAt, allUris)
+                            order = refreshed.first
+                            at = refreshed.second
+                            refreshed.first
+                        }
+                    } ?: return@post
+                    Graph.currentSongState.updateQueue(updated.mapNotNull(songs::get))
+                }
+            }
+            return true
+        }
+        // The song is not in the loaded slice yet: load every page first.
         val g = gen.incrementAndGet()
         MyspotiRuntime.scope.launch {
             val all = load(p.uri)?.takeIf { l -> l.any { it.spotifyTrackId == song.spotifyTrackId } } ?: p.tracks

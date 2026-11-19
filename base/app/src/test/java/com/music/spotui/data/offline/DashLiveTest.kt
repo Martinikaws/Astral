@@ -100,4 +100,28 @@ class DashLiveTest {
         assertArrayEquals(segs.getValue("s1"), buf)
         assertEquals(listOf("s1"), fetched)
     }
+
+    @Test fun prePopulatedFirstSegmentIsReadWithoutFetch() {
+        val seg0 = byteArrayOf(10, 11, 12, 13, 14)
+        val seg1 = byteArrayOf(20, 21, 22)
+        val fetched = mutableListOf<String>()
+        val live = DashLive(
+            head = byteArrayOf(1, 2),
+            segmentUrls = listOf("s1", "s2"),
+            segmentSizes = longArrayOf(5, 3),
+            initialSeg0 = seg0,
+        ) { url ->
+            fetched += url
+            if (url == "s1") seg0 else seg1
+        }
+        live.warm()
+        val buf0 = ByteArray(5)
+        assertEquals(5, live.read(2, buf0, 0, 5))
+        assertArrayEquals(seg0, buf0)
+        assertEquals(emptyList<String>(), fetched)
+        val buf1 = ByteArray(3)
+        assertEquals(3, live.read(7, buf1, 0, 3))
+        assertArrayEquals(seg1, buf1)
+        assertEquals(listOf("s2"), fetched)
+    }
 }

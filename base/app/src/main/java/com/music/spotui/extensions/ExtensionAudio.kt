@@ -301,6 +301,15 @@ object ExtensionAudio {
                 return false
             }
             keep(picked.spotifyTrackId, first)
+            if (first.manifest != null) {
+                late.launch {
+                    runCatching {
+                        com.music.spotui.data.offline.DashLive.open(
+                            first.manifest!!, first.headers, com.music.spotui.data.offline.OfflineDownloader.DownloadUa
+                        )
+                    }
+                }
+            }
         }
         // A newer tap answered meanwhile: nothing to build. The queue of a list of thousands (Liked
         // Songs) is built off the main thread: built on it, it held the screen until an ANR (#.money0).
@@ -375,7 +384,9 @@ object ExtensionAudio {
     private suspend fun lookup(trackId: String): SongsModel? = runCatching {
         kotlinx.coroutines.withTimeout(LOOKUP_MS) {
             val api = app.myspoti.host.android.MyspotiRuntime.api
-            api.ready.first { it }
+            if (!app.myspoti.host.android.MyspotiRuntime.spotify.http.hasToken()) {
+                api.ready.first { it }
+            }
             com.music.spotui.di.Graph.api.songOf(api.catalog.track("spotify:track:$trackId"))
         }
     }.getOrNull()

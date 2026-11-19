@@ -70,6 +70,7 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -266,6 +267,7 @@ fun ImmersivePlayer(
     actions: ImmersivePlayerActions,
     modifier: Modifier = Modifier,
     navController: NavController? = null,
+    onBackdropNeeded: ((Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val palette = rememberArtworkColors(state.coverUrl.takeIf { it.isNotBlank() })
@@ -286,6 +288,14 @@ fun ImmersivePlayer(
     val spicySlot = remember { com.music.spotui.spicy.SpicyBackdropSlot() }
     val spicyFade = animateFloatAsState(if (lyricsOpen) 1f else 0f, tween(250), label = "spicyFade")
     val queueOpen = panel == Panel.QUEUE
+
+    val hasOverlaySheet = showMenu || showDevices || showQuality || showNerd
+    LaunchedEffect(hasOverlaySheet, onBackdropNeeded) {
+        onBackdropNeeded?.invoke(hasOverlaySheet)
+    }
+    DisposableEffect(onBackdropNeeded) {
+        onDispose { onBackdropNeeded?.invoke(false) }
+    }
 
     // 0 with the full player, 1 with the cover in the header. Read at measure, placement and draw.
     val collapse = animateFloatAsState(
@@ -342,19 +352,32 @@ fun ImmersivePlayer(
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         // Under a fully shown clip the mesh and the blurred cover would only be drawn for nothing.
         val clipCovers by remember(canvasUrl) { derivedStateOf { canvasUrl != null && canvasOpen.value >= 1f } }
+        val showBlurBackdrop by remember { derivedStateOf { collapse.value < 0.999f } }
+        val showFullBleedCover by remember(canvasUrl) {
+            derivedStateOf { collapse.value < 0.5f && (canvasUrl == null || canvasOpen.value < 0.999f) }
+        }
+        val showCanvasScrim by remember { derivedStateOf { canvasOpen.value > 0.001f } }
+        val showCanvasPanelDim by remember { derivedStateOf { canvasOpen.value > 0.001f && collapse.value > 0.001f } }
+
         if (!clipCovers && coverStyle != null && coverStyle.blackBackdrop) {
             Box(Modifier.fillMaxSize().background(Color.Black))
         } else if (!clipCovers) {
-            PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl)
+            PlayerBackdrop(
+                palette = palette,
+                outgoing = outgoingPalette,
+                blend = blend,
+                trackKey = state.coverUrl,
+                active = PlayerSheet.open.value && panel == Panel.NONE,
+            )
             // Gone as the player collapses to a panel, so the panels look as before.
-            if (coverStyle != null) {
+            if (coverStyle != null && showBlurBackdrop) {
                 PlayerCoverBlurBackdrop(
                     state.coverUrl,
                     Modifier.graphicsLayer { alpha = (1f - collapse.value).coerceIn(0f, 1f) },
                 )
             }
         }
-        if (coverStyle != null) {
+        if (coverStyle != null && showFullBleedCover) {
             // Gone as the cover travels to the header (the thumbnail takes over) and under a Canvas.
             PlayerFullBleedCover(
                 coverUrl = state.coverUrl,
@@ -378,12 +401,16 @@ fun ImmersivePlayer(
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value },
             )
             // The words and the controls read over any clip.
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value }.background(CanvasScrimBrush))
+            if (showCanvasScrim) {
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value }.background(CanvasScrimBrush))
+            }
             // Under the lyrics or the queue: a stronger dim over the clip.
-            Box(
-                Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value * collapse.value * CANVAS_PANEL_DIM }
-                    .background(Color.Black),
-            )
+            if (showCanvasPanelDim) {
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value * collapse.value * CANVAS_PANEL_DIM }
+                        .background(Color.Black),
+                )
+            }
         }
         // The Spicy lyrics background, published by the lyrics panel: full screen, under all content.
         com.music.spotui.spicy.SpicyBackdropSlotLayer(spicySlot, Modifier.fillMaxSize().graphicsLayer { alpha = minOf(collapse.value, spicyFade.value) })
@@ -450,24 +477,33 @@ fun ImmersivePlayer(
 
                     // ---- The panel, under the header ----
                     val panelAlpha = { ((p() - 0.6f) / 0.4f).coerceIn(0f, 1f) }
-                    Crossfade(
-                        targetState = panel,
-                        animationSpec = tween(250),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = ART_BOX_TOP_PAD + HEADER_HEIGHT)
-                            .graphicsLayer { alpha = panelAlpha() },
-                        label = "playerPanel",
-                    ) { shown ->
-                        val inset = PaddingValues(start = left, end = left, top = 12.dp, bottom = 12.dp)
-                        when (shown) {
-                            Panel.LYRICS -> ImmersiveLyricsPanel(Modifier.fillMaxSize(), inset)
-                            Panel.QUEUE -> ImmersiveQueuePanel(Modifier.fillMaxSize(), inset)
-                            else -> Box(Modifier.fillMaxSize())
+                    val showPanelHost by remember { derivedStateOf { collapse.value > 0.6f } }
+                    if (showPanelHost) {
+                        Crossfade(
+                            targetState = panel,
+                            animationSpec = tween(250),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = ART_BOX_TOP_PAD + HEADER_HEIGHT)
+                                .graphicsLayer { alpha = panelAlpha() },
+                            label = "playerPanel",
+                        ) { shown ->
+                            val inset = PaddingValues(start = left, end = left, top = 12.dp, bottom = 12.dp)
+                            when (shown) {
+                                Panel.LYRICS -> ImmersiveLyricsPanel(Modifier.fillMaxSize(), inset)
+                                Panel.QUEUE -> ImmersiveQueuePanel(Modifier.fillMaxSize(), inset)
+                                else -> Box(Modifier.fillMaxSize())
+                            }
                         }
                     }
 
                     // ---- The cover: the whole sleeve, then the header's thumbnail ----
+                    val showSquareCover by remember(fullBleed, canvasUrl) {
+                        derivedStateOf {
+                            if (fullBleed) collapse.value > 0.5f
+                            else (canvasUrl == null || canvasOpen.value < 0.999f || collapse.value > 0.001f)
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .offset { IntOffset(artStart().roundToPx(), artTop().roundToPx()) }
@@ -492,30 +528,34 @@ fun ImmersivePlayer(
                                 shape = ArtCorner
                                 clip = true
                             }
-                            .background(Color.Black.copy(alpha = 0.18f))
                             .dragToClose()
                             .swipeToChangeTrack(enabled = panel == Panel.NONE, actions = actions)
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 if (panel != Panel.NONE) panel = Panel.NONE
                             },
                     ) {
-                        GlideImage(
-                            model = state.coverUrl.takeIf { it.isNotBlank() },
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            loading = placeholder(R.drawable.placeholder),
-                            failure = placeholder(R.drawable.placeholder),
-                            modifier = Modifier.fillMaxSize(),
-                            // The box shrinks to the 60dp header thumbnail and grows back: Glide sizes the
-                            // request from the constraints it first sees, so without a fixed size a cover
-                            // first measured (or reloaded) while collapsed stays a small bitmap.
-                            requestBuilderTransform = { it.override(COVER_DECODE_PX) },
-                        )
-                        SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                        if (showSquareCover) {
+                            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f))) {
+                                GlideImage(
+                                    model = state.coverUrl.takeIf { it.isNotBlank() },
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    loading = placeholder(R.drawable.placeholder),
+                                    failure = placeholder(R.drawable.placeholder),
+                                    modifier = Modifier.fillMaxSize(),
+                                    // The box shrinks to the 60dp header thumbnail and grows back: Glide sizes the
+                                    // request from the constraints it first sees, so without a fixed size a cover
+                                    // first measured (or reloaded) while collapsed stays a small bitmap.
+                                    requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                                )
+                                SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                            }
+                        }
                     }
 
                     // A soft scrim behind the credits, over the half-faded foot of the cover.
-                    if (fullBleed) {
+                    val showCreditsScrim by remember { derivedStateOf { collapse.value < 0.5f } }
+                    if (fullBleed && showCreditsScrim) {
                         Box(
                             Modifier
                                 .offset { IntOffset(0, (titleTop() - 24.dp).roundToPx()) }
@@ -639,13 +679,20 @@ private fun rememberImmersiveCanvas(state: ImmersivePlayerState): String? {
  * the fade's progress, read here so only the backdrop follows it frame by frame, not the player.
  */
 @Composable
-private fun PlayerBackdrop(palette: MeshPalette, outgoing: MeshPalette, blend: SongBlend?, trackKey: String) {
+private fun PlayerBackdrop(
+    palette: MeshPalette,
+    outgoing: MeshPalette,
+    blend: SongBlend?,
+    trackKey: String,
+    active: Boolean,
+) {
     MeshGradientBackground(
         palette = if (blend == null) palette else lerp(outgoing, palette, blend.progress()),
         trackKey = trackKey,
         // Following the fade, a short smoothing only: the new cover's colours, known a moment
         // into it, do not jump in.
         colorFadeMillis = if (blend == null) 1400 else 250,
+        active = active,
     )
 }
 

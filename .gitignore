@@ -15,9 +15,10 @@ keystore/
 Thumbs.db
 Desktop.ini
 
-# Local agent / private files
+# Local agent coordination and tooling (not part of the public repo)
+HANDOFF.md
+TASKS.md
+PROJECT_BRIEF.md
 .claude/
 .env
 .env.*
-TASKS.md
-PROJECT_BRIEF.md

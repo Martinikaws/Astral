@@ -1,28 +1,29 @@
 package com.music.spotui.ui.immersive.player
 
-import android.os.Build
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
@@ -34,6 +35,7 @@ import com.bumptech.glide.integration.compose.placeholder
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.ui.components.SongBlend
 import com.music.spotui.ui.components.SongBlendCover
+import com.music.spotui.ui.components.rememberSoftBlurredBitmap
 
 /** Narrower than this the player uses the full-bleed cover; wider keeps the centred card. */
 internal val FULL_BLEED_MAX_WIDTH = 600.dp
@@ -117,51 +119,60 @@ internal fun PlayerFullBleedCover(
 }
 
 /**
- * A blurred copy of the cover drawn over the mesh (at 0.6 alpha), so the fade lands on the cover's
- * own colours. Blurred with a render effect on API 31+; before that a tiny decode drawn large and
- * faint. A track change keeps the previous cover underneath while the new one fades in, so the
- * backdrop never drops to the bare mesh.
+ * A pre-blurred copy of the cover drawn over the mesh (at 0.6 alpha), so the fade lands on the
+ * cover's own colours at every API level with zero RenderEffect. A track change keeps the
+ * previous blurred cover underneath while the new one fades in.
  */
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 internal fun PlayerCoverBlurBackdrop(coverUrl: String, modifier: Modifier = Modifier) {
-    val blurred = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val decode = if (blurred) 160 else 24
-    // The cover shown before this one, kept only while the new one dissolves in over it.
-    var previous by remember { mutableStateOf<String?>(null) }
-    var shown by remember { mutableStateOf(coverUrl) }
-    if (shown != coverUrl) {
-        previous = shown.takeIf { it.isNotBlank() }
-        shown = coverUrl
+    val loaded by rememberSoftBlurredBitmap(
+        url = coverUrl.takeIf { it.isNotBlank() },
+        sizePx = 96,
+        blurRadius = 12,
+    )
+    var previous by remember { mutableStateOf<ImageBitmap?>(null) }
+    var current by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    if (loaded == null && coverUrl.isBlank()) {
+        previous = null
+        current = null
+    } else if (loaded != null && loaded !== current) {
+        previous = current
+        current = loaded
     }
-    val fadeIn = remember(coverUrl) { Animatable(if (previous != null) 0f else 1f) }
-    LaunchedEffect(coverUrl) {
-        if (previous != null) {
+
+    val cur = current
+    val fadeIn = remember(cur) { Animatable(if (previous != null) 0f else 1f) }
+    LaunchedEffect(cur) {
+        if (cur != null && previous != null && previous !== cur) {
             fadeIn.animateTo(1f, tween(400))
             previous = null
         }
     }
-    Box(
-        modifier.fillMaxSize().graphicsLayer { alpha = if (blurred) 0.6f else 0.35f }
-            .let { if (blurred) it.blur(60.dp) else it },
-    ) {
-        val old = previous
-        if (old != null && coverUrl.isNotBlank()) {
-            GlideImage(
-                model = old,
+
+    val prev = previous
+    if (cur == null && prev == null) return
+
+    val showPrev by remember(prev, fadeIn) { derivedStateOf { prev != null && fadeIn.value < 0.999f } }
+    val showCurr by remember(cur, prev, fadeIn) { derivedStateOf { cur != null && (prev == null || fadeIn.value > 0.001f) } }
+
+    Box(modifier.fillMaxSize().graphicsLayer { alpha = 0.6f }) {
+        if (showPrev && prev != null) {
+            Image(
+                bitmap = prev,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                requestBuilderTransform = { it.override(decode) },
             )
         }
-        GlideImage(
-            model = coverUrl.takeIf { it.isNotBlank() },
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = fadeIn.value },
-            requestBuilderTransform = { it.override(decode) },
-        )
+        if (showCurr && cur != null) {
+            Image(
+                bitmap = cur,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = fadeIn.value },
+            )
+        }
     }
 }
 

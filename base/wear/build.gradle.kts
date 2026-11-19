@@ -11,14 +11,14 @@ android {
     namespace = "app.myspoti.wear"
     compileSdk = 37
 
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.3"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.4"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
         // As the phone's app (base/app): betas "app.astral.beta", releases "app.astral", debug builds ".dev".
         applicationId = if (beta) "app.astral.beta" else "app.astral"
         minSdk = 30
         targetSdk = 36
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 204
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 205
         versionName = version
     }
     // The phone's release key (CI env, else base/keystore/keystore.properties, as base/app): the Data
@@ -27,11 +27,11 @@ android {
     val keystore = Properties().apply { if (keystoreFile.exists()) keystoreFile.inputStream().use { load(it) } }
     val envStore = System.getenv("MYSPOTI_KEYSTORE")
     val hasReleaseKey = envStore != null || keystoreFile.exists()
-    // As base/app: a stable release (a version without "-beta", given by CI) is never signed with the debug key.
-    // Local builds (no version) and -PoverDev are not stable releases.
-    val stableRelease = !beta && findProperty("overDev") == null
-    if (stableRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
-        throw GradleException("A stable release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
+    // As base/app: a tagged release (stable or beta, given -PappVersionName) is never signed with the debug key.
+    // Local builds (no version) and -PoverDev are not tagged releases.
+    val taggedRelease = findProperty("appVersionName") != null && findProperty("overDev") == null
+    if (taggedRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
+        throw GradleException("A tagged release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
     signingConfigs {
         create("release") {
             if (envStore != null) {
@@ -51,6 +51,7 @@ android {
         debug { applicationIdSuffix = ".dev" }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
@@ -85,6 +86,7 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.activity.compose)
+    implementation(libs.lifecycle.runtime.compose)
     implementation("androidx.wear.compose:compose-foundation:1.7.1")
     // Wear's Material 3 (scaffold, pager, lists, time text) and Google's Horologist audio UI (Apache-2.0): volume indicator.
     implementation("androidx.wear.compose:compose-material3:1.7.1")

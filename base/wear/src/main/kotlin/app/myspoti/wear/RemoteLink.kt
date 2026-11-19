@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.SystemClock
+import androidx.compose.runtime.Immutable
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataMap
@@ -12,12 +13,16 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.PutDataRequest
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -34,8 +39,11 @@ import java.io.File
 
 internal const val DEFAULT_BG_COLOR = 0xFF181A1E.toInt()
 internal const val DEFAULT_ACCENT_COLOR = 0xFF1ED760.toInt()
+internal const val MAX_CACHED_PAGES = 16
+internal const val BROWSE_FRESH_MS = 45_000L
 
 /** What the phone plays, as WatchRemote last published it over the Wearable Data Layer. */
+@Immutable
 internal data class RemoteState(
     val hasSession: Boolean = false,
     val title: String = "",
@@ -63,75 +71,36 @@ internal data class RemoteState(
     val color: Int = DEFAULT_BG_COLOR,
     val accentColor: Int = DEFAULT_ACCENT_COLOR,
     val artKey: String = "",
-    val vizSeed: Int = 0,
-    val vizStepMs: Int = 100,
-    val vizSamples: ByteArray = ByteArray(0),
+)
+
+/** Visualizer waveform curve separated from [RemoteState] so ByteArray updates stay isolated. */
+@Immutable
+internal data class VizSnapshot(
+    val key: String = "",
+    val seed: Int = 0,
+    val stepMs: Int = 100,
+    val samples: ByteArray = ByteArray(0),
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is RemoteState) return false
-        return hasSession == other.hasSession &&
-            title == other.title &&
-            artist == other.artist &&
-            album == other.album &&
-            contextTitle == other.contextTitle &&
-            playing == other.playing &&
-            buffering == other.buffering &&
-            episode == other.episode &&
-            explicit == other.explicit &&
-            liked == other.liked &&
-            positionMs == other.positionMs &&
-            durationMs == other.durationMs &&
-            speed == other.speed &&
-            atElapsedMs == other.atElapsedMs &&
-            volume == other.volume &&
-            maxVolume == other.maxVolume &&
-            shuffle == other.shuffle &&
-            repeat == other.repeat &&
-            canRepeat == other.canRepeat &&
-            deviceName == other.deviceName &&
-            deviceType == other.deviceType &&
-            color == other.color &&
-            accentColor == other.accentColor &&
-            artKey == other.artKey &&
-            vizSeed == other.vizSeed &&
-            vizStepMs == other.vizStepMs &&
-            vizSamples.contentEquals(other.vizSamples)
+        if (other !is VizSnapshot) return false
+        return key == other.key &&
+            seed == other.seed &&
+            stepMs == other.stepMs &&
+            samples.contentEquals(other.samples)
     }
 
     override fun hashCode(): Int {
-        var result = hasSession.hashCode()
-        result = 31 * result + title.hashCode()
-        result = 31 * result + artist.hashCode()
-        result = 31 * result + album.hashCode()
-        result = 31 * result + contextTitle.hashCode()
-        result = 31 * result + playing.hashCode()
-        result = 31 * result + buffering.hashCode()
-        result = 31 * result + episode.hashCode()
-        result = 31 * result + explicit.hashCode()
-        result = 31 * result + liked.hashCode()
-        result = 31 * result + positionMs.hashCode()
-        result = 31 * result + durationMs.hashCode()
-        result = 31 * result + speed.hashCode()
-        result = 31 * result + atElapsedMs.hashCode()
-        result = 31 * result + volume
-        result = 31 * result + maxVolume
-        result = 31 * result + shuffle.hashCode()
-        result = 31 * result + repeat.hashCode()
-        result = 31 * result + canRepeat.hashCode()
-        result = 31 * result + deviceName.hashCode()
-        result = 31 * result + deviceType.hashCode()
-        result = 31 * result + color
-        result = 31 * result + accentColor
-        result = 31 * result + artKey.hashCode()
-        result = 31 * result + vizSeed
-        result = 31 * result + vizStepMs
-        result = 31 * result + vizSamples.contentHashCode()
+        var result = key.hashCode()
+        result = 31 * result + seed
+        result = 31 * result + stepMs
+        result = 31 * result + samples.contentHashCode()
         return result
     }
 }
 
 /** A row of the phone's library (browsable folder or playable item). */
+@Immutable
 internal data class RemoteItem(
     val id: String,
     val title: String,
@@ -141,6 +110,7 @@ internal data class RemoteItem(
 )
 
 /** A Spotify Connect device of the account: [self] the phone, [active] the one playing. */
+@Immutable
 internal data class RemoteDevice(
     val id: String,
     val name: String,
@@ -150,31 +120,76 @@ internal data class RemoteDevice(
 )
 
 /** The device list, or why the phone could not read it. */
+@Immutable
 internal data class RemoteDevices(
     val items: List<RemoteDevice>,
     val error: String? = null,
 )
 
 /** What plays next on the phone: its rows, [active] the one playing (-1: none marked). */
+@Immutable
 internal data class RemoteQueue(
     val items: List<RemoteItem> = emptyList(),
     val active: Long = -1L,
 )
 
 /** The children of a library node, or why the phone could not list them. */
+@Immutable
 internal data class RemotePage(
     val items: List<RemoteItem> = emptyList(),
     val error: String? = null,
 )
 
+/** Bounded LRU cache for browsed library pages with per-entry freshness tracking. */
+internal class PageLruCache(
+    private val maxEntries: Int = MAX_CACHED_PAGES,
+    private val freshMs: Long = BROWSE_FRESH_MS,
+) {
+    private val entries = object : LinkedHashMap<String, String>(maxEntries + 1, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean =
+            size > maxEntries
+    }
+    private val fetchedAt = HashMap<String, Long>()
+
+    @Synchronized
+    fun put(parent: String, rawJson: String, nowMs: Long? = null) {
+        entries[parent] = rawJson
+        if (nowMs != null) fetchedAt[parent] = nowMs
+        if (fetchedAt.size > entries.size) {
+            fetchedAt.keys.retainAll(entries.keys)
+        }
+    }
+
+    @Synchronized
+    fun get(parent: String): String? = entries[parent]
+
+    @Synchronized
+    fun isFresh(parent: String, nowMs: Long): Boolean {
+        val ts = fetchedAt[parent] ?: return false
+        return entries.containsKey(parent) && (nowMs - ts) in 0 until freshMs
+    }
+
+    @Synchronized
+    fun snapshot(): Map<String, String> = LinkedHashMap(entries)
+
+    @Synchronized
+    fun size(): Int = entries.size
+
+    @Synchronized
+    fun contains(parent: String): Boolean = entries.containsKey(parent)
+}
+
 /**
  * The watch's Wearable Data Layer link to `com.music.spotui.wear.WatchRemote` (`base/app`):
- * receives playback state, queue, devices, library pages, and compact visualizer waveform samples,
- * and sends back commands with immediate optimistic state holds so taps & bezel turns feel instant.
+ * receives playback state, artwork, queue, devices, library pages, and compact visualizer waveform
+ * samples, and sends back commands with immediate optimistic state holds so taps & bezel turns
+ * feel instant.
  */
 internal object RemoteLink {
     private const val PREFIX = "/orpheon/remote"
     private const val STATE = "$PREFIX/state"
+    private const val ART = "$PREFIX/art"
+    private const val VIZ = "$PREFIX/viz"
     private const val COMMAND = "$PREFIX/cmd/"
     private const val PAGE = "$PREFIX/page"
     private const val QUEUE = "$PREFIX/queue"
@@ -183,8 +198,15 @@ internal object RemoteLink {
     private const val HOLD_MS = 1_500L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val dataMutex = Mutex()
+    private val savePagesMutex = Mutex()
+    private val holdLock = Any()
     private lateinit var app: Context
-    private var pagesLoaded = false
+    @Volatile private var started = false
+    @Volatile private var pagesLoaded = false
+    @Volatile private var sessionGen = 0L
+    private var startJob: Job? = null
+    private var closeJob: Job? = null
 
     private var volumeHoldUntil = 0L
     private var heldVolume = 50
@@ -200,11 +222,18 @@ internal object RemoteLink {
     private val _state = MutableStateFlow(RemoteState())
     val state: StateFlow<RemoteState> = _state
 
+    private val _viz = MutableStateFlow(VizSnapshot())
+    val viz: StateFlow<VizSnapshot> = _viz
+
     private val _cover = MutableStateFlow<Bitmap?>(null)
     val cover: StateFlow<Bitmap?> = _cover
 
-    @Volatile
-    private var decodedArtKey = ""
+    @Volatile private var decodedArtKey = ""
+    @Volatile private var pendingArtKey = ""
+    @Volatile private var pendingArtBytes: ByteArray? = null
+    @Volatile private var expectedVizKey = ""
+    @Volatile private var pendingViz: VizSnapshot? = null
+    @Volatile private var lastStateHasSeen = false
 
     /** null until the phone answered once; false: no phone connected. */
     private val _connected = MutableStateFlow<Boolean?>(null)
@@ -220,26 +249,40 @@ internal object RemoteLink {
     val pages: StateFlow<Map<String, RemotePage>> = _pages
 
     private val dataListener = DataClient.OnDataChangedListener { events ->
+        val gen = sessionGen
+        if (!started) return@OnDataChangedListener
         events.forEach { e ->
             if (e.type != DataEvent.TYPE_CHANGED) return@forEach
             val path = e.dataItem.uri.path
             val map = DataMapItem.fromDataItem(e.dataItem).dataMap
-            scope.launch(Dispatchers.Main.immediate) {
-                when (path) {
-                    STATE -> onState(map)
-                    QUEUE -> onQueue(map)
+            scope.launch(Dispatchers.Default) {
+                if (!started || sessionGen != gen) return@launch
+                dataMutex.withLock {
+                    if (!started || sessionGen != gen) return@withLock
+                    when (path) {
+                        STATE -> onState(map, gen)
+                        ART -> onArt(map, gen)
+                        VIZ -> onViz(map, gen)
+                        QUEUE -> onQueue(map, gen)
+                    }
                 }
             }
         }
     }
 
     private val messageListener = MessageClient.OnMessageReceivedListener { e ->
+        val gen = sessionGen
+        if (!started) return@OnMessageReceivedListener
         val path = e.path
         val payload = e.data.decodeToString()
-        scope.launch(Dispatchers.Main.immediate) {
-            when (path) {
-                PAGE -> runCatching { onPage(payload) }
-                DEVICES -> runCatching { onDevices(payload) }
+        scope.launch(Dispatchers.Default) {
+            if (!started || sessionGen != gen) return@launch
+            dataMutex.withLock {
+                if (!started || sessionGen != gen) return@withLock
+                when (path) {
+                    PAGE -> runCatching { onPage(payload, gen) }
+                    DEVICES -> runCatching { onDevices(payload, gen) }
+                }
             }
         }
     }
@@ -247,40 +290,84 @@ internal object RemoteLink {
     /** Starts listening while the watch UI is active and requests fresh state from the phone. */
     fun start(context: Context) {
         app = context.applicationContext
+        if (started) return
+        closeJob?.cancel()
+        closeJob = null
+        val gen = ++sessionGen
+        started = true
+        startJob?.cancel()
         loadPages()
         Wearable.getDataClient(app).addListener(dataListener)
         Wearable.getMessageClient(app).addListener(messageListener)
-        scope.launch {
-            lastState()
-            send("hello")
+        startJob = scope.launch {
+            lastState(gen)
+            if (!started || sessionGen != gen) return@launch
+            send("watch_open")
         }
     }
 
     fun stop() {
-        if (!::app.isInitialized) return
+        if (!::app.isInitialized || !started) return
+        started = false
+        val stopGen = ++sessionGen
+        startJob?.cancel()
+        startJob = null
+        val known = phoneNode
+        closeJob?.cancel()
+        closeJob = scope.launch {
+            val node = known ?: run {
+                val nodes = runCatching { Wearable.getNodeClient(app).connectedNodes.await() }
+                    .onFailure { if (it is CancellationException) throw it }
+                    .getOrDefault(emptyList())
+                (nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull())?.id
+            } ?: return@launch
+            if (started || sessionGen != stopGen) return@launch
+            runCatching {
+                Wearable.getMessageClient(app).sendMessage(node, COMMAND + "watch_close", ByteArray(0)).await()
+            }.onFailure { if (it is CancellationException) throw it }
+        }
         Wearable.getDataClient(app).removeListener(dataListener)
         Wearable.getMessageClient(app).removeListener(messageListener)
         clearHolds()
         phoneNode = null
         phoneNodeAt = 0L
-        decodedArtKey = ""
         _cover.value = null
+        scope.launch(Dispatchers.Default) {
+            dataMutex.withLock {
+                if (sessionGen == stopGen) {
+                    decodedArtKey = ""
+                    pendingArtKey = ""
+                    pendingArtBytes = null
+                    pendingViz = null
+                    expectedVizKey = ""
+                    lastStateHasSeen = false
+                }
+            }
+        }
     }
 
     /** Asks the phone for its Connect devices. */
     fun askDevices() = send("devices")
 
-    /** Asks for [parentId]'s children; cached items stay visible meanwhile. */
-    fun browse(parentId: String) = send("browse", parentId)
+    /** Asks for [parentId]'s children when stale or forced; cached items stay visible meanwhile. */
+    fun browse(parentId: String, force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && pageCache.isFresh(parentId, now) && _pages.value[parentId]?.error == null) {
+            return
+        }
+        send("browse", parentId)
+    }
 
     /** Cached phone node id; refreshed every minute or after a failed send. */
-    private var phoneNode: String? = null
-    private var phoneNodeAt = 0L
+    @Volatile private var phoneNode: String? = null
+    @Volatile private var phoneNodeAt = 0L
 
     private suspend fun phone(): String? {
         val now = SystemClock.elapsedRealtime()
         phoneNode?.let { if (now - phoneNodeAt < NODE_TTL_MS) return it }
-        val nodes = runCatching { Wearable.getNodeClient(app).connectedNodes.await() }.getOrDefault(emptyList())
+        val nodes = runCatching { Wearable.getNodeClient(app).connectedNodes.await() }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrDefault(emptyList())
         val node = (nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull())?.id
         phoneNode = node
         phoneNodeAt = now
@@ -305,6 +392,7 @@ internal object RemoteLink {
             runCatching {
                 Wearable.getMessageClient(app).sendMessage(node, COMMAND + command, arg.encodeToByteArray()).await()
             }.onFailure {
+                if (it is CancellationException) throw it
                 phoneNode = null
                 _connected.value = false
             }
@@ -313,7 +401,7 @@ internal object RemoteLink {
 
     private fun applyOptimistic(command: String, arg: String) {
         when (command) {
-            "hello" -> clearHolds()
+            "hello", "watch_open" -> clearHolds()
             "volume" -> arg.toIntOrNull()?.coerceIn(0, 100)?.let(::holdVolume)
             "volume_up" -> holdVolume((((_state.value.volume + 5) / 10) * 10 + 10).coerceIn(0, 100))
             "volume_down" -> holdVolume((((_state.value.volume + 5) / 10) * 10 - 10).coerceIn(0, 100))
@@ -328,34 +416,44 @@ internal object RemoteLink {
 
     private fun holdVolume(volume: Int) {
         val clamped = volume.coerceIn(0, 100)
-        heldVolume = clamped
-        volumeHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        synchronized(holdLock) {
+            heldVolume = clamped
+            volumeHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        }
         _state.value = _state.value.copy(volume = clamped)
     }
 
     private fun holdLiked(liked: Boolean) {
-        heldLiked = liked
-        likedHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        synchronized(holdLock) {
+            heldLiked = liked
+            likedHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        }
         _state.value = _state.value.copy(liked = liked)
     }
 
     private fun holdShuffle(shuffle: Boolean) {
-        heldShuffle = shuffle
-        shuffleHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        synchronized(holdLock) {
+            heldShuffle = shuffle
+            shuffleHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        }
         _state.value = _state.value.copy(shuffle = shuffle)
     }
 
     private fun holdRepeat(repeat: String) {
-        heldRepeat = repeat
-        repeatHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        synchronized(holdLock) {
+            heldRepeat = repeat
+            repeatHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
+        }
         _state.value = _state.value.copy(repeat = repeat)
     }
 
     private fun holdPlaying(playing: Boolean) {
-        heldPlaying = playing
-        playingHoldUntil = SystemClock.elapsedRealtime() + HOLD_MS
-        val cur = _state.value
         val now = SystemClock.elapsedRealtime()
+        synchronized(holdLock) {
+            heldPlaying = playing
+            playingHoldUntil = now + HOLD_MS
+        }
+        val cur = _state.value
         val updatedPos = if (!playing && cur.playing && !cur.buffering) {
             (cur.positionMs + ((now - cur.atElapsedMs).coerceAtLeast(0L) * cur.speed).toLong()).coerceAtLeast(0L)
         } else {
@@ -365,25 +463,27 @@ internal object RemoteLink {
     }
 
     private fun clearHolds() {
-        volumeHoldUntil = 0L
-        likedHoldUntil = 0L
-        shuffleHoldUntil = 0L
-        repeatHoldUntil = 0L
-        playingHoldUntil = 0L
+        synchronized(holdLock) {
+            volumeHoldUntil = 0L
+            likedHoldUntil = 0L
+            shuffleHoldUntil = 0L
+            repeatHoldUntil = 0L
+            playingHoldUntil = 0L
+        }
     }
 
-    private val pageTexts = mutableMapOf<String, String>()
+    private val pageCache = PageLruCache(MAX_CACHED_PAGES, BROWSE_FRESH_MS)
     private val pagesFile get() = File(app.filesDir, "remote_pages.json")
 
     private fun loadPages() {
-        if (pagesLoaded || pageTexts.isNotEmpty()) return
+        if (pagesLoaded || pageCache.size() > 0) return
         pagesLoaded = true
         scope.launch(Dispatchers.IO) {
             val loaded = runCatching {
                 if (!pagesFile.exists()) return@runCatching emptyMap<String, Pair<String, RemotePage>>()
                 val saved = Json.parseToJsonElement(pagesFile.readText()).jsonObject
                 buildMap {
-                    saved.forEach { (parent, el) ->
+                    saved.entries.take(MAX_CACHED_PAGES).forEach { (parent, el) ->
                         val raw = (el as? JsonPrimitive)?.contentOrNull ?: return@forEach
                         val parsed = parsePage(raw) ?: return@forEach
                         if (parsed.second.error == null) put(parent, raw to parsed.second)
@@ -391,13 +491,15 @@ internal object RemoteLink {
                 }
             }.getOrDefault(emptyMap())
             if (loaded.isEmpty()) return@launch
-            withContext(Dispatchers.Main) {
+            dataMutex.withLock {
                 val merged = _pages.value.toMutableMap()
                 var changed = false
                 loaded.forEach { (parent, entry) ->
+                    if (!pageCache.contains(parent)) {
+                        pageCache.put(parent, entry.first, nowMs = null)
+                    }
                     if (!merged.containsKey(parent)) {
                         merged[parent] = entry.second
-                        pageTexts.putIfAbsent(parent, entry.first)
                         changed = true
                     }
                 }
@@ -407,29 +509,62 @@ internal object RemoteLink {
     }
 
     private fun savePages() {
-        val snapshot = JsonObject(pageTexts.mapValues { JsonPrimitive(it.value) }).toString()
-        scope.launch(Dispatchers.IO) { runCatching { pagesFile.writeText(snapshot) } }
+        scope.launch(Dispatchers.IO) {
+            savePagesMutex.withLock {
+                runCatching {
+                    val snapshot = pageCache.snapshot()
+                    val json = JsonObject(snapshot.mapValues { JsonPrimitive(it.value) }).toString()
+                    val target = pagesFile
+                    target.parentFile?.mkdirs()
+                    val tmp = File(target.parentFile, "${target.name}.tmp")
+                    tmp.writeText(json)
+                    if (!tmp.renameTo(target)) {
+                        target.writeText(json)
+                        tmp.delete()
+                    }
+                }
+            }
+        }
     }
 
-    /** Loads the last Data Layer state & queue so the screen populates before the phone answers. */
-    private suspend fun lastState() {
-        for (path in listOf(STATE, QUEUE)) {
+    /** Loads the last Data Layer state, art, viz & queue so the screen populates before the phone answers. */
+    private suspend fun lastState(gen: Long) {
+        for (path in listOf(STATE, ART, VIZ, QUEUE)) {
+            if (!started || sessionGen != gen) return
             val uri = Uri.Builder().scheme(PutDataRequest.WEAR_URI_SCHEME).path(path).build()
             runCatching {
                 val items = Wearable.getDataClient(app).getDataItems(uri).await()
                 try {
                     items.firstOrNull()?.let { item ->
                         val map = DataMapItem.fromDataItem(item).dataMap
-                        if (path == STATE) onState(map) else onQueue(map)
+                        withContext(Dispatchers.Default) {
+                            if (!started || sessionGen != gen) return@withContext
+                            dataMutex.withLock {
+                                if (!started || sessionGen != gen) return@withLock
+                                when (path) {
+                                    STATE -> onState(map, gen)
+                                    ART -> onArt(map, gen)
+                                    VIZ -> onViz(map, gen)
+                                    QUEUE -> onQueue(map, gen)
+                                }
+                            }
+                        }
                     }
                 } finally {
                     items.release()
                 }
-            }
+            }.onFailure { if (it is CancellationException) throw it }
         }
     }
 
-    private fun onQueue(map: DataMap) {
+    private fun decodeArtBitmap(bytes: ByteArray): Bitmap? {
+        val opts = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+    }
+
+    private fun onQueue(map: DataMap, gen: Long) {
         val j = runCatching { Json.parseToJsonElement(map.getString("json").orEmpty()).jsonObject }.getOrNull() ?: return
         val items = j["items"]?.jsonArray.orEmpty().mapNotNull { el ->
             (el as? JsonObject)?.let {
@@ -437,33 +572,120 @@ internal object RemoteLink {
             }
         }
         val active = j["active"]?.let { (it as? JsonPrimitive)?.longOrNull } ?: -1L
+        if (!started || sessionGen != gen) return
         _queue.value = RemoteQueue(items, active)
     }
 
-    private fun onState(map: DataMap) {
+    private fun onArt(map: DataMap, gen: Long) {
+        val key = map.getString("key").orEmpty()
+        val artBytes = map.getByteArray("art")
+        if (key.isEmpty() || artBytes == null || artBytes.isEmpty()) {
+            if (!started || sessionGen != gen) return
+            pendingArtKey = ""
+            pendingArtBytes = null
+            if (!lastStateHasSeen || _state.value.artKey.isEmpty()) {
+                decodedArtKey = ""
+                _cover.value = null
+            }
+            return
+        }
+        if (!started || sessionGen != gen) return
+        pendingArtKey = key
+        pendingArtBytes = artBytes
+        val stateMatches = !lastStateHasSeen || (_state.value.hasSession && _state.value.artKey == key)
+        if (stateMatches && (key != decodedArtKey || _cover.value == null)) {
+            decodeArtBitmap(artBytes)?.let { bmp ->
+                if (!started || sessionGen != gen) return
+                decodedArtKey = key
+                _cover.value = bmp
+            }
+        }
+    }
+
+    private fun onViz(map: DataMap, gen: Long) {
+        val key = map.getString("key").orEmpty()
+        val seed = map.getInt("seed")
+        val stepMs = map.getInt("stepMs", 100).coerceAtLeast(20)
+        val samples = map.getByteArray("viz") ?: ByteArray(0)
+        val prev = _viz.value
+        val stableSamples = if (samples.contentEquals(prev.samples)) prev.samples else samples
+        val snapshot = VizSnapshot(key = key, seed = seed, stepMs = stepMs, samples = stableSamples)
+        if (!started || sessionGen != gen) return
+        pendingViz = snapshot
+        val stateMatches = !lastStateHasSeen || (_state.value.hasSession && (expectedVizKey.isEmpty() || expectedVizKey == key))
+        if (stateMatches && snapshot != prev) {
+            _viz.value = snapshot
+        }
+    }
+
+    private fun onState(map: DataMap, gen: Long) {
         val j = runCatching { Json.parseToJsonElement(map.getString("json").orEmpty()).jsonObject }.getOrNull() ?: return
         val epoch = j.long("atEpochMs")
         val now = SystemClock.elapsedRealtime()
         val at = if (epoch > 0L) now - (System.currentTimeMillis() - epoch) else now
         val parsedSpeed = (j.float("speed") ?: 1f).let { if (it > 0f) it else 1f }
+        val hasSession = j.bool("hasSession")
         val artKey = j.text("artKey")
-        val artBytes = map.getByteArray("art")
-        if (artKey.isEmpty() || artBytes == null || artBytes.isEmpty()) {
-            decodedArtKey = ""
-            _cover.value = null
+        val inlineArtBytes = map.getByteArray("art")
+
+        var decodedBmp: Bitmap? = null
+        var clearCover = false
+        if (!hasSession || artKey.isEmpty()) {
+            clearCover = true
+        } else if (inlineArtBytes != null && inlineArtBytes.isNotEmpty()) {
+            if (artKey != decodedArtKey || _cover.value == null) {
+                decodedBmp = decodeArtBitmap(inlineArtBytes)
+            }
         } else if (artKey != decodedArtKey || _cover.value == null) {
-            val bmp = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size)
-            if (bmp != null) {
-                decodedArtKey = artKey
-                _cover.value = bmp
+            val pendingBytes = pendingArtBytes
+            if (pendingArtKey == artKey && pendingBytes != null && pendingBytes.isNotEmpty()) {
+                decodedBmp = decodeArtBitmap(pendingBytes)
+            } else if (decodedArtKey != artKey) {
+                clearCover = true
             }
         }
-        val vizStepMs = (j.nullableInt("vizStepMs") ?: 100).coerceAtLeast(20)
-        val vizBytes = map.getByteArray("viz") ?: ByteArray(0)
+
+        if (!started || sessionGen != gen) return
+        lastStateHasSeen = true
+        if (!hasSession || artKey.isEmpty()) {
+            decodedArtKey = ""
+            _cover.value = null
+        } else if (decodedBmp != null) {
+            decodedArtKey = artKey
+            _cover.value = decodedBmp
+        } else if (clearCover) {
+            _cover.value = null
+        }
+
+        val vizKey = j.text("vizKey")
+        expectedVizKey = if (hasSession) vizKey else ""
+        if (!hasSession) {
+            if (_viz.value.samples.isNotEmpty() || _viz.value.key.isNotEmpty()) {
+                _viz.value = VizSnapshot()
+            }
+        } else if (map.containsKey("viz")) {
+            // Backwards-compatible inline viz bytes from older phone APKs.
+            val vizStepMs = (j.nullableInt("vizStepMs") ?: 100).coerceAtLeast(20)
+            val vizBytes = map.getByteArray("viz") ?: ByteArray(0)
+            val prevViz = _viz.value
+            val stableSamples = if (vizBytes.contentEquals(prevViz.samples)) prevViz.samples else vizBytes
+            val nextViz = VizSnapshot(
+                key = vizKey.ifEmpty { j.text("title") },
+                seed = j.int("vizSeed"),
+                stepMs = vizStepMs,
+                samples = stableSamples,
+            )
+            if (nextViz != prevViz) _viz.value = nextViz
+        } else if (vizKey.isNotEmpty()) {
+            val cachedViz = pendingViz
+            if (cachedViz != null && cachedViz.key == vizKey && cachedViz != _viz.value) {
+                _viz.value = cachedViz
+            }
+        }
+
         val prev = _state.value
-        val stableSamples = if (vizBytes.contentEquals(prev.vizSamples)) prev.vizSamples else vizBytes
         val incoming = RemoteState(
-            hasSession = j.bool("hasSession"),
+            hasSession = hasSession,
             title = j.text("title"),
             artist = j.text("artist"),
             album = j.text("album"),
@@ -487,24 +709,26 @@ internal object RemoteLink {
             color = j.nullableInt("color") ?: DEFAULT_BG_COLOR,
             accentColor = j.nullableInt("accentColor") ?: j.nullableInt("accent") ?: DEFAULT_ACCENT_COLOR,
             artKey = artKey,
-            vizSeed = j.int("vizSeed"),
-            vizStepMs = vizStepMs,
-            vizSamples = stableSamples,
         )
 
+        if (!started || sessionGen != gen) return
         val trackChanged = incoming.title != prev.title && prev.title.isNotEmpty()
-        if (trackChanged) likedHoldUntil = 0L
-        _state.value = incoming.copy(
-            volume = if (now < volumeHoldUntil) heldVolume else incoming.volume,
-            liked = if (!trackChanged && now < likedHoldUntil) heldLiked else incoming.liked,
-            shuffle = if (now < shuffleHoldUntil) heldShuffle else incoming.shuffle,
-            repeat = if (now < repeatHoldUntil) heldRepeat else incoming.repeat,
-            playing = if (now < playingHoldUntil) heldPlaying else incoming.playing,
-        )
+        val resolved = synchronized(holdLock) {
+            if (trackChanged) likedHoldUntil = 0L
+            incoming.copy(
+                volume = if (now < volumeHoldUntil) heldVolume else incoming.volume,
+                liked = if (!trackChanged && now < likedHoldUntil) heldLiked else incoming.liked,
+                shuffle = if (now < shuffleHoldUntil) heldShuffle else incoming.shuffle,
+                repeat = if (now < repeatHoldUntil) heldRepeat else incoming.repeat,
+                playing = if (now < playingHoldUntil) heldPlaying else incoming.playing,
+            )
+        }
+        if (!started || sessionGen != gen) return
+        _state.value = resolved
         _connected.value = true
     }
 
-    private fun onDevices(text: String) {
+    private fun onDevices(text: String, gen: Long) {
         val j = Json.parseToJsonElement(text).jsonObject
         val items = j["items"]?.jsonArray.orEmpty().mapNotNull { el ->
             (el as? JsonObject)?.let {
@@ -512,6 +736,7 @@ internal object RemoteLink {
             }
         }
         val error = j.text("error").takeIf { it.isNotEmpty() }
+        if (!started || sessionGen != gen) return
         _devices.value = RemoteDevices(items, error)
     }
 
@@ -527,13 +752,14 @@ internal object RemoteLink {
         parent to RemotePage(items, error)
     }.getOrNull()
 
-    private fun onPage(text: String, save: Boolean = true) {
+    private fun onPage(text: String, gen: Long, save: Boolean = true) {
         val (parent, page) = parsePage(text) ?: return
+        if (!started || sessionGen != gen) return
         // Keep previously cached items visible if a live refresh fails.
         if (page.error != null && _pages.value[parent]?.items?.isNotEmpty() == true) return
         _pages.value = _pages.value + (parent to page)
         if (save && page.error == null) {
-            pageTexts[parent] = text
+            pageCache.put(parent, text, SystemClock.elapsedRealtime())
             savePages()
         }
     }

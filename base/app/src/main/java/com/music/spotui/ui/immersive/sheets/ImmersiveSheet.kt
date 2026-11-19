@@ -6,10 +6,10 @@
  */
 package com.music.spotui.ui.immersive.sheets
 
-import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,9 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,8 +61,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.bumptech.glide.integration.compose.GlideImage
+import com.music.spotui.ui.components.rememberSoftBlurredBitmap
 import com.music.spotui.ui.components.spotifyImageUrl
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveCover
@@ -132,7 +129,7 @@ fun rememberImmersiveSheetTint(imageUrl: String?): ImmersiveSheetTint {
  * [expand] is set, for lists that bring their own scrolling), with the iOS rubber band.
  * [content] is a column; use [ImmersiveSheetRow] and friends for what goes in it.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImmersiveSheet(
     onDismiss: () -> Unit,
@@ -145,7 +142,13 @@ fun ImmersiveSheet(
 ) {
     val tint = rememberImmersiveSheetTint(imageUrl)
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * maxHeightFraction
-    val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val coverModel = if (imageUrl.isNullOrBlank()) null else (spotifyImageUrl(imageUrl) ?: imageUrl)
+    val blurredCover by rememberSoftBlurredBitmap(
+        url = coverModel,
+        sizePx = 96,
+        blurRadius = 8,
+        padPx = 0,
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -162,17 +165,17 @@ fun ImmersiveSheet(
         ) {
             Box(modifier.fillMaxWidth().clip(ImmersiveSheetShape)) {
                 Box(Modifier.matchParentSize().background(tint.background)) {
-                    if (canBlur && !imageUrl.isNullOrBlank()) {
-                        GlideImage(
-                            model = spotifyImageUrl(imageUrl) ?: imageUrl,
+                    val coverBitmap = blurredCover
+                    if (coverModel != null && coverBitmap != null) {
+                        Image(
+                            bitmap = coverBitmap,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(WASH_FRACTION)
-                                // Overscaled so the blur's clamped edges never reach a visible one.
-                                .graphicsLayer { scaleX = 1.4f; scaleY = 1.4f }
-                                .blur(72.dp, BlurredEdgeTreatment.Unbounded),
+                                // Overscaled so the cover wash fills cleanly past the sheet edges under the scrim.
+                                .graphicsLayer { scaleX = 1.4f; scaleY = 1.4f },
                         )
                     }
                     Box(

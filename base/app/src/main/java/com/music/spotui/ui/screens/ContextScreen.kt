@@ -67,6 +67,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -632,7 +633,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     LaunchedEffect(p.coverUri) {
         if (p.coverUri.isNotBlank()) Palette().extractSecondColorFromCoverUrl(context, p.coverUri) { tintTarget = it }
     }
-    val tint by androidx.compose.animation.animateColorAsState(tintTarget, androidx.compose.animation.core.tween(350), label = "tint")
+    val tintAnim = androidx.compose.animation.animateColorAsState(tintTarget, androidx.compose.animation.core.tween(350), label = "tint")
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     var savedInSong by remember { mutableStateOf<SongsModel?>(null) }
     // "Find in Liked Songs / in playlist".
@@ -825,11 +826,17 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().nestedScroll(revealPull)) {
         item {
-            val headerTop = headerTint(tint, 0.25f).let { if (PageBackground == Color.Transparent) it.copy(alpha = 0.78f) else it }
+            val headerBrushCache = remember { VerticalWashBrushCache() }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(headerTop, PageBackground)))
+                    .drawBehind {
+                        val bg = PageBackground
+                        val headerTop = headerTint(tintAnim.value, 0.25f).let {
+                            if (bg == Color.Transparent) it.copy(alpha = 0.78f) else it
+                        }
+                        drawRect(headerBrushCache.vertical(headerTop, bg, size.height))
+                    }
                     .statusBarsPadding()
             ) {
                 Box(
@@ -843,6 +850,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.accessibility_navigate_back), tint = AppText)
                 }
+                Spacer(Modifier.height(12.dp))
                 // The cover: two thirds of the width as on phones, but never more than 40 % of the
                 // window's height nor 360 dp (it grew to 686 dp on a landscape tablet, the whole
                 // first screen). Large windows put it beside the title, details and actions.
@@ -972,16 +980,12 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                             LikeButton(liked = SongPlayer.library[p.uri] ?: contextSaved, size = 28.dp, touch = com.music.spotui.ui.components.MinTouch) { vm.toggleContextSaved(p) }
                         }
                         // Once per list, not at every redraw of the header (6000 songs, mapped each time).
-                        val ids = remember(p.tracks) { p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct() }
-                        // Songs with no matching recording count as settled: the list can still be removed.
-                        val downloadedCount = ids.count {
-                            com.music.spotui.data.offline.OfflineStore.isDownloaded(it) ||
-                                com.music.spotui.data.offline.OfflineStore.status[it] == com.music.spotui.data.offline.OfflineStatus.Unavailable
+                        val ids = remember(p.tracks) {
+                            p.tracks.asSequence().map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct().toList()
                         }
-                        val busy = ids.any {
-                            val st = com.music.spotui.data.offline.OfflineStore.status[it]
-                            st == com.music.spotui.data.offline.OfflineStatus.Queued || st is com.music.spotui.data.offline.OfflineStatus.Downloading
-                        }
+                        val downloadSummary by remember(ids) { derivedStateOf { offlineDownloadSummary(ids) } }
+                        val downloadedCount = downloadSummary.toInt()
+                        val busy = (downloadSummary ushr 32) != 0L
                         // A list downloaded as a whole stays in step with Spotify (new songs in, gone songs out).
                         val listKept = com.music.spotui.data.offline.OfflineCollections.isDownloaded(p.uri)
                         LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) com.music.spotui.data.offline.OfflineCollections.sync(p) }
@@ -1220,7 +1224,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer { alpha = barAlpha.value }
-            .background(headerTint(tint, 0.45f))
+            .drawBehind { drawRect(headerTint(tintAnim.value, 0.45f)) }
             .statusBarsPadding()
             .height(56.dp),
     ) {
@@ -1784,4 +1788,43 @@ private fun SimilarAlbums(navController: NavController, firstTrackId: String, al
             }
         }
     }
+}
+
+/** Caches the vertical header wash [Brush] across draw frames until colors or height change. */
+internal class VerticalWashBrushCache {
+    private var lastTop: Color = Color.Unspecified
+    private var lastBottom: Color = Color.Unspecified
+    private var lastHeight: Float = -1f
+    private var cached: Brush? = null
+
+    fun vertical(top: Color, bottom: Color, height: Float): Brush {
+        val current = cached
+        if (current != null && lastTop == top && lastBottom == bottom && lastHeight == height) {
+            return current
+        }
+        lastTop = top
+        lastBottom = bottom
+        lastHeight = height
+        return Brush.verticalGradient(listOf(top, bottom)).also { cached = it }
+    }
+}
+
+/** Counts settled downloads and detects active downloads across [ids] in one pass; packs `(busy << 32) | count`. */
+internal fun offlineDownloadSummary(ids: List<String>): Long {
+    var count = 0
+    var active = false
+    val store = com.music.spotui.data.offline.OfflineStore
+    val statuses = store.status
+    for (trackId in ids) {
+        val st = statuses[trackId]
+        if (store.isDownloaded(trackId) || st == com.music.spotui.data.offline.OfflineStatus.Unavailable) {
+            count++
+        }
+        if (!active && (st == com.music.spotui.data.offline.OfflineStatus.Queued ||
+                st is com.music.spotui.data.offline.OfflineStatus.Downloading)
+        ) {
+            active = true
+        }
+    }
+    return (if (active) 1L shl 32 else 0L) or (count.toLong() and 0xFFFFFFFFL)
 }

@@ -18,7 +18,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,9 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +43,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +60,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -71,6 +73,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.itemsIndexed
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
@@ -90,15 +97,23 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.VerticalPagerScaffold
 import com.google.android.horologist.audio.ui.VolumeUiState
 import com.google.android.horologist.audio.ui.material3.VolumeLevelIndicator
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-private val PlayerBase = Color(0xFF08090B)
+private val PlayerBase = Color.Black
+private val CoverScrim = Brush.verticalGradient(
+    0f to Color(0x80000000),
+    0.55f to Color(0xCC000000),
+    1f to Color(0xE8000000),
+)
 private val Secondary = Color(0xFFB3B3B3)
 private val LikedPurple = Color(0xFF4B2BD6)
 private const val CROWN_PX_PER_STEP = 48f
+private const val VOLUME_DEBOUNCE_MS = 120L
 
 /**
  * Root Watch remote UI: horizontal pager between Now Playing (3 vertical pages) and the
@@ -108,16 +123,17 @@ private const val CROWN_PX_PER_STEP = 48f
 @Composable
 internal fun RemoteApp() {
     val context = LocalContext.current
-    DisposableEffect(Unit) {
+    LifecycleStartEffect(Unit) {
         RemoteLink.start(context)
-        onDispose { RemoteLink.stop() }
+        onStopOrDispose { RemoteLink.stop() }
     }
-    val state by RemoteLink.state.collectAsState()
-    val cover by RemoteLink.cover.collectAsState()
+    val state by RemoteLink.state.collectAsStateWithLifecycle()
+    val viz by RemoteLink.viz.collectAsStateWithLifecycle()
+    val cover by RemoteLink.cover.collectAsStateWithLifecycle()
     val coverImage = remember(cover) { cover?.asImageBitmap() }
-    val connected by RemoteLink.connected.collectAsState()
-    val queue by RemoteLink.queue.collectAsState()
-    val devices by RemoteLink.devices.collectAsState()
+    val connected by RemoteLink.connected.collectAsStateWithLifecycle()
+    val queue by RemoteLink.queue.collectAsStateWithLifecycle()
+    val devices by RemoteLink.devices.collectAsStateWithLifecycle()
     val pager = rememberPagerState { 2 }
     var picking by remember { mutableStateOf(false) }
     val ui = rememberCoroutineScope()
@@ -135,6 +151,7 @@ internal fun RemoteApp() {
                 if (page == 0) {
                     NowPlayingPages(
                         state = state,
+                        viz = viz,
                         cover = coverImage,
                         connected = connected,
                         queue = queue,
@@ -154,6 +171,7 @@ internal fun RemoteApp() {
 @Composable
 private fun NowPlayingPages(
     state: RemoteState,
+    viz: VizSnapshot = VizSnapshot(),
     cover: ImageBitmap? = null,
     connected: Boolean?,
     queue: RemoteQueue,
@@ -178,7 +196,7 @@ private fun NowPlayingPages(
     VerticalPagerScaffold(pagerState = vertical) {
         VerticalPager(state = vertical, rotaryScrollableBehavior = null) { page ->
             when (page) {
-                0 -> VisualizerScreen(state = state, cover = cover)
+                0 -> VisualizerScreen(state = state, viz = viz, cover = cover)
                 1 -> RemotePlayer(
                     state = state,
                     connected = connected,
@@ -204,7 +222,7 @@ private fun RotaryVolumeScreen(
     contentAlignment: Alignment = Alignment.Center,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val volume = rememberRemoteVolume(state)
+    val volume = rememberRemoteVolume(state.volume, state.maxVolume)
     ScreenScaffold(
         scrollIndicator = {
             VolumeLevelIndicator(
@@ -236,13 +254,7 @@ private fun RotaryVolumeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.32f),
-                                0.55f to Color.Black.copy(alpha = 0.48f),
-                                1f to Color.Black.copy(alpha = 0.82f),
-                            ),
-                        ),
+                        .background(CoverScrim),
                 )
             }
             content()
@@ -449,24 +461,23 @@ private fun TopInfoLine(state: RemoteState, accent: Color, onDevices: () -> Unit
     }
 }
 
-/** White Play/Pause button inside a 60dp progress ring ticking at 1 Hz only during active playback. */
+/** White Play/Pause button inside a 60dp progress ring ticking at 1 Hz only while resumed & playing. */
 @Composable
 private fun PlayButton(state: RemoteState, accent: Color) {
-    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-    LaunchedEffect(state.playing, state.buffering, state.atElapsedMs, state.positionMs) {
-        now = SystemClock.elapsedRealtime()
-        while (state.playing && !state.buffering) {
-            delay(1_000)
-            now = SystemClock.elapsedRealtime()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val nowState = remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    val currentState by rememberUpdatedState(state)
+    LaunchedEffect(state.playing, state.buffering, state.atElapsedMs, state.positionMs, lifecycleOwner) {
+        nowState.longValue = SystemClock.elapsedRealtime()
+        if (!state.playing || state.buffering) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            nowState.longValue = SystemClock.elapsedRealtime()
+            while (isActive) {
+                delay(1_000)
+                nowState.longValue = SystemClock.elapsedRealtime()
+            }
         }
     }
-    val elapsed = if (state.playing && !state.buffering) {
-        ((now - state.atElapsedMs).coerceAtLeast(0L) * state.speed).toLong()
-    } else {
-        0L
-    }
-    val position = (state.positionMs + elapsed).coerceAtLeast(0L)
-    val progress = if (state.durationMs > 0L) (position.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
     val bufferRotation = if (state.buffering) {
         rememberInfiniteTransition(label = "buffering").animateFloat(
             initialValue = 0f,
@@ -482,6 +493,16 @@ private fun PlayButton(state: RemoteState, accent: Color) {
         modifier = Modifier
             .size(60.dp)
             .drawBehind {
+                // Read nowState inside drawBehind so 1 Hz progress ticks never recompose PlayButton.
+                val s = currentState
+                val now = nowState.longValue
+                val elapsed = if (s.playing && !s.buffering) {
+                    ((now - s.atElapsedMs).coerceAtLeast(0L) * s.speed).toLong()
+                } else {
+                    0L
+                }
+                val position = (s.positionMs + elapsed).coerceAtLeast(0L)
+                val progress = if (s.durationMs > 0L) (position.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f
                 val stroke = 3.dp.toPx()
                 val inset = stroke / 2f
                 val arcSize = Size(size.width - stroke, size.height - stroke)
@@ -566,54 +587,91 @@ private fun GlyphButton(
     }
 }
 
-private class RemoteVolume(val percent: Int, val shown: MutableSharedFlow<Unit>, val rotate: (Float) -> Unit)
+private class RemoteVolume(
+    private val percentState: State<Int>,
+    val shown: MutableSharedFlow<Unit>,
+    val rotate: (Float) -> Unit,
+) {
+    val percent: Int get() = percentState.value
+}
 
 @Composable
-private fun rememberRemoteVolume(state: RemoteState): RemoteVolume {
+private fun rememberRemoteVolume(volume: Int, maxVolume: Int): RemoteVolume {
     val view = LocalView.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val bezel = remember { context.packageManager.hasSystemFeature("android.hardware.rotaryencoder.lowres") }
-    val max = state.maxVolume.coerceAtLeast(1)
-    val initialPercent = ((state.volume * 100 + max / 2) / max).coerceIn(0, 100)
-    var currentPercent by remember(initialPercent) { mutableIntStateOf(initialPercent) }
+    val max = maxVolume.coerceAtLeast(1)
+    val initialPercent = ((volume * 100 + max / 2) / max).coerceIn(0, 100)
+    val percentState = remember { mutableIntStateOf(initialPercent) }
+    val localHoldUntil = remember { mutableLongStateOf(0L) }
     var pixels by remember { mutableFloatStateOf(0f) }
+    var sendJob by remember { mutableStateOf<Job?>(null) }
     val shown = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
 
-    fun step(direction: Int) {
-        val target = (((currentPercent + 5) / 10) * 10 + 10 * direction).coerceIn(0, 100)
-        if (target == currentPercent) return
-        currentPercent = target
-        RemoteLink.send("volume", target.toString())
-        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-        shown.tryEmit(Unit)
+    LaunchedEffect(initialPercent) {
+        if (SystemClock.elapsedRealtime() >= localHoldUntil.longValue) {
+            percentState.intValue = initialPercent
+        }
     }
 
-    return RemoteVolume(currentPercent, shown) { px ->
-        if (px == 0f) return@RemoteVolume
-        if (bezel) {
-            step(if (px > 0f) 1 else -1)
-            return@RemoteVolume
+    fun step(direction: Int) {
+        val current = percentState.intValue
+        val target = (((current + 5) / 10) * 10 + 10 * direction).coerceIn(0, 100)
+        if (target == current) return
+        percentState.intValue = target
+        localHoldUntil.longValue = SystemClock.elapsedRealtime() + 1_500L
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        shown.tryEmit(Unit)
+        sendJob?.cancel()
+        sendJob = scope.launch {
+            delay(VOLUME_DEBOUNCE_MS)
+            RemoteLink.send("volume", target.toString())
         }
-        if ((pixels > 0f && px < 0f) || (pixels < 0f && px > 0f)) pixels = 0f
-        pixels += px
-        if (abs(pixels) >= CROWN_PX_PER_STEP) {
-            step(if (pixels > 0f) 1 else -1)
-            pixels = 0f
+    }
+
+    return remember(bezel, view) {
+        RemoteVolume(percentState, shown) { px ->
+            if (px == 0f) return@RemoteVolume
+            if (bezel) {
+                step(if (px > 0f) 1 else -1)
+                return@RemoteVolume
+            }
+            if ((pixels > 0f && px < 0f) || (pixels < 0f && px > 0f)) pixels = 0f
+            pixels += px
+            if (abs(pixels) >= CROWN_PX_PER_STEP) {
+                step(if (pixels > 0f) 1 else -1)
+                pixels = 0f
+            }
         }
     }
 }
 
 /** Swipe-down NCS visualizer page: blurred cover backdrop, audio-reactive particle sphere, rotary volume. */
 @Composable
-internal fun VisualizerScreen(state: RemoteState, cover: ImageBitmap? = null) {
+internal fun VisualizerScreen(
+    state: RemoteState,
+    viz: VizSnapshot = VizSnapshot(),
+    cover: ImageBitmap? = null,
+) {
     RotaryVolumeScreen(state = state, cover = cover) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val compact = maxWidth < 210.dp
-            val sphereTop = if (compact) 6.dp else 8.dp
-            val sphereSize = if (compact) 120.dp else 132.dp
+        val density = LocalDensity.current
+        val compactThresholdPx = remember(density) { with(density) { 210.dp.roundToPx() } }
+        val initialCompact = LocalConfiguration.current.screenWidthDp < 210
+        var compact by remember { mutableStateOf(initialCompact) }
+        val sphereTop = if (compact) 6.dp else 8.dp
+        val sphereSize = if (compact) 120.dp else 132.dp
+        Box(
+            Modifier
+                .fillMaxSize()
+                .onSizeChanged { sz ->
+                    if (sz.width > 0) compact = sz.width < compactThresholdPx
+                },
+        ) {
             if (state.hasSession) {
                 NcsVisualizer(
                     state = state,
+                    viz = viz,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = sphereTop)
@@ -682,7 +740,7 @@ private fun UpNext(
             contentPadding = padding,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item(key = "controls") {
+            item(key = "controls", contentType = "controls") {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
@@ -736,7 +794,7 @@ private fun UpNext(
                     )
                 }
             }
-            item(key = "header") {
+            item(key = "header", contentType = "header") {
                 ListHeader(Modifier.fillMaxWidth()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -760,7 +818,7 @@ private fun UpNext(
                 }
             }
             if (queue.items.isEmpty()) {
-                item(key = "empty") {
+                item(key = "empty", contentType = "status") {
                     Text(
                         text = stringResource(R.string.wear_queue_empty),
                         style = MaterialTheme.typography.bodySmall,
@@ -770,7 +828,11 @@ private fun UpNext(
                     )
                 }
             } else {
-                itemsIndexed(queue.items, key = { index, song -> "${song.id}_$index" }) { _, song ->
+                itemsIndexed(
+                    queue.items,
+                    key = { index, song -> "${song.id}_$index" },
+                    contentType = { _, _ -> "queue_item" },
+                ) { _, song ->
                     val playing = song.id == queue.active.toString()
                     Button(
                         onClick = {
@@ -814,7 +876,7 @@ internal fun RemoteLibrary(
     pages: Map<String, RemotePage>? = null,
     initialOpened: List<Pair<String, String>> = emptyList(),
 ) {
-    val livePages by RemoteLink.pages.collectAsState()
+    val livePages by RemoteLink.pages.collectAsStateWithLifecycle()
     val resolvedPages = pages ?: livePages
     var opened by remember { mutableStateOf(initialOpened) }
     val current = opened.lastOrNull()
@@ -854,7 +916,7 @@ internal fun RemoteLibrary(
             contentPadding = padding,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item(key = "header") {
+            item(key = "header", contentType = "header") {
                 ListHeader(rowModifier) {
                     Text(
                         text = current?.second ?: stringResource(R.string.wear_library),
@@ -865,13 +927,17 @@ internal fun RemoteLibrary(
                 }
             }
             if (parent == null) {
-                itemsIndexed(rootHubs, key = { _, hub -> hub.id }) { _, hub ->
+                itemsIndexed(
+                    rootHubs,
+                    key = { _, hub -> hub.id },
+                    contentType = { _, _ -> "library_row" },
+                ) { _, hub ->
                     LibraryRow(item = hub, onClick = { open(hub) })
                 }
             } else {
                 val page = resolvedPages[parent]
                 when {
-                    page == null -> item(key = "loading") {
+                    page == null -> item(key = "loading", contentType = "status") {
                         Text(
                             text = stringResource(R.string.wear_loading),
                             style = MaterialTheme.typography.bodySmall,
@@ -881,7 +947,7 @@ internal fun RemoteLibrary(
                         )
                     }
                     page.error != null -> {
-                        item(key = "error") {
+                        item(key = "error", contentType = "status") {
                             Text(
                                 text = page.error,
                                 textAlign = TextAlign.Center,
@@ -890,9 +956,9 @@ internal fun RemoteLibrary(
                                 modifier = rowModifier,
                             )
                         }
-                        item(key = "retry") {
+                        item(key = "retry", contentType = "action") {
                             Button(
-                                onClick = { RemoteLink.browse(parent) },
+                                onClick = { RemoteLink.browse(parent, force = true) },
                                 colors = ButtonDefaults.filledTonalButtonColors(),
                                 icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
                                 modifier = rowModifier,
@@ -900,7 +966,7 @@ internal fun RemoteLibrary(
                         }
                     }
                     page.items.isEmpty() -> {
-                        item(key = "empty") {
+                        item(key = "empty", contentType = "status") {
                             Text(
                                 text = stringResource(R.string.wear_empty),
                                 style = MaterialTheme.typography.bodySmall,
@@ -909,9 +975,9 @@ internal fun RemoteLibrary(
                                 modifier = rowModifier,
                             )
                         }
-                        item(key = "refresh") {
+                        item(key = "refresh", contentType = "action") {
                             Button(
-                                onClick = { RemoteLink.browse(parent) },
+                                onClick = { RemoteLink.browse(parent, force = true) },
                                 colors = ButtonDefaults.filledTonalButtonColors(),
                                 icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
                                 modifier = rowModifier,
@@ -922,7 +988,7 @@ internal fun RemoteLibrary(
                         val first = page.items.firstOrNull { it.playable && !it.id.startsWith("radio|") }
                             ?: page.items.firstOrNull { it.playable }
                         if (first != null) {
-                            item(key = "play") {
+                            item(key = "play", contentType = "play_action") {
                                 Button(
                                     onClick = { play(first) },
                                     colors = ButtonDefaults.buttonColors(),
@@ -931,7 +997,11 @@ internal fun RemoteLibrary(
                                 ) { Text(stringResource(R.string.wear_play_list)) }
                             }
                         }
-                        itemsIndexed(page.items, key = { index, item -> "${item.id}_$index" }) { _, item ->
+                        itemsIndexed(
+                            page.items,
+                            key = { index, item -> "${item.id}_$index" },
+                            contentType = { _, _ -> "library_row" },
+                        ) { _, item ->
                             LibraryRow(
                                 item = item,
                                 onClick = {
@@ -939,9 +1009,9 @@ internal fun RemoteLibrary(
                                 },
                             )
                         }
-                        item(key = "refresh") {
+                        item(key = "refresh", contentType = "action") {
                             Button(
-                                onClick = { RemoteLink.browse(parent) },
+                                onClick = { RemoteLink.browse(parent, force = true) },
                                 colors = ButtonDefaults.filledTonalButtonColors(),
                                 icon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
                                 modifier = rowModifier,
@@ -1025,11 +1095,11 @@ private fun DevicePicker(
             contentPadding = padding,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item(key = "header") {
+            item(key = "header", contentType = "header") {
                 ListHeader(Modifier.fillMaxWidth()) { Text(stringResource(R.string.wear_devices)) }
             }
             when {
-                devices == null -> item(key = "loading") {
+                devices == null -> item(key = "loading", contentType = "status") {
                     Text(
                         text = stringResource(R.string.wear_loading),
                         style = MaterialTheme.typography.bodySmall,
@@ -1039,7 +1109,7 @@ private fun DevicePicker(
                     )
                 }
                 devices.error != null && devices.items.isEmpty() -> {
-                    item(key = "error") {
+                    item(key = "error", contentType = "status") {
                         Text(
                             text = devices.error,
                             textAlign = TextAlign.Center,
@@ -1048,7 +1118,7 @@ private fun DevicePicker(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    item(key = "retry") {
+                    item(key = "retry", contentType = "action") {
                         Button(
                             onClick = { RemoteLink.askDevices() },
                             colors = ButtonDefaults.filledTonalButtonColors(),
@@ -1057,7 +1127,11 @@ private fun DevicePicker(
                         ) { Text(stringResource(R.string.wear_retry)) }
                     }
                 }
-                else -> itemsIndexed(devices.items, key = { index, d -> "${d.id}_$index" }) { _, d ->
+                else -> itemsIndexed(
+                    devices.items,
+                    key = { index, d -> "${d.id}_$index" },
+                    contentType = { _, _ -> "device" },
+                ) { _, d ->
                     Button(
                         onClick = {
                             RemoteLink.send("device", d.id)

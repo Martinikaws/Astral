@@ -31,26 +31,50 @@ internal class ShapeProvider(val shapeBlock: () -> Shape) {
     val innerShape
         get() = shapeBlock()
 
-    val shape = object : Shape {
+    val shape: Shape = ProviderShape(this)
 
+    private fun createCachedOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val shape = shapeBlock()
+        if (_shape != shape) {
+            _shape = shape
+            _outline = null
+        }
+        if (_outline == null || _size != size || _layoutDirection != layoutDirection || _density != density.density) {
+            _size = size
+            _layoutDirection = layoutDirection
+            _density = density.density
+            _outline = shape.createOutline(size, layoutDirection, density)
+        }
+
+        return _outline!!
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ShapeProvider) return false
+        if (shapeBlock == other.shapeBlock) return true
+        return innerShape == other.innerShape
+    }
+
+    override fun hashCode(): Int = innerShape.hashCode()
+
+    private class ProviderShape(private val provider: ShapeProvider) : Shape {
         override fun createOutline(
             size: Size,
             layoutDirection: LayoutDirection,
             density: Density
-        ): Outline {
-            val shape = shapeBlock()
-            if (_shape != shape) {
-                _shape = shape
-                _outline = null
-            }
-            if (_outline == null || _size != size || _layoutDirection != layoutDirection || _density != density.density) {
-                _size = size
-                _layoutDirection = layoutDirection
-                _density = density.density
-                _outline = shape.createOutline(size, layoutDirection, density)
-            }
+        ): Outline = provider.createCachedOutline(size, layoutDirection, density)
 
-            return _outline!!
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is ProviderShape) return false
+            return provider == other.provider
         }
+
+        override fun hashCode(): Int = provider.hashCode()
     }
 }

@@ -112,9 +112,12 @@ abstract class WatchScreenshotTest(private val size: String) {
                 durationMs = 250_000L,
                 color = 0xFF6B233D.toInt(),
                 accentColor = 0xFF1ED760.toInt(),
-                vizSeed = 1731690000,
-                vizStepMs = 100,
-                vizSamples = samples,
+            ),
+            viz = VizSnapshot(
+                key = "sample",
+                seed = 1731690000,
+                stepMs = 100,
+                samples = samples,
             ),
             cover = sampleBlurredCover(),
         )

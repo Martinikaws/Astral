@@ -288,7 +288,7 @@
         // What the clock should have done since the last look: anything else is a jump (a late
         // timer on a busy page is not one).
         const expected = cur.paused ? 0 : (wall - at) / 1000 * (cur.playbackRate || 1);
-        if (cur !== first || cur.currentSrc !== src || Math.abs(t - prev - expected) > 1) {
+        if (cur !== first || cur.currentSrc !== src || Math.abs(t - prev - expected) > 1 || t < prev - 0.1) {
           switched = true;
           el = cur;
           // The fade-out is over: its last steps would land on the new song.

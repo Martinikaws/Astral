@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -77,6 +78,7 @@ fun ImmersivePlayerOverlay(navController: NavController) {
     var held by remember { mutableFloatStateOf(Float.NaN) }
     var closeVelocity by remember { mutableFloatStateOf(0f) }
     val settled = remember { mutableStateOf(false) }
+    var backdropNeeded by remember { mutableStateOf(false) }
 
     // The page under the player gives up the keyboard's focus: a search field kept it, and its
     // cursor handle, drawn by the system in a window of its own, stayed over the player.
@@ -91,6 +93,8 @@ fun ImmersivePlayerOverlay(navController: NavController) {
                 snapshotFlow { heightPx }.first { it > 0 }
                 offset.snapTo(heightPx.toFloat())
                 primed = true
+                // Let the player compose & lay out off-screen for one frame before rising.
+                if (!reduce) withFrameNanos { }
             }
             offset.animateTo(0f, slideSpec(reduce))
             settled.value = true
@@ -101,6 +105,7 @@ fun ImmersivePlayerOverlay(navController: NavController) {
             offset.animateTo(heightPx.toFloat(), slideSpec(reduce), initialVelocity = velocity)
             shown = false
             primed = false
+            backdropNeeded = false
         }
     }
     if (!shown) return
@@ -162,27 +167,32 @@ fun ImmersivePlayerOverlay(navController: NavController) {
             // Nothing under the player may take a touch the player leaves alone.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
+        // Avoid composing the full-screen player or allocating/recording its LayerBackdrop while
+        // the overlay is still unprimed and invisible (alpha = 0f).
+        if (!primed) return@Box
         // The glass sheets opened from the player (sound quality, devices…) sample the player, not
         // the page under it: the player records itself and stands in for the page recording.
         // Nothing recorded while neither Liquid Glass nor the recorded frost reads it.
         val outerGlass = LocalImmersiveBackdrop.current
         val outerFrost = LocalImmersiveFrostPage.current
         val playerPage = if (outerGlass != null || outerFrost != null) rememberLayerBackdrop() else null
+        val sourceAlpha = remember { { if (primed) 1f else 0f } }
+        val onBackdropNeeded = remember { { needed: Boolean -> backdropNeeded = needed } }
         CompositionLocalProvider(
             LocalPageSettled provides settled,
             LocalPlayerSheetDrag provides sheetDrag,
             LocalImmersiveBackdrop provides outerGlass?.let { playerPage },
             LocalImmersiveFrostPage provides outerFrost?.let { playerPage },
             // Hidden until primed, like the player itself: no frame of it at rest in the glass.
-            LocalBackdropSourceAlpha provides { if (primed) 1f else 0f },
+            LocalBackdropSourceAlpha provides sourceAlpha,
         ) {
-            Box(Modifier.fillMaxSize().then(if (playerPage != null) Modifier.layerBackdrop(playerPage) else Modifier)) {
+            Box(Modifier.fillMaxSize().then(if (playerPage != null && backdropNeeded) Modifier.layerBackdrop(playerPage) else Modifier)) {
                 // A podcast episode gets the podcast player (15 s skips, speed); everything else the music one.
                 if (SongPlayer.isEpisode) {
-                    ImmersivePodcastPlayer(navController)
+                    ImmersivePodcastPlayer(navController, onBackdropNeeded = onBackdropNeeded)
                 } else {
                     val bridge = rememberImmersivePlayer(navController)
-                    ImmersivePlayer(bridge.state, bridge.actions, navController = navController)
+                    ImmersivePlayer(bridge.state, bridge.actions, navController = navController, onBackdropNeeded = onBackdropNeeded)
                 }
             }
         }

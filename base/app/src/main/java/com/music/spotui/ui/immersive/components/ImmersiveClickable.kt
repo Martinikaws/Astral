@@ -7,7 +7,6 @@ package com.music.spotui.ui.immersive.components
 
 import com.music.spotui.ui.components.secondaryClick
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,6 +19,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+
+private val ImmersivePressSpring = com.music.spotui.ui.immersive.motion.ImmersiveMotion.pressSpring<Float>()
 
 /**
  * Tap and long-press for cards, buttons and rows of the Immersive look: no ripple, the element
@@ -35,16 +36,25 @@ fun Modifier.immersiveClickable(
 ): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
+    val scale = animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = com.music.spotui.ui.immersive.motion.ImmersiveMotion.pressSpring(),
+        animationSpec = ImmersivePressSpring,
         label = "immersiveClickableScale",
     )
     val haptics = LocalHapticFeedback.current
+    val longClick = remember(onLongClick, haptics) {
+        onLongClick?.let { long ->
+            {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                long()
+            }
+        }
+    }
     this
         .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
+            val s = scale.value
+            scaleX = s
+            scaleY = s
         }
         // A mouse's right click opens the same menu as the long press (DeX, tablets).
         .secondaryClick(if (enabled) onLongClick else null)
@@ -54,11 +64,6 @@ fun Modifier.immersiveClickable(
             enabled = enabled,
             role = role,
             onClick = onClick,
-            onLongClick = onLongClick?.let { long ->
-                {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    long()
-                }
-            },
+            onLongClick = longClick,
         )
 }

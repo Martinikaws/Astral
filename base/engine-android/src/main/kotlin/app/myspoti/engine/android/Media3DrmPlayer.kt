@@ -121,7 +121,7 @@ class Media3DrmPlayer(
     private lateinit var drm: DefaultDrmSessionManager
     private lateinit var sources: ProgressiveMediaSource.Factory
     private var drmHeld = false
-    private val preloads = HashMap<String, DrmSession>()
+    private val preloads = ConcurrentHashMap<String, DrmSession>()
     @Volatile private var current: CdnItem? = null
     private var currentUri = ""
     private var loadedSent = false
@@ -185,7 +185,7 @@ class Media3DrmPlayer(
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             // The Web Player kept 10-20 s ahead (two segments at start, then one every 10 s).
-            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 25_000, 1_000, 2_000).build())
+            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 25_000, 500, 1_500).build())
             .build()
         exo.addListener(Events())
     }
@@ -239,11 +239,15 @@ class Media3DrmPlayer(
 
     private suspend fun loadNow(media: PlayableMedia, positionMs: Long, playWhenReady: Boolean, licence: LicenceChannel) {
         this.licence = licence
+        val item = items.getOrPut(uriOf(media)) { CdnItem(media, http, log, scope) }
+        val preloaded = preloads.containsKey(media.fileId)
+        if (!preloaded) {
+            if (item.loadedAtMs == 0L) item.loadedAtMs = System.currentTimeMillis()
+            item.prefetchStart(scope)
+        }
         ensureCertificate(licence)
         withContext(appDispatcher) { holdDrm() }
         withContext(appDispatcher) {
-            val item = items.getOrPut(uriOf(media)) { CdnItem(media, http, log) }
-            val preloaded = preloads.containsKey(media.fileId)
             // Items neither current nor preloaded are dropped with their buffers.
             items.keys.retainAll(setOf(item.uri.toString()) + preloads.keys.mapNotNull { id -> items.values.firstOrNull { it.media.fileId == id }?.uri?.toString() })
             current = item
@@ -251,7 +255,7 @@ class Media3DrmPlayer(
             loadedSent = false; endedSent = false; status = null; seekPending = false
             initialBufferingMs = 0; stallStartMs = 0; stalls = 0; stalledMs = 0; maxStalledMs = 0; seekStartMs = 0; seekRebufferingMs = 0
             loadAtMs = System.currentTimeMillis()
-            item.loadedAtMs = loadAtMs
+            if (item.loadedAtMs == 0L) item.loadedAtMs = loadAtMs
             exo.setMediaSource(sources.createMediaSource(MediaItem.Builder().setUri(item.uri).setMediaId(media.fileId).build()), positionMs)
             exo.volume = if (muted) 0f else volume
             wantsPlay = playWhenReady
@@ -267,7 +271,7 @@ class Media3DrmPlayer(
     override fun preload(media: PlayableMedia, licence: LicenceChannel) {
         this.licence = licence
         scope.launch {
-            val item = items.getOrPut(uriOf(media)) { CdnItem(media, http, log) }
+            val item = items.getOrPut(uriOf(media)) { CdnItem(media, http, log, scope) }
             val job = async { item.prefetch() }
             item.prefetchJob = job
             runCatching { job.await() }.onFailure { log("preload ${media.trackUri}: CDN failed: ${it.message}") }

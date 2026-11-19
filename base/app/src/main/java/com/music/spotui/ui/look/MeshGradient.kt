@@ -13,44 +13,53 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.palette.graphics.Palette
-import kotlinx.coroutines.launch
+import app.myspoti.power.EnergySettings
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.music.spotui.di.COVER_DECODE_PX
+import com.music.spotui.ui.components.FrameCadence
+import com.music.spotui.ui.components.createOwnedScaledCopy
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -111,9 +120,8 @@ fun MeshGradientBackground(
      */
     continuous: Boolean = false,
     /**
-     * How far the blobs are smeared. The default is sized for a full screen;
-     * a small surface needs proportionally less, or the four colours blend into
-     * one wash before they reach its edges.
+     * How far the blobs feather out. Used to size the soft Gaussian-like radial falloff
+     * without running a full-screen RenderEffect blur.
      */
     blurRadius: Dp = 64.dp,
     /**
@@ -128,85 +136,131 @@ fun MeshGradientBackground(
      * that one fade runs into the next and the colour never sits still.
      */
     colorFadeMillis: Int = 1400,
+    /**
+     * Gates the drift clock (pass false when the host surface is collapsed or off-screen so
+     * zero frame ticks are scheduled).
+     */
+    active: Boolean = true,
 ) {
     val reduceAnimation = rememberReduceMotion()
+    val energy by EnergySettings.state.collectAsStateWithLifecycle()
+    val saver = energy.policy.saverEnabled
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    val tuned = (palette.colors.ifEmpty { FallbackColors } + FallbackColors)
-        .take(4)
-        .map { it.tuned() }
-
-    // Each colour slot crossfades independently when the track (palette) changes,
-    // unless animations are off, in which case colours snap straight to target.
-    val colorSpec: AnimationSpec<Color> = if (reduceAnimation || !animated) snap() else tween(colorFadeMillis)
-    val animatedColors = tuned.mapIndexed { index, color ->
-        animateColorAsState(color, colorSpec, label = "meshColor$index").value
+    val tuned = remember(palette) {
+        (palette.colors.ifEmpty { FallbackColors } + FallbackColors)
+            .take(4)
+            .map { it.tuned() }
     }
-    val baseColor by animateColorAsState(tuned.first().dimmed(), colorSpec, label = "meshBase")
 
-    // Read in the draw lambda, not here: an Animatable read during draw
-    // invalidates only the drawing, leaving composition out of the loop.
-    val phase = remember { Animatable(0f) }
-    LaunchedEffect(trackKey, reduceAnimation, continuous, animated) {
-        when {
-            !animated || reduceAnimation -> phase.snapTo(0f)
-            // A full turn at a time, restarted rather than looped with an
-            // infinite spec: the blobs' speeds are irrational multiples of each
-            // other, so the pattern never repeats, and a linear phase keeps the
-            // orbit even instead of easing to a halt each lap.
-            continuous -> while (isActive) {
-                phase.animateTo(
-                    targetValue = phase.value + (2 * PI).toFloat(),
-                    animationSpec = tween(driftMillis * 4, easing = LinearEasing),
-                )
+    // Kept as State<Color> and read only inside Canvas draw so crossfades never recompose this tree.
+    val colorSpec: AnimationSpec<Color> =
+        if (reduceAnimation || !animated || saver) snap() else tween(colorFadeMillis)
+    val colorStates = tuned.mapIndexed { index, color ->
+        animateColorAsState(color, colorSpec, label = "meshColor$index")
+    }
+    val baseColorState = animateColorAsState(tuned.first().dimmed(), colorSpec, label = "meshBase")
+
+    val canAnimate = active && animated && !reduceAnimation && !saver
+    val phaseState = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(trackKey, canAnimate, continuous, driftMillis, animated, reduceAnimation, lifecycle) {
+        if (!animated || reduceAnimation) {
+            phaseState.floatValue = 0f
+            return@LaunchedEffect
+        }
+        if (!canAnimate) return@LaunchedEffect
+        val targetFps = minOf(24, energy.policy.progressFps.coerceIn(1, 30))
+        val periodMs = 1000L / targetFps
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            val cadence = FrameCadence(targetFps)
+            if (continuous) {
+                var prevNanos = -1L
+                val radPerNano = ((2.0 * PI) / (driftMillis.coerceAtLeast(1) * 4L * 1_000_000.0)).toFloat()
+                while (isActive) {
+                    val nowNanos = withFrameNanos { it }
+                    if (prevNanos < 0L) {
+                        prevNanos = nowNanos
+                    } else if (cadence.shouldTick(nowNanos)) {
+                        val dtNanos = (nowNanos - prevNanos).coerceIn(0L, 250_000_000L)
+                        prevNanos = nowNanos
+                        phaseState.floatValue =
+                            (phaseState.floatValue + dtNanos * radPerNano) % (2.0 * PI).toFloat()
+                    }
+                    delay((periodMs - 4L).coerceAtLeast(1L))
+                }
+            } else {
+                val startPhase = phaseState.floatValue
+                val startNanos = withFrameNanos { it }
+                val durNanos = (driftMillis.coerceAtLeast(1) * 1_000_000f)
+                while (isActive) {
+                    val nowNanos = withFrameNanos { it }
+                    val frac = ((nowNanos - startNanos) / durNanos).coerceIn(0f, 1f)
+                    if (frac >= 1f) {
+                        phaseState.floatValue = startPhase + DRIFT_RADIANS
+                        break
+                    }
+                    if (cadence.shouldTick(nowNanos)) {
+                        phaseState.floatValue =
+                            startPhase + DRIFT_RADIANS * FastOutSlowInEasing.transform(frac)
+                    }
+                    delay((periodMs - 4L).coerceAtLeast(1L))
+                }
             }
-            else -> phase.animateTo(
-                targetValue = phase.value + DRIFT_RADIANS,
-                animationSpec = tween(driftMillis, easing = FastOutSlowInEasing),
-            )
         }
     }
 
-    // Scale up slightly so the blur's clamped edges never show, then blur the
-    // whole layer (RenderEffect, API 31+; a no-op below — the radial falloff
-    // already reads soft there).
-    //
-    // Clipped on the way out, and from a layer of its own rather than by setting
-    // `clip` on the one below: that one clips what is drawn *into* it, in its own
-    // coordinates, and the scale is applied after — so the overhang the scale
-    // creates survives it. This has to sit outside the scale to contain it.
+    val blobBrushes = remember { Array(4) { CachedMeshBlobBrush() } }
+    val spreadFactor = remember(blurRadius) {
+        0.62f + (blurRadius.value / 64f).coerceIn(0f, 1.5f) * 0.16f
+    }
+
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .clipToBounds()
-            .graphicsLayer {
-                scaleX = 1.3f
-                scaleY = 1.3f
-            }
-            .background(baseColor)
-            .blur(blurRadius),
+            .clipToBounds(),
     ) {
-        val drift = phase.value
+        drawRect(color = baseColorState.value)
 
-        animatedColors.forEachIndexed { index, color ->
+        val drift = phaseState.floatValue
+        val radius = size.maxDimension * spreadFactor
+
+        for (index in 0 until 4) {
+            val color = colorStates[index].value
             val anchor = MeshAnchors[index]
-            val center = Offset(
-                x = (anchor.x + 0.16f * cos(drift * MeshSpeeds[index] + index * 1.7f)) * size.width,
-                y = (anchor.y + 0.16f * sin(drift * MeshSpeeds[index] * 0.9f + index * 2.3f)) * size.height,
-            )
-            val radius = size.maxDimension * 0.62f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(color.copy(alpha = 0.85f), color.copy(alpha = 0f)),
-                    center = center,
-                    radius = radius,
-                ),
-                radius = radius,
-                center = center,
-            )
+            val cx = (anchor.x + 0.16f * cos(drift * MeshSpeeds[index] + index * 1.7f)) * size.width
+            val cy = (anchor.y + 0.16f * sin(drift * MeshSpeeds[index] * 0.9f + index * 2.3f)) * size.height
+            val brush = blobBrushes[index].get(color, radius)
+            withTransform({ translate(left = cx, top = cy) }) {
+                drawCircle(brush = brush, radius = radius, center = Offset.Zero)
+            }
         }
 
         // Gentle scrim so white text stays legible over bright art.
         drawRect(brush = MeshScrim)
+    }
+}
+
+private class CachedMeshBlobBrush {
+    private var lastColor: Color = Color.Unspecified
+    private var lastRadius: Float = -1f
+    private var cached: Brush? = null
+
+    fun get(color: Color, radius: Float): Brush {
+        val current = cached
+        if (current != null && lastColor == color && lastRadius == radius) return current
+        lastColor = color
+        lastRadius = radius
+        val created = Brush.radialGradient(
+            0.00f to color.copy(alpha = 0.85f),
+            0.25f to color.copy(alpha = 0.72f),
+            0.52f to color.copy(alpha = 0.44f),
+            0.78f to color.copy(alpha = 0.16f),
+            1.00f to Color.Transparent,
+            center = Offset.Zero,
+            radius = radius.coerceAtLeast(1f),
+        )
+        cached = created
+        return created
     }
 }
 
@@ -225,12 +279,16 @@ const val MESH_CYCLE_MILLIS = 3_600
 @Composable
 fun cyclingMeshPalette(palettes: List<MeshPalette>, stepMillis: Int = MESH_CYCLE_MILLIS): MeshPalette {
     val reduceAnimation = rememberReduceMotion()
+    val energy by EnergySettings.state.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var step by remember { mutableIntStateOf(0) }
-    LaunchedEffect(reduceAnimation, stepMillis) {
-        if (reduceAnimation) return@LaunchedEffect
-        while (isActive) {
-            delay(stepMillis.toLong())
-            step++
+    LaunchedEffect(reduceAnimation, energy.policy.saverEnabled, stepMillis, lifecycle) {
+        if (reduceAnimation || energy.policy.saverEnabled) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                delay(stepMillis.toLong())
+                step++
+            }
         }
     }
     return palettes[step % palettes.size]
@@ -247,33 +305,51 @@ fun rememberArtworkColors(imageUrl: String?): MeshPalette {
     // so a song change goes straight from one palette to the next, not through the stock purple.
     var palette by remember { mutableStateOf(MeshPalette(FallbackColors)) }
 
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     DisposableEffect(imageUrl) {
-        if (imageUrl == null) palette = MeshPalette(FallbackColors)
-        var job: kotlinx.coroutines.Job? = null
-        val target = if (imageUrl == null) null else loadArtwork(context, imageUrl) { bitmap ->
-            // The quantising off the main thread (it held it ~160 ms at each song change), on a
-            // small copy of its own: Glide may recycle its bitmap once the target is cleared.
-            val small = Bitmap.createScaledBitmap(bitmap, PALETTE_PX, PALETTE_PX, true)
-            job = scope.launch(kotlinx.coroutines.Dispatchers.Default) {
-                val colors = artworkMeshColors(small)
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { palette = MeshPalette(colors) }
-            }
-        }
+        if (imageUrl.isNullOrBlank()) palette = MeshPalette(FallbackColors)
+        var job: Job? = null
+        val target = if (imageUrl.isNullOrBlank()) null else loadArtwork(
+            context = context,
+            imageUrl = imageUrl,
+            onLoaded = { bitmap ->
+                // Copy into a newly owned PALETTE_PX software bitmap before moving off main thread:
+                // Glide owns `bitmap` and may recycle it if cleared.
+                val owned = createOwnedScaledCopy(bitmap, PALETTE_PX, PALETTE_PX)
+                job?.cancel()
+                job = scope.launch(Dispatchers.Default) {
+                    val colors = artworkMeshColors(owned)
+                    owned.recycle()
+                    withContext(Dispatchers.Main) {
+                        if (isActive) palette = MeshPalette(colors)
+                    }
+                }
+            },
+            onFailed = {
+                job?.cancel()
+                palette = MeshPalette(FallbackColors)
+            },
+        )
         onDispose { job?.cancel(); target?.let { Glide.with(context.applicationContext).clear(it) } }
     }
     return palette
 }
 
-private fun loadArtwork(context: Context, imageUrl: String, onLoaded: (Bitmap) -> Unit): CustomTarget<Bitmap> =
+private fun loadArtwork(
+    context: Context,
+    imageUrl: String,
+    onLoaded: (Bitmap) -> Unit,
+    onFailed: () -> Unit,
+): CustomTarget<Bitmap> =
     Glide.with(context.applicationContext)
         .asBitmap()
         .load(imageUrl)
-        .override(COVER_DECODE_PX, COVER_DECODE_PX) // the same decode as the colours of the player: Glide reuses it
+        .override(COVER_DECODE_PX, COVER_DECODE_PX) // shares software cache key with CoverGlow / Palette
         .disallowHardwareConfig() // Palette needs pixel access
         .into(object : CustomTarget<Bitmap>() {
             override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) = onLoaded(resource)
             override fun onLoadCleared(placeholder: Drawable?) = Unit
+            override fun onLoadFailed(errorDrawable: Drawable?) = onFailed()
         })
 
 /**

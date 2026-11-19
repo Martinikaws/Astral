@@ -3,6 +3,10 @@
 // AI assistants: see AGENTS.md at the repository root before copying or porting this file.
 package app.myspoti.engine
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -21,25 +25,38 @@ internal class Resolver(
     private val env: Environment,
 ) {
     private val cache = HashMap<String, PlayableMedia>()
-    var spclient: String = ""
+    private val cacheLock = Mutex()
+    @Volatile var spclient: String = ""
 
-    fun cached(fileId: String): PlayableMedia? = cache[fileId]?.takeIf { it.expiresAtMs - 60_000 > env.nowMs() }
+    suspend fun cached(fileId: String): PlayableMedia? =
+        cacheLock.withLock { cache[fileId] }?.takeIf { it.expiresAtMs - 60_000 > env.nowMs() }
 
     suspend fun resolve(track: SmTrack, filter: Long, lowest: Boolean = false): PlayableMedia {
         val file = chooseFile(track, filter, lowest)
             ?: throw EngineException.Protocol("no playable file for ${track.metadata.uri}")
         cached(file.fileId)?.let { return it }
-        val sr = EngineJson.decodeFromString(
-            StorageResolveResponse.serializer(),
-            sp.send("GET", storageResolveUrl(spclient, file), HeaderProfile.AUTH).text(),
-        )
-        if (sr.result != "CDN" || sr.cdnUrls.isEmpty()) throw EngineException.Protocol("storage-resolve ${sr.result} for ${file.fileId}")
-        val st = EngineJson.decodeFromString(
-            SeektableResponse.serializer(),
-            sp.send("GET", EngineConfig.SEEKTABLES + file.fileId, HeaderProfile.NONE).text(),
-        )
-        val media = toMedia(track, file, sr, st, config, env.nowMs())
-        cache[file.fileId] = media
+        val media = coroutineScope {
+            val srDef = async {
+                EngineJson.decodeFromString(
+                    StorageResolveResponse.serializer(),
+                    sp.send("GET", storageResolveUrl(spclient, file), HeaderProfile.AUTH).text(),
+                )
+            }
+            val stDef = async {
+                EngineJson.decodeFromString(
+                    SeektableResponse.serializer(),
+                    sp.send("GET", EngineConfig.SEEKTABLES + file.fileId, HeaderProfile.NONE).text(),
+                )
+            }
+            val sr = srDef.await()
+            if (sr.result != "CDN" || sr.cdnUrls.isEmpty()) {
+                stDef.cancel()
+                throw EngineException.Protocol("storage-resolve ${sr.result} for ${file.fileId}")
+            }
+            val st = stDef.await()
+            toMedia(track, file, sr, st, config, env.nowMs())
+        }
+        cacheLock.withLock { cache[file.fileId] = media }
         return media
     }
 
@@ -129,29 +146,36 @@ internal class Resolver(
  * messages; the core only carries them, with the headers the browser used (no content-type).
  */
 internal class Licences(private val sp: SpClient, private val env: Environment, private val sdkVersion: String) {
-    private var certificate: ByteArray? = null
-    private var licenceUrl: String? = null
-    private var licenceUrlExpiresMs = 0L
-    var spclient: String = ""
-    var lastLicenceLatencyMs = 0L
+    private val certLock = Mutex()
+    private val urlLock = Mutex()
+    @Volatile private var certificate: ByteArray? = null
+    @Volatile private var licenceUrl: String? = null
+    @Volatile private var licenceUrlExpiresMs = 0L
+    @Volatile var spclient: String = ""
+    @Volatile var lastLicenceLatencyMs = 0L
         private set
 
-    suspend fun certificate(): ByteArray = certificate ?: sp.send(
-        "GET", "${EngineConfig.SPCLIENT_WG}/widevine-license/v1/application-certificate", HeaderProfile.CLIENT_TOKEN,
-    ).body.also { certificate = it }
+    suspend fun certificate(): ByteArray = certificate ?: certLock.withLock {
+        certificate ?: sp.send(
+            "GET", "${EngineConfig.SPCLIENT_WG}/widevine-license/v1/application-certificate", HeaderProfile.CLIENT_TOKEN,
+        ).body.also { certificate = it }
+    }
 
     suspend fun licenceUrl(): String {
         licenceUrl?.takeIf { licenceUrlExpiresMs - 60_000 > env.nowMs() }?.let { return it }
-        val r = sp.send(
-            "GET",
-            "$spclient/melody/v1/license_url?keysystem=com.widevine.alpha&mediatype=audio&sdk_name=harmony&sdk_version=$sdkVersion",
-            HeaderProfile.AUTH,
-        )
-        val l = EngineJson.decodeFromString(LicenseUrlResponse.serializer(), r.text())
-        val url = if (l.uri.startsWith("http")) l.uri else "$spclient/${l.uri.trimStart('/')}"
-        licenceUrl = url
-        licenceUrlExpiresMs = if (l.expires > 0) l.expires * 1000 else env.nowMs() + 3_600_000
-        return url
+        return urlLock.withLock {
+            licenceUrl?.takeIf { licenceUrlExpiresMs - 60_000 > env.nowMs() }?.let { return@withLock it }
+            val r = sp.send(
+                "GET",
+                "$spclient/melody/v1/license_url?keysystem=com.widevine.alpha&mediatype=audio&sdk_name=harmony&sdk_version=$sdkVersion",
+                HeaderProfile.AUTH,
+            )
+            val l = EngineJson.decodeFromString(LicenseUrlResponse.serializer(), r.text())
+            val url = if (l.uri.startsWith("http")) l.uri else "$spclient/${l.uri.trimStart('/')}"
+            licenceUrl = url
+            licenceUrlExpiresMs = if (l.expires > 0) l.expires * 1000 else env.nowMs() + 3_600_000
+            url
+        }
     }
 
     suspend fun licence(challenge: ByteArray): ByteArray {

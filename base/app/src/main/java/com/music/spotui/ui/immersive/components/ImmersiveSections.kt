@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +73,12 @@ const val ImmersiveHeroCardRatio = 0.92f
  */
 fun immersiveHeroCardWidth(available: Dp): Dp = minOf(available * HERO_CARD_FRACTION, HERO_CARD_MAX_WIDTH)
 
+private val DefaultShelfArrangement = Arrangement.spacedBy(14.dp)
+private val DefaultShelfCardModifier = Modifier.width(ImmersiveShelfCardWidth)
+private val SquareFillModifier = Modifier.fillMaxWidth().aspectRatio(1f)
+private val HeroCardScrim = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)))
+private val HeroSubtitleColor = Color.White.copy(alpha = 0.72f)
+
 /**
  * A section's heading: [title] in the page's title type, an optional [subtitle] line and, when
  * [onSeeAll] is set, a "See all" link in the accent at the end.
@@ -108,9 +115,14 @@ fun SectionHeader(
             }
         }
         if (onSeeAll != null) {
+            val baseSubhead = Immersive.Subhead
+            val accent = Immersive.Accent
+            val seeAllStyle = remember(baseSubhead, accent) {
+                baseSubhead.copy(color = accent, fontWeight = FontWeight.Medium)
+            }
             Text(
                 text = stringResource(R.string.immersive_shell_see_all),
-                style = Immersive.Subhead.copy(color = Immersive.Accent, fontWeight = FontWeight.Medium),
+                style = seeAllStyle,
                 modifier = Modifier
                     .clickable(role = Role.Button, onClick = onSeeAll)
                     .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
@@ -128,7 +140,7 @@ fun SectionHeader(
 fun ImmersiveShelfRow(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = Immersive.Gutter),
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(14.dp),
+    horizontalArrangement: Arrangement.Horizontal = DefaultShelfArrangement,
     state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
@@ -180,18 +192,23 @@ fun ImmersiveShelfCard(
     subtitle: String?,
     imageUrl: String?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier.width(ImmersiveShelfCardWidth),
+    modifier: Modifier = DefaultShelfCardModifier,
     round: Boolean = false,
     playing: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     /** Drawn over the cover (a "new episode" dot). */
     badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
+    val titleColor = if (playing) Immersive.Accent else Immersive.Text
+    val baseBody = Immersive.Body
+    val titleStyle = remember(baseBody, titleColor) {
+        baseBody.copy(fontWeight = FontWeight.Medium, color = titleColor)
+    }
     Column(
         modifier = modifier.immersiveClickable(onClick = onClick, onLongClick = onLongClick),
         horizontalAlignment = if (round) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+        Box(SquareFillModifier) {
             ImmersiveCover(
                 imageUrl,
                 Modifier.fillMaxSize(),
@@ -203,10 +220,7 @@ fun ImmersiveShelfCard(
         Spacer(Modifier.height(10.dp))
         Text(
             text = title,
-            style = Immersive.Body.copy(
-                fontWeight = FontWeight.Medium,
-                color = if (playing) Immersive.Accent else Immersive.Text,
-            ),
+            style = titleStyle,
             textAlign = if (round) TextAlign.Center else TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -243,7 +257,12 @@ fun ImmersiveLargeAlbumCard(
     playing: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
-    val model = spotifyImageUrl(imageUrl)
+    val model = remember(imageUrl) { spotifyImageUrl(imageUrl) }
+    val titleColor = if (playing) Immersive.Accent else Color.White
+    val baseHeadline = Immersive.Headline
+    val titleStyle = remember(baseHeadline, titleColor) { baseHeadline.copy(color = titleColor) }
+    val baseSubhead = Immersive.Subhead
+    val subtitleStyle = remember(baseSubhead) { baseSubhead.copy(color = HeroSubtitleColor) }
     Box(
         modifier = modifier
             .immersiveClickable(onClick = onClick, onLongClick = onLongClick, pressedScale = 0.98f)
@@ -265,19 +284,19 @@ fun ImmersiveLargeAlbumCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomStart)
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))))
+                .background(HeroCardScrim)
                 .padding(start = 16.dp, end = 16.dp, top = 34.dp, bottom = 14.dp),
         ) {
             Text(
                 text = title,
-                style = Immersive.Headline.copy(color = if (playing) Immersive.Accent else Color.White),
+                style = titleStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    style = Immersive.Subhead.copy(color = Color.White.copy(alpha = 0.72f)),
+                    style = subtitleStyle,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

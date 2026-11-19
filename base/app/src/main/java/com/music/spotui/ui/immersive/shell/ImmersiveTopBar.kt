@@ -155,7 +155,6 @@ fun ImmersiveTopBar(
     hazeState: HazeState? = LocalImmersiveHaze.current,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val page = LocalImmersiveBackdrop.current
     val controlSize = rememberBarControlSize()
     val titleShown by remember(collapse) { derivedStateOf { collapse() >= 0.99f } }
     Box(modifier = modifier.fillMaxWidth().holdsTouches()) {
@@ -399,8 +398,17 @@ private val HeaderShape = RoundedCornerShape(bottomStart = HeaderCorner, bottomE
  */
 @Composable
 internal fun ImmersiveTopGlass(visible: () -> Float, modifier: Modifier, hazeState: HazeState?) {
-    val page = LocalImmersiveBackdrop.current
     val reduce = rememberReduceMotion()
+    // Skip attaching drawBackdrop / GPU blur+refraction completely while the header glass is faded out.
+    val active by remember(visible, reduce) {
+        derivedStateOf {
+            val v = visible()
+            val alpha = if (reduce) (if (v > 0.02f) 1f else 0f) else v
+            alpha > 0.001f
+        }
+    }
+    if (!active) return
+    val page = LocalImmersiveBackdrop.current
     val overscan = with(LocalDensity.current) { HeaderOverscan.roundToPx() }
     val shape = remember(overscan) { HeaderShape }
     val pageTint = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page

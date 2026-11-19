@@ -81,12 +81,20 @@ class SpotifyApi(
         suspend fun request(method: String, url: String, body: ByteArray?, headers: Map<String, String>) = http.sendRaw(method, url, body, headers)
     }
 
+    @Volatile private var allowInitialStoredToken = true
+    private val pageStarts = java.util.concurrent.atomic.AtomicInteger(0)
+
     init {
         scope.launch {
             // Each page load may be another account (logout, then a new sign-in): the next
-            // direct call asks the page for its current token.
+            // direct call asks the page for its current token. On the first ready of a cold start,
+            // keep a valid persisted token from the previous session so direct calls don't re-fetch it.
+            var firstReady = true
             ready.filter { it }.collect {
-                this@SpotifyApi.http.forgetWebToken()
+                val keepToken = firstReady && allowInitialStoredToken && this@SpotifyApi.http.hasToken()
+                firstReady = false
+                allowInitialStoredToken = false
+                if (!keepToken) this@SpotifyApi.http.forgetWebToken()
                 users.forgetUsername()
                 try {
                     player.refresh()
@@ -110,13 +118,17 @@ class SpotifyApi(
      * that left.
      */
     suspend fun forgetAccount() {
+        allowInitialStoredToken = false
         http.forgetWebToken()
         users.forgetUsername()
         jam.forgetSession()
     }
 
     /** The host calls this when a Web Player page load starts (reload, renderer back). */
-    fun onPageStarting() = bridge.pageGone()
+    fun onPageStarting() {
+        if (pageStarts.incrementAndGet() > 1) allowInitialStoredToken = false
+        bridge.pageGone()
+    }
 
     /** True when the page's token belongs to a signed-in user (the cached one is reused). */
     suspend fun isSignedIn(): Boolean = http.isSignedIn()

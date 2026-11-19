@@ -45,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -117,7 +118,10 @@ private const val SKIP_MS = 15_000L
  */
 @OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun ImmersivePodcastPlayer(navController: NavController) {
+fun ImmersivePodcastPlayer(
+    navController: NavController,
+    onBackdropNeeded: ((Boolean) -> Unit)? = null,
+) {
     val bridge = rememberImmersivePlayer(navController)
     val state = bridge.state
     val actions = bridge.actions
@@ -136,6 +140,15 @@ fun ImmersivePodcastPlayer(navController: NavController) {
     var showQueue by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
+
+    val hasOverlaySheet = showSpeed || showSleep || showDevices || showQueue || showMenu || showQuality
+    LaunchedEffect(hasOverlaySheet, onBackdropNeeded) {
+        onBackdropNeeded?.invoke(hasOverlaySheet)
+    }
+    DisposableEffect(onBackdropNeeded) {
+        onDispose { onBackdropNeeded?.invoke(false) }
+    }
+
     val scope = rememberCoroutineScope()
 
     val palette = rememberArtworkColors(state.coverUrl.takeIf { it.isNotBlank() })
