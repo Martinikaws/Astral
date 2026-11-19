@@ -14,3 +14,11 @@ keystore/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local agent coordination and tooling (not part of the public repo)
+HANDOFF.md
+TASKS.md
+PROJECT_BRIEF.md
+.claude/
+.env
+.env.*
