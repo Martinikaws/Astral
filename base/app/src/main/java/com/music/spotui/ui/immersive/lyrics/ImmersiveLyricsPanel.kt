@@ -221,11 +221,12 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
     val backdropSlot = com.music.spotui.spicy.LocalSpicyBackdropSlot.current
     val reduceMotionNow = rememberReduceMotion()
     val playingNow = Graph.currentSongState.playingState.value
+    val coverNow = song.coverUri.value
     if (backdropSlot != null) {
         val mine = remember { arrayOfNulls<com.music.spotui.spicy.SpicyBackdropRequest>(1) }
         if (useSpicy) androidx.compose.runtime.SideEffect {
             val r = com.music.spotui.spicy.SpicyBackdropRequest(
-                coverUri = song.coverUri.value,
+                coverUri = coverNow,
                 artist = artist,
                 playing = playingNow,
                 positionMs = { lyricsPosition() },
@@ -245,7 +246,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             onDispose { if (backdropSlot.request === mine[0]) backdropSlot.request = null }
         }
     } else if (useSpicy) SpicyBackgroundLayer(
-        coverUri = song.coverUri.value,
+        coverUri = coverNow,
         artist = artist,
         playing = playingNow,
         positionMs = { lyricsPosition() },

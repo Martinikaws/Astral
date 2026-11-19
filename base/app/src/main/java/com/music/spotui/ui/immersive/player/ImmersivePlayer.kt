@@ -284,6 +284,7 @@ fun ImmersivePlayer(
     var showNerd by remember { mutableStateOf(false) }
     val lyricsOpen = panel == Panel.LYRICS
     val spicySlot = remember { com.music.spotui.spicy.SpicyBackdropSlot() }
+    val spicyFade = animateFloatAsState(if (lyricsOpen) 1f else 0f, tween(250), label = "spicyFade")
     val queueOpen = panel == Panel.QUEUE
 
     // 0 with the full player, 1 with the cover in the header. Read at measure, placement and draw.
@@ -385,7 +386,7 @@ fun ImmersivePlayer(
             )
         }
         // The Spicy lyrics background, published by the lyrics panel: full screen, under all content.
-        com.music.spotui.spicy.SpicyBackdropSlotLayer(spicySlot, Modifier.fillMaxSize().graphicsLayer { alpha = collapse.value })
+        com.music.spotui.spicy.SpicyBackdropSlotLayer(spicySlot, Modifier.fillMaxSize().graphicsLayer { alpha = minOf(collapse.value, spicyFade.value) })
         // An AutoMix mix: the content draws in with it and springs back after it, the backdrop stays.
         Box(Modifier.fillMaxSize().mixSqueeze(mixMotion)) {
         CompositionLocalProvider(LocalPlayerTint provides tint, com.music.spotui.spicy.LocalSpicyBackdropSlot provides spicySlot) {
