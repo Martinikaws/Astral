@@ -52,6 +52,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -192,7 +194,9 @@ object Extensions {
                 }
             }
             val (audio, rest) = on.partition { Action.AUDIO_SOURCE.key in it.granted }
-            audio.forEach { start(it, probe = false) }
+            coroutineScope {
+                audio.map { async { start(it, probe = false) } }.awaitAll()
+            }
             audioStarted.complete(Unit)
             rest.forEach { start(it, probe = false) }
             started.complete(Unit)
@@ -1050,7 +1054,9 @@ object Extensions {
         val known = isrcs[track.id] ?: savedIsrc(track.id)?.also { isrcs[track.id] = it } ?: runCatching {
             kotlinx.coroutines.withTimeout(ISRC_WAIT_MS) {
                 val api = app.myspoti.host.android.MyspotiRuntime.api
-                api.ready.first { it }
+                if (!app.myspoti.host.android.MyspotiRuntime.spotify.http.hasToken()) {
+                    api.ready.first { it }
+                }
                 api.catalog.isrc("spotify:track:${track.id}")
             }
         }.getOrNull()?.let(com.music.spotui.data.offline.OfflineDownloader::normalizeIsrc)?.also { isrcs[track.id] = it; saveIsrc(track.id, it) }

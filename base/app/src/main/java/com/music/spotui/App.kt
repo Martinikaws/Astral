@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import android.annotation.SuppressLint
 import android.os.Build
@@ -74,14 +73,7 @@ fun App() {
     }
 
     // Genius's explanations of the song playing, read while it starts: ready when the lyrics open.
-    val geniusLang = com.music.spotui.ui.components.readerLanguage()
-    val playingUri = com.music.spotui.di.SongPlayer.nowPlaying.value.uri
-    LaunchedEffect(playingUri) {
-        if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
-        kotlinx.coroutines.delay(2_000) // the song's own loads first
-        val st = com.music.spotui.di.Graph.currentSongState
-        com.music.spotui.data.api.GeniusMeaning.prefetch(playingUri.substringAfterLast(':'), st.title.value, st.singer.value, geniusLang)
-    }
+    GeniusPrefetchEffect()
     // A shared link to a list / artist / podcast: its page, over whatever was open.
     val pageLink by com.music.spotui.data.api.InviteLinks.page.collectAsState()
     LaunchedEffect(pageLink) {
@@ -124,23 +116,7 @@ fun App() {
     val frostPage = immersive && !liquidGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     // Interactive & Glassify dynamic cover accent extraction (contrast-adjusted against dark surfaces).
-    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
-    val appContext = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(coverUri, look) {
-        if (coverUri.isBlank() || !com.music.spotui.ui.theme.lookFollowsCover(look)) {
-            com.music.spotui.ui.theme.dynamicCoverAccent = null
-        } else {
-            val requestedCover = coverUri
-            com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, requestedCover) { extracted ->
-                val activeLook = com.music.spotui.data.preferences.LookPref.look
-                if (com.music.spotui.di.Graph.currentSongState.coverUri.value == requestedCover &&
-                    com.music.spotui.ui.theme.lookFollowsCover(activeLook)
-                ) {
-                    com.music.spotui.ui.theme.dynamicCoverAccent = extracted
-                }
-            }
-        }
-    }
+    DynamicCoverAccentEffect(look)
 
     // The floating chrome's fold (iOS 26): pages scroll it through immersiveChromeScroll().
     val chrome = com.music.spotui.ui.immersive.shell.rememberImmersiveChromeState()
@@ -172,7 +148,7 @@ fun App() {
     ) {
       com.music.spotui.ui.components.StarryNightBackdrop(Modifier.fillMaxSize())
       if (look == com.music.spotui.data.preferences.Look.GLASSIFY && !oled && extBg == null) {
-          GlassifyAmbientBackdrop(coverUri = coverUri, starryActive = starryActive, modifier = Modifier.fillMaxSize())
+          GlassifyAmbientBackdrop(starryActive = starryActive, modifier = Modifier.fillMaxSize())
       }
       androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
         // Before the Scaffold, in a group of its own: the nav host keeps its place when the
@@ -218,26 +194,71 @@ fun App() {
 private const val MinCoverScrim = 0.10f
 
 /**
+ * Prefetches Genius explanations for the currently playing track in an isolated child scope so
+ * track changes never recompose the root [App] composable.
+ */
+@Composable
+private fun GeniusPrefetchEffect() {
+    val geniusLang = com.music.spotui.ui.components.readerLanguage()
+    val playingUri = com.music.spotui.di.SongPlayer.nowPlaying.value.uri
+    LaunchedEffect(playingUri, geniusLang) {
+        if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
+        kotlinx.coroutines.delay(2_000) // the song's own loads first
+        val st = com.music.spotui.di.Graph.currentSongState
+        com.music.spotui.data.api.GeniusMeaning.prefetch(playingUri.substringAfterLast(':'), st.title.value, st.singer.value, geniusLang)
+    }
+}
+
+/**
+ * Extracts a contrast-adjusted cover accent for Interactive & Glassify looks in an isolated child
+ * scope so track changes never recompose the root [App] composable.
+ */
+@Composable
+private fun DynamicCoverAccentEffect(look: com.music.spotui.data.preferences.Look) {
+    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(coverUri, look) {
+        if (coverUri.isBlank() || !com.music.spotui.ui.theme.lookFollowsCover(look)) {
+            com.music.spotui.ui.theme.dynamicCoverAccent = null
+        } else {
+            val requestedCover = coverUri
+            com.music.spotui.ui.theme.extractContrastCoverAccent(appContext, requestedCover) { extracted ->
+                val activeLook = com.music.spotui.data.preferences.LookPref.look
+                if (com.music.spotui.di.Graph.currentSongState.coverUri.value == requestedCover &&
+                    com.music.spotui.ui.theme.lookFollowsCover(activeLook)
+                ) {
+                    com.music.spotui.ui.theme.dynamicCoverAccent = extracted
+                }
+            }
+        }
+    }
+}
+
+/**
  * Glassify (`spicetify-glassify`) heavily blurred album-art ambient layer behind the interactive shell.
  * Stays translucent over [com.music.spotui.ui.components.StarryNightBackdrop] when Starry Night is active.
  */
-@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
 @Composable
 private fun GlassifyAmbientBackdrop(
-    coverUri: String,
     starryActive: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val accent = com.music.spotui.ui.theme.dynamicCoverAccent ?: com.music.spotui.ui.theme.StarryBlue
+    val coverUri = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val blurred by com.music.spotui.ui.components.rememberSoftBlurredBitmap(
+        url = coverUri.ifBlank { null },
+        sizePx = 96,
+        blurRadius = 8,
+        padPx = 0,
+    )
     androidx.compose.foundation.layout.Box(modifier) {
-        if (coverUri.isNotBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            com.bumptech.glide.integration.compose.GlideImage(
-                model = coverUri,
+        val bitmap = blurred
+        if (bitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bitmap,
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(72.dp)
                     .graphicsLayer {
                         alpha = if (starryActive) 0.30f else 0.52f
                         scaleX = 1.25f
@@ -245,6 +266,7 @@ private fun GlassifyAmbientBackdrop(
                     },
             )
         } else {
+            val accent = com.music.spotui.ui.theme.dynamicCoverAccent ?: com.music.spotui.ui.theme.StarryBlue
             androidx.compose.foundation.layout.Box(
                 Modifier
                     .fillMaxSize()

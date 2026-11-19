@@ -139,19 +139,34 @@ fun ImmersiveHomeScreen(navController: NavController) {
 
     // Podcasts can be off: their shows and episodes then leave the feed.
     val hideDj = com.music.spotui.data.preferences.HideDjPref.hidden
-    val sections = remember(feed, hideDj) {
+    val showPodcasts = Features.PODCASTS
+    val sections = remember(feed, hideDj, showPodcasts) {
         val all = feed?.sections.orEmpty().withoutPodcastShows()
         if (hideDj) all.withoutDj() else all
     }
     // Only the untitled section the web home starts with is a shortcut grid; a titled lead
     // section is a carousel like any other.
-    val gridSection = sections.firstOrNull()?.takeIf { it.title.isBlank() }
-    val carousels = if (gridSection != null) sections.drop(1) else sections
+    val gridSection = remember(sections) { sections.firstOrNull()?.takeIf { it.title.isBlank() } }
+    val carousels = remember(sections, gridSection) { if (gridSection != null) sections.drop(1) else sections }
+    val carouselKeys = remember(carousels) { uniqueSectionKeys(carousels) }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
     val shortcuts = remember(gridSection, sections, facet, likedName) { homeShortcuts(gridSection?.items, sections.isEmpty(), facet, likedName) }
     // The shortcuts at the top load in the background, ready before a tap.
     LaunchedEffect(shortcuts) { prefetchHomeShortcuts(shortcuts) }
+
+    val allLabel = stringResource(R.string.filter_chip_all_label)
+    val musicLabel = stringResource(R.string.recents_content_filter_music)
+    val podcastsLabel = stringResource(R.string.ad_category_title_podcasts)
+    val audiobooksLabel = stringResource(R.string.audiobooks_title)
+    val facetLabels = remember(allLabel, musicLabel, podcastsLabel, audiobooksLabel) {
+        mapOf(
+            "" to allLabel,
+            "music-chip" to musicLabel,
+            "podcasts-chip" to podcastsLabel,
+            "audiobooks-chip" to audiobooksLabel,
+        )
+    }
 
     val starryEnabled by StarryNightPref.enabled.collectAsState()
     val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
@@ -163,45 +178,45 @@ fun ImmersiveHomeScreen(navController: NavController) {
             contentPadding = PaddingValues(top = immersiveHeaderContentPadding(), bottom = Immersive.BottomChrome),
             modifier = Modifier.fillMaxSize().immersiveHazeSource().immersiveChromeScroll(),
         ) {
-            item(key = "home:facets") {
+            item(key = "home:facets", contentType = "home:facets") {
                 ImmersiveHomeFacets(
                     facet,
-                    labels = mapOf(
-                        "" to stringResource(R.string.filter_chip_all_label),
-                        "music-chip" to stringResource(R.string.recents_content_filter_music),
-                        "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
-                        "audiobooks-chip" to stringResource(R.string.audiobooks_title),
-                    ),
-                    podcasts = Features.PODCASTS,
+                    labels = facetLabels,
+                    podcasts = showPodcasts,
                     select = homeViewModel::selectFacet,
                 )
             }
             when {
                 feed != null && feed.sections.isNotEmpty() -> {
                     shortcuts?.let { tiles ->
-                        item(key = "home:shortcuts") {
+                        item(key = "home:shortcuts", contentType = "home:shortcuts") {
                             // The feed fades in over its placeholder (see immersiveFeedSkeleton).
                             Box(arrivingRow()) {
                                 ShortcutGrid(navController, tiles, playingContext)
                             }
                         }
                     }
-                    carousels.forEachIndexed { index, section ->
-                        item(key = "home:section:$index:${section.title}") {
-                            // The lead carousel gets the big cards, unless it is a row of artists.
-                            val hero = index == 0 && section.items.none { it is HomeItem.Artist }
-                            Box(arrivingRow()) {
-                                if (hero) HeroSection(navController, section, playingContext) else ShelfSection(navController, section, playingContext)
-                            }
+                    items(
+                        count = carousels.size,
+                        key = { carouselKeys[it] },
+                        contentType = { i ->
+                            if (i == 0 && carousels[i].items.none { it is HomeItem.Artist }) "home:hero" else "home:shelf"
+                        },
+                    ) { index ->
+                        val section = carousels[index]
+                        // The lead carousel gets the big cards, unless it is a row of artists.
+                        val hero = index == 0 && section.items.none { it is HomeItem.Artist }
+                        Box(arrivingRow()) {
+                            if (hero) HeroSection(navController, section, playingContext) else ShelfSection(navController, section, playingContext)
                         }
                     }
                     // Sections from extensions (home.sections), after Spotify's own.
-                    item(key = "home:extensions") {
+                    item(key = "home:extensions", contentType = "home:extensions") {
                         com.music.spotui.extensions.ExtensionBlocks(app.myspoti.extensions.Hook.HOME, app.myspoti.extensions.Surface.HOME, "{}")
                     }
                 }
                 home is Response.Loading -> immersiveFeedSkeleton(firstIsHero = true)
-                else -> item(key = "home:message") {
+                else -> item(key = "home:message", contentType = "home:message") {
                     ImmersiveMessageState(
                         message = stringResource(if (home is Response.Error) R.string.home_error else R.string.home_empty),
                         actionLabel = if (home is Response.Error) stringResource(R.string.home_retry) else null,
@@ -273,6 +288,16 @@ private fun HomeItem.isPlayingIn(playingContext: String): Boolean {
     return uri.isNotEmpty() && playingContext == uri
 }
 
+private fun uniqueSectionKeys(sections: List<HomeSection>): List<String> {
+    val seen = HashMap<String, Int>()
+    return sections.map { section ->
+        val base = "home:section:${section.title}"
+        val count = (seen[base] ?: 0) + 1
+        seen[base] = count
+        if (count == 1) base else "$base#$count"
+    }
+}
+
 /**
  * Keys for the cards of a shelf: the uri they open, or their kind and name for those with none
  * (an episode). A repeat within one shelf gets a suffix, as a lazy list refuses two equal keys.
@@ -281,7 +306,8 @@ private fun homeItemKeys(items: List<HomeItem>): List<String> {
     val seen = HashMap<String, Int>()
     return items.map { item ->
         val base = item.contextUri().ifEmpty { "${item::class.simpleName}:${item.name}:${item.imageUrl}" }
-        val count = seen.merge(base, 1, Int::plus) ?: 1
+        val count = (seen[base] ?: 0) + 1
+        seen[base] = count
         if (count == 1) base else "$base#$count"
     }
 }
@@ -304,15 +330,20 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
             val cardWidth = immersiveHeroCardWidth(maxWidth)
             val keys = remember(section.items) { homeItemKeys(section.items) }
             ImmersiveShelfRow {
-                items(section.items.size, key = { keys[it] }) { i ->
+                items(
+                    count = section.items.size,
+                    key = { keys[it] },
+                    contentType = { section.items[it]::class },
+                ) { i ->
                     val item = section.items[i]
                     // One lambda per card, so the press hint's pointer input is not restarted by a recomposition.
                     val hint = remember(item) { { prefetchHomeItem(item) } }
+                    val onClick = remember(navController, item) { { onHomeItemClick(navController, item) } }
                     ImmersiveLargeAlbumCard(
                         title = item.name,
                         subtitle = item.cardSubtitle(),
                         imageUrl = item.imageUrl,
-                        onClick = { onHomeItemClick(navController, item) },
+                        onClick = onClick,
                         modifier = Modifier.width(cardWidth).pressHint(hint),
                         playing = item.isPlayingIn(playingContext.value),
                     )
@@ -327,25 +358,50 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
 private fun ShelfSection(navController: NavController, section: HomeSection, playingContext: State<String>) {
     val keys = remember(section.items) { homeItemKeys(section.items) }
     ImmersiveShelf(title = section.title) {
-        items(section.items.size, key = { keys[it] }) { i ->
+        items(
+            count = section.items.size,
+            key = { keys[it] },
+            contentType = { section.items[it]::class },
+        ) { i ->
             val item = section.items[i]
             val hint = remember(item) { { prefetchHomeItem(item) } }
+            val onClick = remember(navController, item) { { onHomeItemClick(navController, item) } }
+            val badge: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? =
+                if (item is HomeItem.Show && !item.isEpisode) {
+                    remember(item.id) {
+                        {
+                            com.music.spotui.ui.components.NewEpisodeDot(
+                                item.id,
+                                Immersive.Accent,
+                                Modifier.align(Alignment.TopEnd).padding(8.dp),
+                            )
+                        }
+                    }
+                } else {
+                    null
+                }
             ImmersiveShelfCard(
                 title = item.name,
                 subtitle = item.cardSubtitle(),
                 imageUrl = item.imageUrl,
-                onClick = { onHomeItemClick(navController, item) },
+                onClick = onClick,
                 modifier = Modifier.width(com.music.spotui.ui.immersive.components.ImmersiveShelfCardWidth)
                     .pressHint(hint),
                 round = item is HomeItem.Artist,
                 playing = item.isPlayingIn(playingContext.value),
-                badge = if (item is HomeItem.Show && !item.isEpisode) ({
-                    com.music.spotui.ui.components.NewEpisodeDot(item.id, Immersive.Accent, Modifier.align(Alignment.TopEnd).padding(8.dp))
-                }) else null,
+                badge = badge,
             )
         }
     }
 }
+
+private val ShortcutCoverRoundedShape = RoundedCornerShape(8.dp)
+private val GlassifyBorderEndColor = Color.White.copy(alpha = 0.06f)
+private val GlassifyIdleBorderBrush = Brush.linearGradient(
+    colors = listOf(GlassifyBorder, GlassifyBorderEndColor),
+    start = Offset.Zero,
+    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+)
 
 /** The two-column shortcuts the web home starts with: a small cover and a name on a raised tile. */
 @Composable
@@ -355,74 +411,111 @@ private fun ShortcutGrid(navController: NavController, items: List<HomeItem>, pl
         Look.LIQUID_MUSIC, Look.GLASSIFY, Look.STARRY_NIGHT -> Immersive.Card
         else -> Immersive.CoverMedium
     }
-    val coverShape = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) RoundedCornerShape(8.dp) else Immersive.CoverMedium
+    val coverShape = if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) ShortcutCoverRoundedShape else Immersive.CoverMedium
+    val keys = remember(items) { homeItemKeys(items) }
+    // Large windows: more tiles per row (two on phones).
+    val cols = com.music.spotui.ui.components.windowSize().columns(2, 280.dp)
+    val rows = remember(items, cols) { items.chunked(cols) }
     Column(
         modifier = Modifier.padding(horizontal = Immersive.Gutter).padding(bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Large windows: more tiles per row (two on phones).
-        val cols = com.music.spotui.ui.components.windowSize().columns(2, 280.dp)
-        items.chunked(cols).forEach { rowItems ->
+        var idx = 0
+        rows.forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 rowItems.forEach { item ->
-                    val playing = item.isPlayingIn(playingContext.value)
-                    val tileSurface = when (look) {
-                        Look.GLASSIFY -> Modifier
-                            .background(GlassifyGlassFill, tileShape)
-                            .border(
-                                width = 1.dp,
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        if (playing) Immersive.Accent.copy(alpha = 0.65f) else GlassifyBorder,
-                                        Color.White.copy(alpha = 0.06f),
-                                    ),
-                                    start = Offset.Zero,
-                                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                                ),
-                                shape = tileShape,
-                            )
-                        // The Look's own surface (LiquidMusic: a flat iOS group, no rim); the accent lights what plays.
-                        Look.LIQUID_MUSIC -> Modifier
-                            .background(Immersive.Raised, tileShape)
-                            .then(if (playing) Modifier.border(1.dp, Immersive.Accent.copy(alpha = 0.65f), tileShape) else Modifier)
-                        Look.STARRY_NIGHT -> Modifier
-                            .background(Immersive.Raised, tileShape)
-                            .border(1.dp, if (playing) Immersive.Accent.copy(alpha = 0.65f) else Immersive.Tokens.edgeColor, tileShape)
-                        else -> Modifier.background(Immersive.Raised)
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .pressHint { prefetchHomeItem(item) }
-                            .immersiveClickable(onClick = { onHomeItemClick(navController, item) })
-                            .clip(tileShape)
-                            .then(tileSurface),
-                    ) {
-                        ImmersiveCover(
-                            url = item.imageUrl,
-                            modifier = Modifier.size(56.dp),
-                            shape = coverShape,
-                            border = false,
-                        )
-                        Text(
-                            text = item.name,
-                            style = Immersive.Subhead.copy(
-                                color = if (playing) Immersive.Accent else Immersive.Text,
-                                fontWeight = FontWeight.SemiBold,
-                                lineHeight = 17.sp,
-                                // Two balanced lines rather than a lone word under the rest.
-                                lineBreak = androidx.compose.ui.text.style.LineBreak.Heading,
-                            ),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 10.dp).weight(1f),
+                    val tileKey = keys[idx++]
+                    androidx.compose.runtime.key(tileKey) {
+                        ShortcutTile(
+                            navController = navController,
+                            item = item,
+                            playing = item.isPlayingIn(playingContext.value),
+                            look = look,
+                            tileShape = tileShape,
+                            coverShape = coverShape,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
                 repeat(cols - rowItems.size) { Box(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+@Composable
+private fun ShortcutTile(
+    navController: NavController,
+    item: HomeItem,
+    playing: Boolean,
+    look: Look,
+    tileShape: androidx.compose.ui.graphics.Shape,
+    coverShape: androidx.compose.ui.graphics.Shape,
+    modifier: Modifier = Modifier,
+) {
+    val hint = remember(item) { { prefetchHomeItem(item) } }
+    val onClick = remember(navController, item) { { onHomeItemClick(navController, item) } }
+    val accent = Immersive.Accent
+    val playingBorderBrush = if (look == Look.GLASSIFY && playing) {
+        remember(accent) {
+            Brush.linearGradient(
+                colors = listOf(accent.copy(alpha = 0.65f), GlassifyBorderEndColor),
+                start = Offset.Zero,
+                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+            )
+        }
+    } else {
+        null
+    }
+    val tileSurface = when (look) {
+        Look.GLASSIFY -> Modifier
+            .background(GlassifyGlassFill, tileShape)
+            .border(
+                width = 1.dp,
+                brush = playingBorderBrush ?: GlassifyIdleBorderBrush,
+                shape = tileShape,
+            )
+        // The Look's own surface (LiquidMusic: a flat iOS group, no rim); the accent lights what plays.
+        Look.LIQUID_MUSIC -> Modifier
+            .background(Immersive.Raised, tileShape)
+            .then(if (playing) Modifier.border(1.dp, accent.copy(alpha = 0.65f), tileShape) else Modifier)
+        Look.STARRY_NIGHT -> Modifier
+            .background(Immersive.Raised, tileShape)
+            .border(1.dp, if (playing) accent.copy(alpha = 0.65f) else Immersive.Tokens.edgeColor, tileShape)
+        else -> Modifier.background(Immersive.Raised)
+    }
+    val baseSubhead = Immersive.Subhead
+    val labelColor = if (playing) accent else Immersive.Text
+    val labelStyle = remember(baseSubhead, labelColor) {
+        baseSubhead.copy(
+            color = labelColor,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 17.sp,
+            // Two balanced lines rather than a lone word under the rest.
+            lineBreak = androidx.compose.ui.text.style.LineBreak.Heading,
+        )
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(56.dp)
+            .pressHint(hint)
+            .immersiveClickable(onClick = onClick)
+            .clip(tileShape)
+            .then(tileSurface),
+    ) {
+        ImmersiveCover(
+            url = item.imageUrl,
+            modifier = Modifier.size(56.dp),
+            shape = coverShape,
+            border = false,
+        )
+        Text(
+            text = item.name,
+            style = labelStyle,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 10.dp).weight(1f),
+        )
     }
 }

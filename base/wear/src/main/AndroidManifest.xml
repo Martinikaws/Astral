@@ -5,7 +5,7 @@
          system's controls, when the phone's app of the same id starts playing (as Spotify's watch app does). -->
     <uses-permission android:name="com.google.android.wearable.permission.BIND_THIRD_PARTY_MEDIA_CONTROLS" />
 
-    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.DeviceDefault">
+    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.DeviceDefault" android:allowBackup="false">
         <!-- The session comes from the phone's app: the watch app does nothing alone. -->
         <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
         <activity android:name=".WatchActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask">

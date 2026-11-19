@@ -34,6 +34,7 @@ object PlaybackCacheManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var preloadJob: kotlinx.coroutines.Job? = null
 
     private fun preloadingEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getBoolean(KEY_PRELOADING_ENABLED, true)
@@ -59,7 +60,9 @@ object PlaybackCacheManager {
 
         if (toPreload.isEmpty()) return
 
-        scope.launch {
+        preloadJob?.cancel()
+        preloadJob = scope.launch {
+            kotlinx.coroutines.delay(3_000)
             if (maxCapBytes > 0) {
                 PlaybackCacheStore.enforceCap(maxCapBytes)
             }

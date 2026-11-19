@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -38,6 +39,7 @@ import androidx.compose.ui.node.GlobalPositionAwareModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.observeReads
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
@@ -162,20 +164,32 @@ private class DrawBackdropElement(
     }
 
     override fun update(node: DrawBackdropNode) {
+        val effectsChanged = node.effects != effects ||
+            node.shapeProvider != shapeProvider ||
+            node.backdropScale != backdropScale
+        val backdropChanged = node.backdrop != backdrop
         node.backdrop = backdrop
+        if (backdropChanged) {
+            node.syncBackdropCoordinates()
+        }
         node.shapeProvider = shapeProvider
         node.effects = effects
         node.layerBlock = layerBlock
         if (node.exportedBackdrop != exportedBackdrop) {
             node.exportedBackdrop?.layerCoordinates = null
             node.exportedBackdrop = exportedBackdrop
+            node.syncExportedCoordinates()
         }
         node.onDrawBehind = onDrawBehind
         node.onDrawBackdrop = onDrawBackdrop
         node.onDrawSurface = onDrawSurface
         node.onDrawFront = onDrawFront
         node.backdropScale = backdropScale
-        node.invalidateDrawCache()
+        if (effectsChanged) {
+            node.invalidateDrawCache()
+        } else {
+            node.invalidateDraw()
+        }
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -244,6 +258,8 @@ private class DrawBackdropNode(
         }
 
     private var graphicsLayer: GraphicsLayer? = null
+    private var exportClipPath: Path? = null
+    private var lastCoordinates: LayoutCoordinates? = null
 
     private val layoutLayerBlock: GraphicsLayerScope.() -> Unit = {
         clip = true
@@ -350,26 +366,30 @@ private class DrawBackdropNode(
         onDrawFront?.invoke(this)
 
         exportedBackdrop?.graphicsLayer?.let { layer ->
-            recordLayer(this@DrawBackdropNode, layer) {
-                // Inside the surface's own shape, as on screen: a lens lifted past the bar's edge
-                // would otherwise show the blur's padding as a square of glass around it.
-                val clip = androidx.compose.ui.graphics.Path().apply {
-                    addOutline(shapeProvider.shape.createOutline(size, layoutDirection, this@recordLayer))
+            if (size.width >= 1f && size.height >= 1f) {
+                recordLayer(this@DrawBackdropNode, layer) {
+                    // Inside the surface's own shape, as on screen: a lens lifted past the bar's edge
+                    // would otherwise show the blur's padding as a square of glass around it.
+                    val clip = (exportClipPath ?: Path().also { exportClipPath = it }).apply {
+                        rewind()
+                        addOutline(shapeProvider.shape.createOutline(size, layoutDirection, this@recordLayer))
+                    }
+                    clipPath(clip) {
+                        onDrawBehind?.invoke(this)
+                        drawRecordedBackdrop()
+                        onDrawSurface?.invoke(this)
+                        onDrawFront?.invoke(this)
+                    }
                 }
-                clipPath(clip) {
-                    onDrawBehind?.invoke(this)
-                    drawRecordedBackdrop()
-                    onDrawSurface?.invoke(this)
-                    onDrawFront?.invoke(this)
-                }
+                // Signal readers (e.g. the lifted selection pill) to redraw over the newly recorded bar glass (#172).
+                exportedBackdrop?.moves = (exportedBackdrop?.moves ?: 0) + 1
             }
-            // Signal readers (e.g. the lifted selection pill) to redraw over the newly recorded bar glass (#172).
-            exportedBackdrop?.moves = (exportedBackdrop?.moves ?: 0) + 1
         }
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
         if (coordinates.isAttached) {
+            lastCoordinates = coordinates
             if (backdrop.isCoordinatesDependent) {
                 layoutCoordinates = coordinates
             } else {
@@ -381,6 +401,19 @@ private class DrawBackdropNode(
             // Invalidate readers when the exported surface moves or repositions (#172).
             exportedBackdrop?.moves = (exportedBackdrop?.moves ?: 0) + 1
         }
+    }
+
+    fun syncExportedCoordinates() {
+        val coords = lastCoordinates ?: return
+        if (coords.isAttached) {
+            exportedBackdrop?.layerCoordinates = coords
+            exportedBackdrop?.moves = (exportedBackdrop?.moves ?: 0) + 1
+        }
+    }
+
+    fun syncBackdropCoordinates() {
+        val coords = lastCoordinates
+        layoutCoordinates = if (backdrop.isCoordinatesDependent && coords != null && coords.isAttached) coords else null
     }
 
     override fun onObservedReadsChanged() {
@@ -418,6 +451,8 @@ private class DrawBackdropNode(
         }
 
         effectScope.reset()
+        exportClipPath = null
+        lastCoordinates = null
         layoutCoordinates = null
         exportedBackdrop?.layerCoordinates = null
     }

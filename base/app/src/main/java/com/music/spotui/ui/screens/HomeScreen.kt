@@ -153,13 +153,14 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
     // With podcasts off, their shows and episodes leave the feed (and a section left empty goes).
     // Kept between recompositions: a new list for every one of them would restart the rows below.
     val hideDj = com.music.spotui.data.preferences.HideDjPref.hidden
-    val sections = remember(feed, hideDj) {
+    val showPodcasts = com.music.spotui.data.api.Features.PODCASTS
+    val sections = remember(feed, hideDj, showPodcasts) {
         val all = feed.sections.withoutPodcastShows()
         if (hideDj) all.withoutDj() else all
     }
     val gridSection = remember(sections) { sections.firstOrNull()?.takeIf { it.title.isBlank() } }
     val carousels = remember(sections, gridSection) { if (gridSection != null) sections.drop(1) else sections }
-    val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { it.title }) }
+    val carouselKeys = remember(carousels) { uniqueKeys(carousels.map { "section:${it.title}" }) }
     // Liked Songs leads the shortcuts when Spotify's grid does not carry it.
     val likedName = stringResource(R.string.collection_liked_songs_title)
     val shortcuts = remember(gridSection, sections, facet, likedName) { homeShortcuts(gridSection?.items, sections.isEmpty(), facet, likedName) }
@@ -178,18 +179,20 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
     }
 
     val pageBg = AppBackground
-    val headerFade = if (pageBg == Color.Transparent) {
-        Brush.verticalGradient(
-            0f to Color.Black.copy(alpha = 0.42f),
-            0.6f to Color.Black.copy(alpha = 0.16f),
-            1f to Color.Transparent,
-        )
-    } else {
-        Brush.verticalGradient(
-            0f to pageBg,
-            0.55f to pageBg.copy(alpha = 0.85f),
-            1f to Color.Transparent,
-        )
+    val headerFade = remember(pageBg) {
+        if (pageBg == Color.Transparent) {
+            Brush.verticalGradient(
+                0f to Color.Black.copy(alpha = 0.42f),
+                0.6f to Color.Black.copy(alpha = 0.16f),
+                1f to Color.Transparent,
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to pageBg,
+                0.55f to pageBg.copy(alpha = 0.85f),
+                1f to Color.Transparent,
+            )
+        }
     }
 
     LazyColumn(
@@ -198,7 +201,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
         modifier = Modifier.fillMaxSize()
     ) {
         // Sticky filter row: content scrolls underneath it, like the official app.
-        stickyHeader {
+        stickyHeader(key = "home:header", contentType = "home:header") {
             // Fade (not a solid band): opaque or soft starry scrim under the status bar, transparent at the bottom.
             Box(
                 modifier = Modifier
@@ -211,15 +214,21 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel, facet: St
             }
         }
         shortcuts?.let { tiles ->
-            item {
+            item(key = "home:shortcuts", contentType = "home:shortcuts") {
                 HomeShortcutGrid(navController, tiles)
             }
         }
-        items(carousels.size, key = { carouselKeys[it] }) { i ->
+        items(
+            count = carousels.size,
+            key = { carouselKeys[it] },
+            contentType = { "home:section" },
+        ) { i ->
             HomeFeedSection(navController, carousels[i])
         }
         // Sections from extensions (home.sections), after Spotify's own, each under its extension's name.
-        item { com.music.spotui.extensions.ExtensionBlocks(app.myspoti.extensions.Hook.HOME, app.myspoti.extensions.Surface.HOME, "{}") }
+        item(key = "home:extensions", contentType = "home:extensions") {
+            com.music.spotui.extensions.ExtensionBlocks(app.myspoti.extensions.Hook.HOME, app.myspoti.extensions.Surface.HOME, "{}")
+        }
     }
 }
 
@@ -293,11 +302,16 @@ private fun HomeHeaderRow(navController: NavController, facet: String, onFacet: 
         ) {
             // Spotify's home chips. Once one is picked, as in Spotify: a close chip, the picked one,
             // and joined to it the chips it opens (Following: only what the user follows).
-            val labels = mapOf(
-                "music-chip" to stringResource(R.string.recents_content_filter_music),
-                "podcasts-chip" to stringResource(R.string.ad_category_title_podcasts),
-                "audiobooks-chip" to stringResource(R.string.audiobooks_title),
-            )
+            val musicLabel = stringResource(R.string.recents_content_filter_music)
+            val podcastsLabel = stringResource(R.string.ad_category_title_podcasts)
+            val audiobooksLabel = stringResource(R.string.audiobooks_title)
+            val labels = remember(musicLabel, podcastsLabel, audiobooksLabel) {
+                mapOf(
+                    "music-chip" to musicLabel,
+                    "podcasts-chip" to podcastsLabel,
+                    "audiobooks-chip" to audiobooksLabel,
+                )
+            }
             if (facet.isEmpty()) {
                 HomePill(stringResource(R.string.filter_chip_all_label), selected = true) {}
                 HomePill(labels.getValue("music-chip")) { onFacet("music-chip") }
@@ -369,16 +383,24 @@ private fun HomePill(label: String, selected: Boolean = false, shape: androidx.c
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
+private val SpotifusionCardShape = RoundedCornerShape(4.dp)
+private val DefaultCardShape = RoundedCornerShape(8.dp)
+private val HomeRowPadding = PaddingValues(10.dp, 0.dp)
+private val ShortcutTitleStyle = androidx.compose.ui.text.TextStyle(lineBreak = androidx.compose.ui.text.style.LineBreak.Heading)
+private val SpotifusionSubtitleColor = Color(0xFFB3B3B3)
+
 @Composable
 private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>) {
     // Large windows: more tiles per row (two on phones).
     val cols = com.music.spotui.ui.components.windowSize().columns(2, 280.dp)
     val spotifusion = isSpotifusionLook()
-    val tileShape = RoundedCornerShape(if (spotifusion) 4.dp else 8.dp)
+    val tileShape = if (spotifusion) SpotifusionCardShape else DefaultCardShape
     val tileBg = if (spotifusion) SpotifusionCard else GridBackground
+    val keys = remember(items) { uniqueKeys(items.map(::homeItemKeyBase)) }
+    val rows = remember(items, cols) { items.chunked(cols) }
     Column(modifier = Modifier.padding(8.dp, 4.dp)) {
-        items.chunked(cols).forEach { rowItems ->
+        var idx = 0
+        rows.forEach { rowItems ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
@@ -386,33 +408,14 @@ private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>
                     .padding(8.dp, 4.dp),
             ) {
                 rowItems.forEach { item ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onHomeItemClick(navController, item) }
-                            .weight(1f)
-                            .height(48.dp)
-                            .clip(tileShape)
-                            .background(tileBg)
-                            ,
-                    ) {
-                        GlideImage(
-                            modifier = Modifier.size(48.dp),
-                            contentScale = ContentScale.Crop,
-                            model = item.imageUrl,
-                            loading = placeholder(R.drawable.placeholder),
-                            failure = placeholder(R.drawable.placeholder),
-                            contentDescription = "",
-                        )
-                        Text(
-                            text = item.name,
-                            color = AppText,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            // Two balanced lines ("Daily / Mix 2") rather than a lone "2" under the rest.
-                            style = androidx.compose.ui.text.TextStyle(lineBreak = androidx.compose.ui.text.style.LineBreak.Heading),
-                            modifier = Modifier.padding(8.dp, 4.dp),
+                    val tileKey = keys[idx++]
+                    androidx.compose.runtime.key(tileKey) {
+                        HomeShortcutTile(
+                            navController = navController,
+                            item = item,
+                            tileShape = tileShape,
+                            tileBg = tileBg,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
@@ -420,6 +423,55 @@ private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>
             }
         }
     }
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun HomeShortcutTile(
+    navController: NavController,
+    item: HomeItem,
+    tileShape: androidx.compose.ui.graphics.Shape,
+    tileBg: Color,
+    modifier: Modifier = Modifier,
+) {
+    val onPressHint = remember(item) { { prefetchHomeItem(item) } }
+    val onClick = remember(navController, item) { { onHomeItemClick(navController, item) } }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .pressable(0.96f, onPressHint = onPressHint, onClick = onClick)
+            .height(48.dp)
+            .clip(tileShape)
+            .background(tileBg),
+    ) {
+        GlideImage(
+            modifier = Modifier.size(48.dp),
+            contentScale = ContentScale.Crop,
+            model = item.imageUrl,
+            loading = placeholder(R.drawable.placeholder),
+            failure = placeholder(R.drawable.placeholder),
+            contentDescription = "",
+        )
+        Text(
+            text = item.name,
+            color = AppText,
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            // Two balanced lines ("Daily / Mix 2") rather than a lone "2" under the rest.
+            style = ShortcutTitleStyle,
+            modifier = Modifier.padding(8.dp, 4.dp),
+        )
+    }
+}
+
+private fun homeItemKeyBase(item: HomeItem): String = when (item) {
+    is HomeItem.Album -> if (item.id.isNotBlank()) "album:${item.id}" else "album:${item.name}|${item.imageUrl}"
+    is HomeItem.Artist -> if (item.id.isNotBlank()) "artist:${item.id}" else "artist:${item.name}|${item.imageUrl}"
+    is HomeItem.Playlist -> if (item.id.isNotBlank()) "playlist:${item.id}" else "playlist:${item.name}|${item.imageUrl}"
+    is HomeItem.Show -> if (item.id.isNotBlank()) "show:${item.id}:${item.isEpisode}" else "show:${item.name}|${item.imageUrl}"
 }
 
 /** A key per entry that stays with it while the others around it change: [raw], with a counter on repeats. */
@@ -443,10 +495,16 @@ private fun HomeFeedSection(navController: NavController, section: HomeSection) 
         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         modifier = Modifier.padding(16.dp, 20.dp, 16.dp, 4.dp),
     )
-    val keys = remember(section) { uniqueKeys(section.items.map { it.name + "|" + it.imageUrl }) }
-    LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp, 0.dp)) {
-        items(section.items.size, key = { keys[it] }) { i ->
-            HomeFeedCard(section.items[i]) { onHomeItemClick(navController, section.items[i]) }
+    val keys = remember(section.items) { uniqueKeys(section.items.map(::homeItemKeyBase)) }
+    LazyRow(contentPadding = HomeRowPadding) {
+        items(
+            count = section.items.size,
+            key = { keys[it] },
+            contentType = { section.items[it]::class },
+        ) { i ->
+            val item = section.items[i]
+            val onClick = remember(navController, item) { { onHomeItemClick(navController, item) } }
+            HomeFeedCard(item, onClick)
         }
     }
 }
@@ -456,21 +514,21 @@ private fun HomeFeedSection(navController: NavController, section: HomeSection) 
 private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     val isArtist = item is HomeItem.Artist
     val spotifusion = isSpotifusionLook()
-    val cardShape = if (isArtist) CircleShape else RoundedCornerShape(if (spotifusion) 4.dp else 8.dp)
+    val cardShape = if (isArtist) CircleShape else if (spotifusion) SpotifusionCardShape else DefaultCardShape
     val dotColor = if (spotifusion) SpotifusionGreen else AppAccent
-    val subtitleColor = if (spotifusion) Color(0xFFB3B3B3) else AppMuted
+    val subtitleColor = if (spotifusion) SpotifusionSubtitleColor else AppMuted
     val subtitle = when (item) {
         is HomeItem.Album -> item.subtitle
         is HomeItem.Playlist -> item.subtitle
         is HomeItem.Artist -> stringResource(R.string.artist_subtitle)
         is HomeItem.Show -> item.subtitle
     }
+    val onPressHint = remember(item) { { prefetchHomeItem(item) } }
     Column(
         horizontalAlignment = if (isArtist) Alignment.CenterHorizontally else Alignment.Start,
-        modifier = Modifier.pressable(0.96f, onPressHint = { prefetchHomeItem(item) }) { onClick() }
+        modifier = Modifier.pressable(0.96f, onPressHint = onPressHint, onClick = onClick)
             .width(150.dp)
-            .padding(6.dp)
-            ,
+            .padding(6.dp),
     ) {
         Box {
             GlideImage(

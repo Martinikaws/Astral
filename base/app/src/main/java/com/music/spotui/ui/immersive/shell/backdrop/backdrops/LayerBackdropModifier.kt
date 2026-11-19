@@ -12,18 +12,34 @@
  */
 package com.music.spotui.ui.immersive.shell.backdrop.backdrops
 
+import android.os.SystemClock
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import com.music.spotui.ui.immersive.shell.backdrop.internal.recordLayer
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 fun Modifier.layerBackdrop(backdrop: LayerBackdrop): Modifier =
@@ -38,10 +54,10 @@ private class LayerBackdropElement(
     }
 
     override fun update(node: LayerBackdropNode) {
-        if (node.backdrop != backdrop) {
-            node.backdrop.layerCoordinates = null
-            node.backdrop = backdrop
+        if (node.backdrop !== backdrop) {
+            node.switchBackdrop(backdrop)
         }
+        node.syncSourceAlpha()
         node.invalidateDraw()
     }
 
@@ -66,21 +82,42 @@ private class LayerBackdropElement(
 
 private class LayerBackdropNode(
     var backdrop: LayerBackdrop
-) : DrawModifierNode, GlobalPositionAwareModifierNode, androidx.compose.ui.node.CompositionLocalConsumerModifierNode,
-    androidx.compose.ui.node.PointerInputModifierNode, Modifier.Node() {
+) : DrawModifierNode,
+    LayoutModifierNode,
+    PointerInputModifierNode,
+    GlobalPositionAwareModifierNode,
+    CompositionLocalConsumerModifierNode,
+    Modifier.Node() {
 
-    /** Until when the page counts as being used (a touch on it, see [onPointerEvent]): the glass follows it closely. */
-    private var activeUntil = 0L
+    private var hasPositioned = false
+    private var lastPositionInWindow = Offset.Unspecified
+    private var lastSize = IntSize.Zero
 
-    // Seen first and never consumed: a scroll, a swipe of a row of cards or a tap is what changes the
-    // page without it redrawing itself, so the glass is refreshed quickly for a while after one.
+    private var pulseJob: Job? = null
+    private var fastUntil = 0L
+    private var settleUntil = 0L
+
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints,
+    ): MeasureResult {
+        val p = measurable.measure(constraints)
+        if (hasPositioned) {
+            invalidateDraw()
+        }
+        return layout(p.width, p.height) { p.place(0, 0) }
+    }
+
+    // Seen first and never consumed: flings, horizontal LazyRow scrolls, ripples and taps
+    // can update child visuals without invalidating the container's own draw pass, so run a
+    // finite pulse that settles and stops completely at rest.
     override fun onPointerEvent(
-        pointerEvent: androidx.compose.ui.input.pointer.PointerEvent,
-        pass: androidx.compose.ui.input.pointer.PointerEventPass,
-        bounds: androidx.compose.ui.unit.IntSize,
+        pointerEvent: PointerEvent,
+        pass: PointerEventPass,
+        bounds: IntSize,
     ) {
-        if (pass == androidx.compose.ui.input.pointer.PointerEventPass.Initial) {
-            activeUntil = android.os.SystemClock.uptimeMillis() + ACTIVE_MS
+        if (pass == PointerEventPass.Initial) {
+            bumpPulse(fastMs = TOUCH_FAST_MS, settleMs = TOUCH_SETTLE_MS)
         }
     }
 
@@ -115,40 +152,88 @@ private class LayerBackdropNode(
         }
         recordLayer(this@LayerBackdropNode, layer) { backdrop.onDraw(this@draw) }
         drawLayer(layer)
+        // Event-driven invalidation: notify glass readers when this source actually redrew.
+        (registeredIn ?: backdrop).notifyMoved()
     }
 
     private val source = LayerBackdrop.Source()
     private var registeredIn: LayerBackdrop? = null
 
+    private fun bumpPulse(fastMs: Long, settleMs: Long) {
+        if (!isAttached) return
+        val now = SystemClock.uptimeMillis()
+        if (fastMs > 0L) fastUntil = maxOf(fastUntil, now + fastMs)
+        if (settleMs > 0L) settleUntil = maxOf(settleUntil, now + settleMs)
+        ensurePulseRunning()
+    }
+
+    private fun ensurePulseRunning() {
+        if (!isAttached || pulseJob?.isActive == true) return
+        val launched = coroutineScope.launch {
+            val me = coroutineContext[Job]
+            try {
+                while (isAttached) {
+                    val now = SystemClock.uptimeMillis()
+                    val interval = when {
+                        now < fastUntil -> FAST_INTERVAL_MS
+                        now < settleUntil -> SETTLE_INTERVAL_MS
+                        else -> break
+                    }
+                    delay(interval)
+                    if (!isAttached) break
+                    withFrameNanos { }
+                    if (!isAttached) break
+                    (registeredIn ?: backdrop).notifyMoved()
+                    invalidateDraw()
+                }
+            } finally {
+                if (pulseJob === me) pulseJob = null
+            }
+        }
+        if (launched.isActive) {
+            pulseJob = launched
+        }
+    }
+
+    fun switchBackdrop(next: LayerBackdrop) {
+        if (backdrop === next) return
+        if (isAttached) {
+            registeredIn?.retire(source)
+            registeredIn = next
+            source.alpha = currentValueOf(LocalBackdropSourceAlpha)
+            if (!next.sources.contains(source)) {
+                next.sources.add(source)
+            }
+            val coords = source.coordinates
+            if (coords != null && coords.isAttached) {
+                lastPositionInWindow = coords.positionInWindow()
+                lastSize = coords.size
+                hasPositioned = true
+                next.publish(source)
+            } else {
+                hasPositioned = false
+                next.notifyMoved()
+            }
+        }
+        backdrop = next
+    }
+
+    fun syncSourceAlpha() {
+        if (isAttached) {
+            source.alpha = currentValueOf(LocalBackdropSourceAlpha)
+        }
+    }
+
     override fun onAttach() {
         registeredIn = backdrop
         source.layer = requireGraphicsContext().createGraphicsLayer()
         source.alpha = currentValueOf(LocalBackdropSourceAlpha)
-        backdrop.sources.add(source)
-        backdrop.moves++
-        // Reported: after a tab change the glass kept what it showed until the page was scrolled.
-        // The glass draws this page's recording inside its own blurred layer, which the renderer
-        // does not redraw when only the page (or a row of it) changes: the recording is drawn in
-        // two places and its damage counts in one. A page that just arrived fills in over its first
-        // moments (its data, its covers), so the glass is redrawn on every frame while it settles.
-        // Only then: a page animating on its own (a playing row) does not keep the blur running.
-        // Past that, the same holds for anything that changes without the page itself redrawing (a
-        // cover that loads late, a row of cards scrolled sideways, an animated header): the glass
-        // is redrawn a few times a second while the page is being used, once a second at rest.
-        // Driven by frames, so nothing runs while the app is in the background.
-        coroutineScope.launch {
-            val end = android.os.SystemClock.uptimeMillis() + SETTLE_MS
-            while (android.os.SystemClock.uptimeMillis() < end) {
-                androidx.compose.runtime.withFrameNanos { }
-                (registeredIn ?: backdrop).moves++
-            }
-            activeUntil = android.os.SystemClock.uptimeMillis() + ACTIVE_MS
-            while (true) {
-                kotlinx.coroutines.delay(if (android.os.SystemClock.uptimeMillis() < activeUntil) REFRESH_MS else IDLE_REFRESH_MS)
-                androidx.compose.runtime.withFrameNanos { }
-                (registeredIn ?: backdrop).moves++
-            }
+        if (!backdrop.sources.contains(source)) {
+            backdrop.sources.add(source)
         }
+        backdrop.notifyMoved()
+        invalidateDraw()
+        bumpPulse(fastMs = 0L, settleMs = INITIAL_SETTLE_MS)
     }
 
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
@@ -158,29 +243,49 @@ private class LayerBackdropNode(
             if (registeredIn !== backdrop) {
                 registeredIn?.retire(source)
                 registeredIn = backdrop
-                backdrop.sources.add(source)
+                if (!backdrop.sources.contains(source)) {
+                    backdrop.sources.add(source)
+                }
+                hasPositioned = false
             }
-            backdrop.publish(source)
+            val pos = coordinates.positionInWindow()
+            val sz = coordinates.size
+            if (!hasPositioned || pos != lastPositionInWindow || sz != lastSize) {
+                hasPositioned = true
+                lastPositionInWindow = pos
+                lastSize = sz
+                backdrop.publish(source)
+            }
         }
     }
 
     override fun onDetach() {
+        pulseJob?.cancel()
+        pulseJob = null
+        fastUntil = 0L
+        settleUntil = 0L
         registeredIn?.retire(source)
         registeredIn = null
         source.coordinates = null
+        hasPositioned = false
+        lastPositionInWindow = Offset.Unspecified
+        lastSize = IntSize.Zero
         source.layer?.let { requireGraphicsContext().releaseGraphicsLayer(it) }
         source.layer = null
     }
 }
 
-/** How long a page that just arrived keeps redrawing the glass as it fills in. */
-private const val SETTLE_MS = 3_000L
+/** How long a newly attached page pulses slowly while initial covers and async rows settle. */
+private const val INITIAL_SETTLE_MS = 1_200L
 
-/** How often, once settled, the glass is redrawn over what the page shows now while it is used. */
-private const val REFRESH_MS = 200L
+/** Interval between slow settle ticks (~8 ticks over [INITIAL_SETTLE_MS]). */
+private const val SETTLE_INTERVAL_MS = 150L
 
-/** How often at rest (nothing touched for [ACTIVE_MS]). */
-private const val IDLE_REFRESH_MS = 1_000L
+/** High-rate pulse window after pointer activity (flings, horizontal rows, ripples). */
+private const val TOUCH_FAST_MS = 1_200L
 
-/** How long after arriving, or after a touch, the page counts as being used. */
-private const val ACTIVE_MS = 15_000L
+/** Total settle window after pointer activity before stopping completely at rest. */
+private const val TOUCH_SETTLE_MS = 2_500L
+
+/** Fast pulse interval during active touch or fling (~30 fps). */
+private const val FAST_INTERVAL_MS = 32L

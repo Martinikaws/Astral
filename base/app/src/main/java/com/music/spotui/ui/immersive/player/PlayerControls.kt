@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -81,6 +82,7 @@ import com.music.spotui.ui.look.ThinSlider
 import com.music.spotui.ui.components.RepeatIcons
 import com.music.spotui.ui.components.rememberFrameClock
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /**
  * The colour every secondary line and glyph in the player is set in: the cover's own colour
@@ -110,11 +112,23 @@ internal fun playerTintOf(palette: MeshPalette): Color {
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
-/** m:ss. */
-internal fun formatTime(ms: Long): String {
-    val total = (ms.coerceAtLeast(0L) / 1000L).toInt()
-    return "%d:%02d".format(total / 60, total % 60)
+/** Formats whole seconds as `m:ss` (or `-m:ss` when [negative]) without `String.format` overhead. */
+internal fun formatSeconds(totalSeconds: Int, negative: Boolean = false): String {
+    val s = totalSeconds.coerceAtLeast(0)
+    val mins = s / 60
+    val secs = s % 60
+    return buildString(8) {
+        if (negative) append('-')
+        append(mins)
+        append(':')
+        if (secs < 10) append('0')
+        append(secs)
+    }
 }
+
+/** m:ss. */
+internal fun formatTime(ms: Long): String =
+    formatSeconds((ms.coerceAtLeast(0L) / 1000L).toInt())
 
 /**
  * The seek bar, with elapsed and remaining either side under it. The playhead is read per tick,
@@ -144,11 +158,26 @@ internal fun PlayerScrubber(
     }
 }
 
-/** The elapsed and remaining times under the seek bar, read per tick of [frame]. */
+/** The elapsed and remaining times under the seek bar, recomposing only when whole seconds change. */
 @Composable
 private fun ScrubTimes(frame: State<Long>, scrub: PlayerScrub, state: ImmersivePlayerState) {
-    frame.value
-    val shown = scrub.shown(state.positionMs(), state.durationMs)
+    val duration = state.durationMs.coerceAtLeast(0L)
+    val packedSeconds by remember(frame, scrub, state.positionMs, duration) {
+        derivedStateOf {
+            frame.value
+            val elapsedMs = when {
+                duration <= 0L -> 0L
+                scrub.scrubbing || scrub.pendingSeek != null ->
+                    (scrub.shown(0L, duration) * duration).roundToLong().coerceIn(0L, duration)
+                else -> state.positionMs().coerceIn(0L, duration)
+            }
+            val elapsedSec = (elapsedMs / 1000L).toInt()
+            val remainingSec = ((duration - elapsedMs).coerceAtLeast(0L) / 1000L).toInt()
+            (elapsedSec.toLong() shl 32) or (remainingSec.toLong() and 0xFFFFFFFFL)
+        }
+    }
+    val elapsedSec = (packedSeconds ushr 32).toInt()
+    val remainingSec = packedSeconds.toInt()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,15 +185,13 @@ private fun ScrubTimes(frame: State<Long>, scrub: PlayerScrub, state: ImmersiveP
             .offset(y = (-9).dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        val duration = state.durationMs.coerceAtLeast(0L)
-        val elapsed = (shown * duration).toLong()
         Text(
-            text = formatTime(elapsed),
+            text = formatSeconds(elapsedSec),
             style = Immersive.Caption,
             color = LocalPlayerTint.current.copy(alpha = 0.55f),
         )
         Text(
-            text = "-" + formatTime(duration - elapsed),
+            text = formatSeconds(remainingSec, negative = true),
             style = Immersive.Caption,
             color = LocalPlayerTint.current.copy(alpha = 0.55f),
         )

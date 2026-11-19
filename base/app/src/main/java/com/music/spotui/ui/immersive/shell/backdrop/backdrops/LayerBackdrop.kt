@@ -81,11 +81,16 @@ class LayerBackdrop internal constructor(
      * transition ended, then jumped.
      */
     internal var moves by androidx.compose.runtime.mutableIntStateOf(0)
+    private var moveSeq = 0
+
+    internal fun notifyMoved() {
+        moves = ++moveSeq
+    }
 
     internal fun publish(source: Source) {
         // Only the newest page owns the coordinates; one not laid out yet leaves them as they are (#172).
         if (sources.lastOrNull() === source) source.coordinates?.let { layerCoordinates = it }
-        moves++
+        notifyMoved()
     }
 
     internal fun retire(source: Source) {
@@ -93,7 +98,7 @@ class LayerBackdrop internal constructor(
         // Keep the latest valid coordinates when an outgoing source detaches during a tab transition (#172).
         val remaining = sources.lastOrNull { it.coordinates != null }?.coordinates
         if (remaining != null) layerCoordinates = remaining
-        moves++
+        notifyMoved()
     }
 
     private var inverseLayerScope: InverseLayerScope? = null

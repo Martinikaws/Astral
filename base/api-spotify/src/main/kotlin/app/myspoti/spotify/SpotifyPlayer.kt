@@ -1721,8 +1721,12 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
             // The shuffle goes with the play: a set_shuffling sent just before was undone by it.
             val shuffle = shuffleChosen ?: _state.value?.shuffle
             val played = runCatching { a.play(contextUri, trackUri, index, positionMs, order, shuffle) }
-                .onFailure { bridge.logger?.invoke("play outside the page failed (${it.message}): the page plays") }
+                .onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    bridge.logger?.invoke("play outside the page failed (${it.message}): the page plays")
+                }
             if (played.isSuccess) return
+            if (!bridge.ready.value) withTimeoutOrNull(12_000L) { bridge.ready.first { it } }
         }
         playAsked(contextUri, trackUri, index, positionMs, order, origin = if (mirroring) "mirror" else "user")
     }

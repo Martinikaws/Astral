@@ -150,6 +150,10 @@ private val GlassShadow = Shadow(radius = 18.dp, color = Color.Black.copy(alpha 
 /** A brighter, thicker specular rim than the library's default, like iOS 26's glass edge. */
 private val GlassHighlight = Highlight(width = 0.75f.dp, alpha = 0.9f)
 
+private val GlassHighlightBlock: () -> Highlight = { GlassHighlight }
+private val GlassShadowBlock: () -> Shadow = { GlassShadow }
+private val FrostShapeBlock: () -> Shape = { androidx.compose.ui.graphics.RectangleShape }
+
 /** How much the lens bulges while the glass is pressed (fraction of its refraction). */
 private const val PRESS_BULGE = 0.35f
 
@@ -180,6 +184,7 @@ internal fun Modifier.immersiveLiquidGlass(
     // The lens only knows rounded rectangles (it throws on anything else).
     val bend = lens && shape is CornerBasedShape && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val adaptive = tint == GlassTint
+    val shapeBlock = remember(shape) { { shape } }
     // Stable across recompositions: a new lambda per call would rebuild the effect chain.
     val effects = remember(bend, press) {
         val block: com.music.spotui.ui.immersive.shell.backdrop.BackdropEffectScope.() -> Unit = {
@@ -222,10 +227,10 @@ internal fun Modifier.immersiveLiquidGlass(
     }
     return drawBackdrop(
         backdrop = backdrop,
-        shape = { shape },
+        shape = shapeBlock,
         effects = effects,
-        highlight = if (rim) ({ GlassHighlight }) else null,
-        shadow = if (rim) ({ GlassShadow }) else null,
+        highlight = if (rim) GlassHighlightBlock else null,
+        shadow = if (rim) GlassShadowBlock else null,
         layerBlock = layerBlock,
         onDrawSurface = surface,
         exportedBackdrop = export,
@@ -253,7 +258,7 @@ internal fun Modifier.immersivePageFrost(page: LayerBackdrop, tint: Color, blur:
     }
     return drawBackdrop(
         backdrop = backdrop,
-        shape = { androidx.compose.ui.graphics.RectangleShape },
+        shape = FrostShapeBlock,
         effects = effects,
         highlight = null,
         shadow = null,
@@ -287,15 +292,22 @@ internal fun rememberGlassPress(source: androidx.compose.foundation.interaction.
 internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
     override val isCoordinatesDependent: Boolean = true
 
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is PageBackdrop && page == other.page)
+
+    override fun hashCode(): Int = page.hashCode()
+
     override fun DrawScope.drawBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?,
     ) {
         val source = page.layerCoordinates
-        page.moves // read: a page sliding or arriving redraws this glass on every frame
-        val attached = coordinates != null && source != null && source.isAttached && coordinates.isAttached &&
-            !page.isInsideSource(coordinates)
+        val inside = coordinates != null && page.isInsideSource(coordinates)
+        if (!inside) {
+            page.moves // read: a page sliding or arriving redraws this glass on every frame
+        }
+        val attached = !inside && coordinates != null && source != null && source.isAttached && coordinates.isAttached
         val sameWindow = attached && source!!.findRoot() === coordinates!!.findRoot()
         // Another window (the sheet's dialog): each recorded layer is drawn at the surface's
         // position on the screen, which is what both windows share.
@@ -324,6 +336,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
         sameWindow: Boolean,
         page: LayerBackdrop,
     ) {
+        if (reports >= 14) return
         val recorded = page.recordedSize()
         val line = buildString {
             append("glass: ")
@@ -340,7 +353,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
                 append("]")
             }
         }
-        if (line == lastReport || reports >= 14) return
+        if (line == lastReport) return
         lastReport = line
         reports++
         app.myspoti.host.android.Logbook.log(line)

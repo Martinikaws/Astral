@@ -70,16 +70,16 @@ fun Modifier.immersiveHazeSource(
     backdrop: LayerBackdrop? = LocalImmersiveBackdrop.current,
     frost: LayerBackdrop? = LocalImmersiveFrostPage.current,
 ): Modifier {
-    if (backdrop == null && frost != null) return this.layerBackdrop(frost)
-    val hazed = if (state == null) this else this.hazeSource(state)
-    return if (backdrop == null) hazed else hazed.layerBackdrop(backdrop)
+    val target = backdrop ?: frost
+    if (target != null) return this.layerBackdrop(target)
+    return if (state == null) this else this.hazeSource(state)
 }
 
 /**
  * Keeps Haze's visual style while sampling at a third of the resolution: a blur this wide hides
  * the missing pixels, and the bars are redrawn on every frame of every scroll. Over the app's own
- * page ([LocalImmersiveHaze]) with [LocalImmersiveFrostPage] provided, the same frost is drawn
- * from that recording instead ([immersivePageFrost]).
+ * page ([LocalImmersiveHaze]) with [LocalImmersiveFrostPage] or [LocalImmersiveBackdrop] provided,
+ * the same frost is drawn from that single recorded [LayerBackdrop] ([immersivePageFrost]).
  */
 @OptIn(ExperimentalHazeApi::class)
 @Composable
@@ -88,7 +88,7 @@ internal fun Modifier.immersiveFrost(
     tint: Color = Immersive.GlassFill.copy(alpha = 0.55f),
     blur: Float = 24f,
 ): Modifier {
-    val page = LocalImmersiveFrostPage.current
+    val page = LocalImmersiveFrostPage.current ?: LocalImmersiveBackdrop.current
     if (page != null && state === LocalImmersiveHaze.current) return this.immersivePageFrost(page, tint, blur)
     val fallbackBg = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page
     return hazeFrost(state, tint, blur, fallbackBg)

@@ -166,6 +166,9 @@ object SessionActions {
         Logbook.log("session lost without a sign-out: the account is read again at the next session")
         com.music.spotui.data.api.ProfileCache.clearSession()
         com.music.spotui.data.LibraryOutbox.signedOut()
+        if (MyspotiRuntime.isStarted) {
+            MyspotiRuntime.scope.launch { runCatching { MyspotiRuntime.spotify.http.forgetWebToken() } }
+        }
     }
 
     /** The new account is signed in. */

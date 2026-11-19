@@ -17,14 +17,17 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.ColorScheme
 import androidx.wear.compose.material3.MaterialTheme
 
+private val WatchColorScheme = ColorScheme(
+    primary = Color(0xFF1ED760),
+    onPrimary = Color.Black,
+    background = Color.Black,
+    surfaceContainer = Color(0xFF14161A),
+)
+
 @Composable
 internal fun WatchTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = ColorScheme(
-            primary = Color(0xFF1ED760),
-            onPrimary = Color.Black,
-            surfaceContainer = Color(0xFF1E2025),
-        ),
+        colorScheme = WatchColorScheme,
         content = content,
     )
 }

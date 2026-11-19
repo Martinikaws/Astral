@@ -13,7 +13,12 @@ import androidx.media3.datasource.DataSpec
 import app.myspoti.engine.Http
 import app.myspoti.engine.HttpRequest
 import app.myspoti.engine.PlayableMedia
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -27,7 +32,12 @@ import java.util.concurrent.atomic.AtomicLong
  * seektable segment per request (NATIVE-PLAYBACK.md section 6). [uri] is a private scheme: the
  * tokenised CDN URL never reaches Media3 (its errors and logs print the URI).
  */
-internal class CdnItem(val media: PlayableMedia, private val http: Http, private val log: (String) -> Unit) {
+internal class CdnItem(
+    val media: PlayableMedia,
+    private val http: Http,
+    private val log: (String) -> Unit,
+    private val scope: CoroutineScope? = null,
+) {
     val uri: Uri = Uri.parse("myspoti-cdn://audio/${media.fileId}")
 
     /** Chunk starts: 0, the first segment's offset, every next segment, then the file's end. */
@@ -43,6 +53,7 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
 
     /** Bytes fetched ahead by [prefetch], by chunk start; taken once by the data source. */
     private val ready = ConcurrentHashMap<Long, ByteArray>()
+    private val inFlight = ConcurrentHashMap<Long, Deferred<ByteArray>>()
     @Volatile var prefetchJob: Deferred<Unit>? = null
     @Volatile private var urlIndex = 0
 
@@ -60,12 +71,81 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
         return bounds[i] until bounds[i + 1]
     }
 
-    /** The init chunk and the first segment, for a switch that starts without a network round trip. */
+    private fun startChunk(scope: CoroutineScope, start: Long, prefetch: Boolean): Deferred<ByteArray>? {
+        if (ready.containsKey(start)) return null
+        inFlight[start]?.let { return it }
+        val d = scope.async(start = CoroutineStart.LAZY) {
+            fetch(chunkAt(start), prefetch = prefetch).also { bytes -> ready[start] = bytes }
+        }
+        val prev = inFlight.putIfAbsent(start, d)
+        if (prev != null) {
+            d.cancel()
+            return prev
+        }
+        d.invokeOnCompletion { inFlight.remove(start, d) }
+        d.start()
+        return d
+    }
+
+    /** Fetches chunk at [start] into [ready], deduplicating concurrent requests for the same chunk. */
+    suspend fun fetchChunk(start: Long, prefetch: Boolean = false): ByteArray {
+        ready[start]?.let { return it }
+        inFlight[start]?.let { return it.await() }
+        return coroutineScope {
+            val d = async(start = CoroutineStart.LAZY) {
+                fetch(chunkAt(start), prefetch = prefetch).also { bytes -> ready[start] = bytes }
+            }
+            val prev = inFlight.putIfAbsent(start, d)
+            if (prev != null) {
+                d.cancel()
+                prev.await()
+            } else {
+                try {
+                    d.await()
+                } finally {
+                    inFlight.remove(start, d)
+                }
+            }
+        }
+    }
+
+    /** The init chunk and the first segment fetched in parallel, for a switch without a second RTT. */
     suspend fun prefetch() {
         if (length == C.LENGTH_UNSET.toLong()) return
-        for (start in bounds.take(minOf(2, bounds.size - 1))) {
-            if (ready.containsKey(start)) continue
-            ready[start] = fetch(chunkAt(start), prefetch = true)
+        coroutineScope {
+            bounds.take(minOf(2, bounds.size - 1)).map { start ->
+                async { fetchChunk(start, prefetch = true) }
+            }.awaitAll()
+        }
+    }
+
+    /** Starts fetching init and segment 0 in parallel on [scope] ahead of Media3's DataSource. */
+    fun prefetchStart(scope: CoroutineScope) {
+        if (length == C.LENGTH_UNSET.toLong()) return
+        val jobs = bounds.take(minOf(2, bounds.size - 1)).mapNotNull { start ->
+            startChunk(scope, start, prefetch = false)
+        }
+        if (jobs.isNotEmpty() && prefetchJob?.isActive != true) {
+            prefetchJob = scope.async { jobs.awaitAll(); Unit }
+        }
+    }
+
+    /** Starts fetching segment 0 concurrently when reading the init chunk from position 0. */
+    fun prefetchSegment0() {
+        val s = scope ?: return
+        if (bounds.size > 2) startChunk(s, bounds[1], prefetch = false)
+    }
+
+    /** Awaits an in-flight chunk fetch for [start] if active; returns null if none or failed. */
+    fun awaitInFlight(start: Long): ByteArray? {
+        val d = inFlight[start] ?: return null
+        return try {
+            runBlocking { d.await() }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw InterruptedIOException("cdn fetch interrupted")
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -149,7 +229,16 @@ internal class SegmentDataSource(private val items: (Uri) -> CdnItem?) : BaseDat
 
     private fun load(it: CdnItem) {
         val chunk = it.chunkAt(position)
+        if (position == 0L) it.prefetchSegment0()
         if (position == chunk.first) {
+            it.takeReady(chunk.first)?.let { bytes -> buffer = bytes; bufferAt = 0; return }
+            it.awaitInFlight(chunk.first)?.let { bytes ->
+                it.takeReady(chunk.first)
+                buffer = bytes
+                bufferAt = 0
+                return
+            }
+            it.takeReady(chunk.first)?.let { bytes -> buffer = bytes; bufferAt = 0; return }
             // A preload still running is awaited rather than fetched twice.
             it.prefetchJob?.let { job -> if (job.isActive) runCatching { runBlocking { job.await() } } }
             it.takeReady(chunk.first)?.let { bytes -> buffer = bytes; bufferAt = 0; return }

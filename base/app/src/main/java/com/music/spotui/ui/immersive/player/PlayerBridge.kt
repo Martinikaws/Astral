@@ -32,6 +32,7 @@ import com.music.spotui.ui.screens.SmartShuffle
 import com.music.spotui.ui.screens.nowPlayingSong
 import com.music.spotui.ui.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Repeat modes, as [SongPlayer.repeatMode] reports them. */
@@ -139,17 +140,21 @@ fun rememberImmersivePlayer(navController: NavController): ImmersivePlayerBridge
     val episode = SongPlayer.isEpisode
     val device = SongPlayer.activeDevice.value?.name
 
-    // The length is plain data in the engine, not Compose state: asked again until it changes
-    // (a track still loading reports 0), then left alone.
-    var duration by remember { mutableLongStateOf(SongPlayer.getDuration()) }
+    // The length is plain data in the engine, not Compose state: asked briefly until a positive
+    // duration arrives for the active track, then stopped rather than polling every 1.5s forever.
+    var duration by remember(songId, np.uri) { mutableLongStateOf(SongPlayer.getDuration()) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    // On screen only (it ran on in the background, every 1.5 s, for good).
-    LaunchedEffect(songId, np.uri, lifecycle) {
+    LaunchedEffect(songId, np.uri, playing, lifecycle) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (true) {
+            val initial = SongPlayer.getDuration()
+            if (initial != duration) duration = initial
+            if (initial > 0L) return@repeatOnLifecycle
+            if (!playing && np.uri.isBlank() && songId == 0) return@repeatOnLifecycle
+            while (isActive) {
+                delay(300L)
                 val d = SongPlayer.getDuration()
                 if (d != duration) duration = d
-                delay(if (d > 0L) 1_500L else 300L)
+                if (d > 0L) break
             }
         }
     }

@@ -19,10 +19,13 @@ import app.myspoti.automix.TrackAnalysis
 import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.PlaybackService
+import com.google.android.gms.wearable.CapabilityClient
+import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -43,11 +46,100 @@ import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.util.Collections
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sin
+
+internal const val WATCH_ACTIVE_TTL_MS = 10 * 60_000L
+internal const val POSITION_DEDUP_TOLERANCE_MS = 1_500L
+
+internal enum class PublishMode { NONE, MINIMAL_LAZY, FULL_URGENT }
+
+internal fun publishModeFor(hasWatch: Boolean, watchActive: Boolean): PublishMode = when {
+    !hasWatch -> PublishMode.NONE
+    watchActive -> PublishMode.FULL_URGENT
+    else -> PublishMode.MINIMAL_LAZY
+}
+
+internal fun isWatchActiveAt(
+    watchActive: Boolean,
+    hasWatch: Boolean,
+    nowElapsedMs: Long,
+    untilElapsedMs: Long,
+): Boolean = hasWatch && watchActive && nowElapsedMs < untilElapsedMs
+
+internal fun buildArtKey(mediaId: String, coverUrl: String, artVersion: Int): String =
+    "$mediaId|$coverUrl|$artVersion"
+
+internal data class StateSignature(
+    val hasSession: Boolean,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val contextTitle: String,
+    val playing: Boolean,
+    val buffering: Boolean,
+    val episode: Boolean,
+    val explicit: Boolean,
+    val liked: Boolean,
+    val durationMs: Long,
+    val speed: Float,
+    val shuffle: Boolean,
+    val repeat: String,
+    val volume: Int,
+    val deviceName: String,
+    val deviceType: String,
+    val bgColor: Int,
+    val accentColor: Int,
+    val artKey: String,
+    val vizKey: String,
+    val positionMs: Long,
+    val atElapsedMs: Long,
+)
+
+internal fun isSemanticallyDuplicateState(
+    prev: StateSignature?,
+    next: StateSignature,
+    toleranceMs: Long = POSITION_DEDUP_TOLERANCE_MS,
+): Boolean {
+    if (prev == null) return false
+    if (prev.hasSession != next.hasSession ||
+        prev.title != next.title ||
+        prev.artist != next.artist ||
+        prev.album != next.album ||
+        prev.contextTitle != next.contextTitle ||
+        prev.playing != next.playing ||
+        prev.buffering != next.buffering ||
+        prev.episode != next.episode ||
+        prev.explicit != next.explicit ||
+        prev.liked != next.liked ||
+        prev.durationMs != next.durationMs ||
+        prev.speed != next.speed ||
+        prev.shuffle != next.shuffle ||
+        prev.repeat != next.repeat ||
+        prev.volume != next.volume ||
+        prev.deviceName != next.deviceName ||
+        prev.deviceType != next.deviceType ||
+        prev.bgColor != next.bgColor ||
+        prev.accentColor != next.accentColor ||
+        prev.artKey != next.artKey ||
+        prev.vizKey != next.vizKey
+    ) {
+        return false
+    }
+    val running = prev.playing && !prev.buffering
+    val elapsedMs = if (running) (next.atElapsedMs - prev.atElapsedMs).coerceAtLeast(0L) else 0L
+    val rawExpected = prev.positionMs + (elapsedMs * prev.speed).toLong()
+    val expectedPos = if (prev.durationMs > 0L && prev.positionMs <= prev.durationMs) {
+        rawExpected.coerceAtMost(prev.durationMs)
+    } else {
+        rawExpected
+    }
+    return abs(next.positionMs - expectedPos) <= toleranceMs
+}
 
 /**
  * The watch as a remote for what this phone plays: the watch's "Phone" mode (base/wear,
@@ -65,18 +157,21 @@ import kotlin.math.sin
 object WatchRemote {
     const val PREFIX = "/orpheon/remote"
     const val STATE = "$PREFIX/state"
+    const val ART = "$PREFIX/art"
+    const val VIZ = "$PREFIX/viz"
     const val COMMAND = "$PREFIX/cmd/"
     const val PAGE = "$PREFIX/page"
     /** What plays next (the session's queue), a DataItem of its own: sent only when it changes. */
     const val QUEUE = "$PREFIX/queue"
     /** Phone -> watch message: the account's Spotify Connect devices, answering "devices". */
     const val DEVICES = "$PREFIX/devices"
+    private const val CAPABILITY_WATCH_REMOTE = "astral_watch_remote"
     private const val MAX_QUEUE = 50
 
-    private const val PALETTE_PX = 64
-    private const val ART_PX = 120
-    private const val ART_BLUR_RADIUS = 6
-    private const val ART_JPEG_QUALITY = 78
+    private const val ART_SIZE_PX = 64
+    private const val ART_BLUR_RADIUS = 4
+    private const val ART_JPEG_QUALITY = 68
+    private const val PRESENCE_RECHECK_MS = 60_000L
     private const val MAX_ITEMS = 150
     private const val BROWSE_MS = 25_000L
     private const val DEFAULT_BG = 0xFF181A1E.toInt()
@@ -90,7 +185,12 @@ object WatchRemote {
     private val SPOTIFY_TRACK_ID_REGEX = Regex("(?:spotify:track:|open\\.spotify\\.com/track/)([A-Za-z0-9]{22})")
     private val BASE62_ID_REGEX = Regex("^[A-Za-z0-9]{22}$")
 
-    private class VizData(val seed: Int, val stepMs: Int, val samples: ByteArray)
+    private class VizData(
+        val seed: Int,
+        val stepMs: Int,
+        val samples: ByteArray,
+        val isFallback: Boolean = false,
+    )
 
     private data class CurvePoint(val x: Double, val y: Double)
 
@@ -106,18 +206,43 @@ object WatchRemote {
     private data class ObservedState(
         val liked: Boolean,
         val repeatMode: Int,
-        val activeDevice: com.music.spotui.di.SongPlayer.ConnectDevice?,
+        val deviceName: String,
+        val deviceType: String,
         val shuffle: Boolean,
         val buffering: Boolean,
-        val nowPlaying: com.music.spotui.di.SongPlayer.NowPlaying,
+        val contextName: String,
+        val trackUri: String,
+        val explicit: Boolean,
     )
 
-    private val main = Handler(Looper.getMainLooper())
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+    private val scope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main) }
     private lateinit var app: Context
     private var controller: MediaControllerCompat? = null
     private var publishJob: Job? = null
+    private var immediatePublishJob: Job? = null
+    private var queuePublishJob: Job? = null
     private var stateObserverJob: Job? = null
+    private var pendingDebouncedPublish: Boolean = false
+
+    @Volatile private var hasConnectedWatch: Boolean = false
+    @Volatile private var presenceChecked: Boolean = false
+    @Volatile private var lastPresenceCheckAt: Long = 0L
+    @Volatile private var watchActive: Boolean = false
+    @Volatile private var watchActiveUntilElapsed: Long = 0L
+
+    @Volatile private var lastMetadata: MediaMetadataCompat? = null
+    private var lastArtMetaId: String = ""
+    private var lastArtMetaUrl: String = ""
+    private var lastArtMetaBmp: Bitmap? = null
+    @Volatile private var artVersion: Int = 0
+
+    private var lastStateSignature: StateSignature? = null
+    private var lastPublishedArtKey: String = ""
+    private var lastPublishedVizKey: String = ""
+    private var lastPublishedVizSeed: Int = 0
+    private var lastPublishedVizStepMs: Int = 100
+
     @Volatile private var currentVizKey: String = ""
     private val fetchingVizKeys = Collections.synchronizedSet(HashSet<String>())
     private val vizCache = Collections.synchronizedMap(
@@ -141,14 +266,141 @@ object WatchRemote {
         }
     )
 
+    private val capabilityListener = CapabilityClient.OnCapabilityChangedListener { info: CapabilityInfo ->
+        main.post {
+            if (info.nodes.isNotEmpty()) {
+                lastPresenceCheckAt = SystemClock.elapsedRealtime()
+                applyWatchPresence(present = true, triggerPublishOnGain = true)
+            } else {
+                refreshWatchPresence(triggerPublishOnGain = true)
+            }
+        }
+    }
+
     private val callback = object : MediaControllerCompat.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) = schedulePublish()
-        override fun onMetadataChanged(metadata: MediaMetadataCompat?) = schedulePublish()
+        override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
+            updateCachedMetadata(metadata)
+            schedulePublish()
+        }
         override fun onShuffleModeChanged(shuffleMode: Int) = schedulePublish()
         override fun onRepeatModeChanged(repeatMode: Int) = schedulePublish()
         override fun onAudioInfoChanged(info: MediaControllerCompat.PlaybackInfo?) = schedulePublish()
-        override fun onQueueChanged(queue: MutableList<MediaSessionCompat.QueueItem>?) = schedulePublish()
+        override fun onQueueChanged(queue: MutableList<MediaSessionCompat.QueueItem>?) = scheduleQueuePublish()
         override fun onSessionDestroyed() = attach()
+    }
+
+    /** Called by [WearLinkService] when the watch UI opens or closes. Safe from any thread. */
+    internal fun setWatchActive(active: Boolean) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            applyWatchActive(active)
+        } else {
+            main.post { applyWatchActive(active) }
+        }
+    }
+
+    private fun applyWatchActive(active: Boolean) {
+        if (!::app.isInitialized) return
+        val now = SystemClock.elapsedRealtime()
+        if (active) {
+            hasConnectedWatch = true
+            presenceChecked = true
+            lastPresenceCheckAt = now
+            val wasActive = isWatchActiveNow(now)
+            watchActive = true
+            watchActiveUntilElapsed = now + WATCH_ACTIVE_TTL_MS
+            if (!wasActive) {
+                lastStateSignature = null
+            }
+            schedulePublish(immediate = true)
+        } else {
+            watchActive = false
+            watchActiveUntilElapsed = 0L
+        }
+    }
+
+    private fun touchWatchActive() {
+        val now = SystemClock.elapsedRealtime()
+        hasConnectedWatch = true
+        presenceChecked = true
+        lastPresenceCheckAt = now
+        watchActive = true
+        watchActiveUntilElapsed = now + WATCH_ACTIVE_TTL_MS
+    }
+
+    private fun isWatchActiveNow(nowElapsed: Long = SystemClock.elapsedRealtime()): Boolean {
+        val active = isWatchActiveAt(watchActive, hasConnectedWatch, nowElapsed, watchActiveUntilElapsed)
+        if (!active && watchActive) {
+            watchActive = false
+            watchActiveUntilElapsed = 0L
+        }
+        return active
+    }
+
+    private fun updateCachedMetadata(metadata: MediaMetadataCompat?) {
+        val newMediaId = metadata?.getString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID).orEmpty()
+        val newCoverUrl = metadata?.getString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI).orEmpty()
+        val newBmp = metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART)
+            ?: metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ART)
+        val prevBmp = lastArtMetaBmp
+        val bmpChanged = when {
+            prevBmp == null && newBmp == null -> false
+            prevBmp == null || newBmp == null -> true
+            prevBmp === newBmp -> false
+            prevBmp.isRecycled || newBmp.isRecycled -> true
+            prevBmp.width != newBmp.width || prevBmp.height != newBmp.height -> true
+            else -> !runCatching { prevBmp.sameAs(newBmp) }.getOrDefault(false)
+        }
+        if (newMediaId != lastArtMetaId || newCoverUrl != lastArtMetaUrl || bmpChanged) {
+            artVersion++
+            lastArtMetaId = newMediaId
+            lastArtMetaUrl = newCoverUrl
+            lastArtMetaBmp = newBmp
+        }
+        lastMetadata = metadata
+    }
+
+    private fun refreshWatchPresence(triggerPublishOnGain: Boolean = false) {
+        if (!::app.isInitialized) return
+        lastPresenceCheckAt = SystemClock.elapsedRealtime()
+        scope.launch {
+            val present = queryWatchPresence()
+            applyWatchPresence(present, triggerPublishOnGain)
+        }
+    }
+
+    private suspend fun queryWatchPresence(): Boolean {
+        val capNodes = runCatching {
+            Wearable.getCapabilityClient(app)
+                .getCapability(CAPABILITY_WATCH_REMOTE, CapabilityClient.FILTER_REACHABLE)
+                .await()
+                .nodes
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        if (!capNodes.isNullOrEmpty()) return true
+        // Transitional fallback for paired watches that have not updated to advertise astral_watch_remote.
+        val connected = runCatching {
+            Wearable.getNodeClient(app).connectedNodes.await()
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        return !connected.isNullOrEmpty()
+    }
+
+    private fun applyWatchPresence(present: Boolean, triggerPublishOnGain: Boolean) {
+        val wasPresent = hasConnectedWatch
+        presenceChecked = true
+        hasConnectedWatch = present
+        if (!present) {
+            watchActive = false
+            watchActiveUntilElapsed = 0L
+            pendingDebouncedPublish = false
+            publishJob?.cancel()
+            publishJob = null
+            immediatePublishJob?.cancel()
+            immediatePublishJob = null
+            queuePublishJob?.cancel()
+            queuePublishJob = null
+        } else if (!wasPresent && triggerPublishOnGain) {
+            schedulePublish()
+        }
     }
 
     /** A message from the watch (any thread). */
@@ -158,10 +410,22 @@ object WatchRemote {
             init(context)
             val command = path.removePrefix(COMMAND)
             val arg = data.decodeToString()
+            if (command == "watch_open") {
+                applyWatchActive(true)
+                return@post
+            }
+            if (command == "watch_close") {
+                applyWatchActive(false)
+                return@post
+            }
             val c = controller
             val controls = c?.transportControls
             when (command) {
-                "hello" -> { lastQueue = null } // a newly opened watch: send the queue again
+                "hello" -> {
+                    lastQueue = null
+                    lastStateSignature = null
+                    touchWatchActive()
+                }
                 "toggle" -> if (c?.playbackState?.state == PlaybackStateCompat.STATE_PLAYING) {
                     controls?.pause() ?: com.music.spotui.di.SongPlayer.pause(by = "watch")
                 } else {
@@ -186,9 +450,16 @@ object WatchRemote {
                 "pause" -> controls?.pause() ?: com.music.spotui.di.SongPlayer.pause(by = "watch")
                 "next" -> controls?.skipToNext() ?: com.music.spotui.di.SongPlayer.next(by = "watch")
                 "previous" -> controls?.skipToPrevious() ?: com.music.spotui.di.SongPlayer.previous(by = "watch")
-                "seek_forward" -> com.music.spotui.di.SongPlayer.skipBy(EPISODE_SKIP_MS)
-                "seek_back" -> com.music.spotui.di.SongPlayer.skipBy(-EPISODE_SKIP_MS)
+                "seek_forward" -> {
+                    lastStateSignature = null
+                    com.music.spotui.di.SongPlayer.skipBy(EPISODE_SKIP_MS)
+                }
+                "seek_back" -> {
+                    lastStateSignature = null
+                    com.music.spotui.di.SongPlayer.skipBy(-EPISODE_SKIP_MS)
+                }
                 "seek" -> arg.toLongOrNull()?.let { ms ->
+                    lastStateSignature = null
                     if (controls != null) controls.seekTo(ms) else com.music.spotui.di.SongPlayer.seekTo(ms)
                 }
                 "like" -> com.music.spotui.di.SongPlayer.setLiked(!com.music.spotui.di.Graph.currentSongState.likeState.value)
@@ -208,11 +479,20 @@ object WatchRemote {
                 "queue" -> arg.toLongOrNull()?.let { id ->
                     if (controls != null) controls.skipToQueueItem(id) else PlaybackService.controls?.skipToQueueItem(id)
                 }
-                "devices" -> { devices(nodeId); return@post }
+                "devices" -> {
+                    touchWatchActive()
+                    devices(nodeId)
+                    return@post
+                }
                 "device" -> lastDevices.firstOrNull { it.id == arg }?.let { com.music.spotui.di.SongPlayer.transferTo(it) }
-                "browse" -> { browse(nodeId, arg); return@post }
+                "browse" -> {
+                    touchWatchActive()
+                    browse(nodeId, arg)
+                    return@post
+                }
                 else -> return@post
             }
+            touchWatchActive()
             // The phone's own volume moves no session callback: publish anyway.
             schedulePublish()
         }
@@ -222,18 +502,27 @@ object WatchRemote {
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
+        runCatching {
+            Wearable.getCapabilityClient(app).addListener(capabilityListener, CAPABILITY_WATCH_REMOTE)
+        }
+        refreshWatchPresence(triggerPublishOnGain = true)
         PlaybackService.sessionListener = { main.post { attach() } }
         attach()
         if (stateObserverJob?.isActive != true) {
             stateObserverJob = scope.launch {
                 snapshotFlow {
+                    val dev = com.music.spotui.di.SongPlayer.activeDevice.value?.takeIf { !it.isSelf }
+                    val np = com.music.spotui.di.SongPlayer.nowPlaying.value
                     ObservedState(
                         liked = com.music.spotui.di.Graph.currentSongState.likeState.value,
                         repeatMode = com.music.spotui.di.SongPlayer.repeatMode.value,
-                        activeDevice = com.music.spotui.di.SongPlayer.activeDevice.value,
+                        deviceName = dev?.name.orEmpty(),
+                        deviceType = dev?.type?.lowercase().orEmpty(),
                         shuffle = com.music.spotui.di.Graph.currentSongState.shuffle.value,
                         buffering = com.music.spotui.di.SongPlayer.isBuffering,
-                        nowPlaying = com.music.spotui.di.SongPlayer.nowPlaying.value,
+                        contextName = np.contextName,
+                        trackUri = np.uri,
+                        explicit = np.explicit,
                     )
                 }.distinctUntilChanged().drop(1).collect {
                     schedulePublish()
@@ -245,26 +534,84 @@ object WatchRemote {
     /** Follows the session: it comes with the first song and goes when the app signs out. */
     private fun attach() {
         val token = PlaybackService.sessionToken
-        if (token == controller?.sessionToken) return schedulePublish()
+        if (token == controller?.sessionToken) {
+            refreshWatchPresence(triggerPublishOnGain = true)
+            return schedulePublish()
+        }
         controller?.unregisterCallback(callback)
         controller = token?.let { runCatching { MediaControllerCompat(app, it) }.getOrNull() }
+        updateCachedMetadata(controller?.metadata)
         controller?.registerCallback(callback, main)
+        refreshWatchPresence(triggerPublishOnGain = true)
         schedulePublish()
     }
 
     /** Bursts of callbacks (a new song fires several): one publish after they settle. */
-    private fun schedulePublish() {
+    private fun schedulePublish(immediate: Boolean = false) {
         if (!::app.isInitialized) return
+        val now = SystemClock.elapsedRealtime()
+        if (!hasConnectedWatch) {
+            if (!presenceChecked || now - lastPresenceCheckAt >= PRESENCE_RECHECK_MS) {
+                refreshWatchPresence(triggerPublishOnGain = true)
+            }
+            return
+        }
+        if (now - lastPresenceCheckAt >= PRESENCE_RECHECK_MS) {
+            refreshWatchPresence(triggerPublishOnGain = false)
+        }
+        if (immediate) {
+            publishJob?.cancel()
+            publishJob = null
+            immediatePublishJob?.cancel()
+            pendingDebouncedPublish = false
+            lateinit var job: Job
+            job = scope.launch(start = CoroutineStart.LAZY) {
+                try {
+                    publish(forceState = true)
+                } finally {
+                    if (immediatePublishJob === job) {
+                        immediatePublishJob = null
+                        if (pendingDebouncedPublish) {
+                            pendingDebouncedPublish = false
+                            schedulePublish(immediate = false)
+                        }
+                    }
+                }
+            }
+            immediatePublishJob = job
+            job.start()
+            return
+        }
+        if (immediatePublishJob?.isActive == true) {
+            pendingDebouncedPublish = true
+            return
+        }
         publishJob?.cancel()
         publishJob = scope.launch {
             delay(150)
-            publish()
+            publish(forceState = false)
         }
     }
 
-    private suspend fun publish() {
+    private fun scheduleQueuePublish() {
+        if (!::app.isInitialized) return
+        if (publishModeFor(hasConnectedWatch, isWatchActiveNow()) != PublishMode.FULL_URGENT) return
+        queuePublishJob?.cancel()
+        queuePublishJob = scope.launch {
+            delay(150)
+            if (publishModeFor(hasConnectedWatch, isWatchActiveNow()) != PublishMode.FULL_URGENT) return@launch
+            val c = controller
+            publishQueue(c, c?.playbackState)
+        }
+    }
+
+    private suspend fun publish(forceState: Boolean = false) {
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val mode = publishModeFor(hasConnectedWatch, isWatchActiveNow(nowElapsed))
+        if (mode == PublishMode.NONE) return
+
         val c = controller
-        val meta = c?.metadata
+        val meta = lastMetadata
         val state = c?.playbackState
         val np = com.music.spotui.di.SongPlayer.nowPlaying.value
         val songState = com.music.spotui.di.Graph.currentSongState
@@ -286,7 +633,6 @@ object WatchRemote {
         val durationMs = (meta?.getLong(MediaMetadataCompat.METADATA_KEY_DURATION)?.takeIf { it > 0L }
             ?: com.music.spotui.di.SongPlayer.getDuration()).coerceAtLeast(0L)
         val speed = (state?.playbackSpeed ?: 1f).let { if (it <= 0f) 1f else it }
-        val atEpochMs = System.currentTimeMillis()
         val shuffle = com.music.spotui.di.SongPlayer.isShuffleOn()
         val repeat = when (com.music.spotui.di.SongPlayer.repeatMode.value) {
             0 -> "off"
@@ -295,13 +641,16 @@ object WatchRemote {
         }
         val volume = volumePercentOf(c)
         val activeDev = com.music.spotui.di.SongPlayer.activeDevice.value?.takeIf { !it.isSelf }
+        val deviceName = activeDev?.name.orEmpty()
+        val deviceType = activeDev?.type?.lowercase().orEmpty()
 
+        val mediaId = meta?.getString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID).orEmpty()
+            .ifBlank { songState.songId.value.toString() }
         val coverUrl = meta?.getString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI)
             ?: songState.coverUri.value
         val bmp = meta?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART)
             ?: meta?.getBitmap(MediaMetadataCompat.METADATA_KEY_ART)
-        val artKeyStr = meta?.getString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID).orEmpty()
-            .ifBlank { songState.songId.value.toString() } + "|" + (bmp?.generationId ?: coverUrl.orEmpty())
+        val rawArtKey = buildArtKey(mediaId, coverUrl.orEmpty(), artVersion)
 
         val localTrack = if (com.music.spotui.di.LocalPlayer.active.value) com.music.spotui.di.LocalPlayer.current() else null
         val localSpotifyId = localTrack?.let { com.music.spotui.di.LocalPlayer.spotifyIdOf(it) }.orEmpty()
@@ -310,62 +659,173 @@ object WatchRemote {
             else localTrack?.uri?.toString().orEmpty()
         }
         val trackKey = trackUri.ifBlank { "$title|$artist|$durationMs" }
-        val spotifyTrackId = extractSpotifyTrackId(trackUri, localSpotifyId)
-        val localAnalysis = localTrack?.uri?.let { com.music.spotui.automix.AutoMix.analysis(it) }
         currentVizKey = if (hasSession) trackKey else ""
 
-        val (colors, viz, artBytes) = withContext(Dispatchers.Default) {
-            val extractedColors = extractColors(artKeyStr, coverUrl, bmp)
-            val vizData = if (!hasSession) {
-                VizData(seed = 0, stepMs = 100, samples = ByteArray(0))
-            } else {
-                resolveViz(trackKey, spotifyTrackId, localAnalysis, durationMs)
+        val bgColor: Int
+        val accentColor: Int
+        var artAvailable: Boolean
+        var artBytesToUpload: ByteArray? = null
+        val vizPublishKey: String
+        var vizAvailable: Boolean
+        var vizToUpload: VizData? = null
+
+        if (mode == PublishMode.FULL_URGENT) {
+            val spotifyTrackId = extractSpotifyTrackId(trackUri, localSpotifyId)
+            val localAnalysis = localTrack?.uri?.let { com.music.spotui.automix.AutoMix.analysis(it) }
+            val needArtBytes = hasSession && rawArtKey.isNotBlank() && rawArtKey != lastPublishedArtKey
+            val (colors, resolvedArtBytes, vizData) = withContext(Dispatchers.Default) {
+                val (cols, artBytes) = resolveColorsAndArt(rawArtKey, coverUrl, bmp, needArt = needArtBytes)
+                val viz = if (!hasSession) {
+                    VizData(seed = 0, stepMs = 100, samples = ByteArray(0))
+                } else {
+                    resolveViz(trackKey, spotifyTrackId, localAnalysis, durationMs)
+                }
+                Triple(cols, artBytes, viz)
             }
-            val blurredArt = if (hasSession) blurredArtworkOf(artKeyStr, bmp) else null
-            Triple(extractedColors, vizData, blurredArt)
+            bgColor = colors.first
+            accentColor = colors.second
+            artAvailable = hasSession && rawArtKey.isNotBlank() && rawArtKey == lastPublishedArtKey
+            if (needArtBytes && resolvedArtBytes != null) {
+                artBytesToUpload = resolvedArtBytes
+            }
+            vizPublishKey = if (!hasSession) "" else if (vizData.isFallback) "$trackKey#fb" else trackKey
+            vizAvailable = hasSession && vizPublishKey.isNotBlank() && vizPublishKey == lastPublishedVizKey
+            if (hasSession && vizPublishKey.isNotBlank() && vizPublishKey != lastPublishedVizKey) {
+                vizToUpload = vizData
+            }
+        } else {
+            val cachedColors = colorCache[rawArtKey] ?: cachedColorsFromPalette(coverUrl)
+            bgColor = cachedColors?.first ?: DEFAULT_BG
+            accentColor = cachedColors?.second
+                ?: runCatching { com.music.spotui.ui.theme.AppAccent.toArgb() }.getOrNull()
+                ?: DEFAULT_ACCENT
+            artAvailable = hasSession && rawArtKey.isNotBlank() && rawArtKey == lastPublishedArtKey
+            vizPublishKey = if (hasSession && (trackKey == lastPublishedVizKey || "$trackKey#fb" == lastPublishedVizKey)) {
+                lastPublishedVizKey
+            } else {
+                ""
+            }
+            vizAvailable = vizPublishKey.isNotEmpty()
         }
-        val (bgColor, accentColor) = colors
 
-        val json = buildJsonObject {
-            put("hasSession", hasSession)
-            put("title", title)
-            put("artist", artist)
-            put("album", album)
-            put("contextTitle", contextTitle)
-            put("playing", playing)
-            put("buffering", buffering)
-            put("episode", episode)
-            put("explicit", explicit)
-            put("liked", liked)
-            put("positionMs", positionMs)
-            put("durationMs", durationMs)
-            put("speed", speed)
-            put("atEpochMs", atEpochMs)
-            put("volume", volume)
-            put("maxVolume", 100)
-            put("shuffle", shuffle)
-            put("repeat", repeat)
-            put("canRepeat", true)
-            // Where it plays: a Connect device's name, or nothing for this phone (kept for backwards compatibility).
-            activeDev?.let { put("device", it.name) }
-            put("deviceName", activeDev?.name.orEmpty())
-            put("deviceType", activeDev?.type?.lowercase().orEmpty())
-            put("color", bgColor)
-            put("accentColor", accentColor)
-            put("accent", accentColor)
-            put("artKey", if (artBytes != null) artKeyStr else "")
-            put("vizSeed", viz.seed)
-            put("vizStepMs", viz.stepMs)
-        }.toString()
+        if (artBytesToUpload != null) {
+            val artReq = PutDataMapRequest.create(ART).apply {
+                dataMap.putString("key", rawArtKey)
+                dataMap.putByteArray("art", artBytesToUpload)
+            }.asPutDataRequest().setUrgent()
+            runCatching { Wearable.getDataClient(app).putDataItem(artReq).await() }
+                .onSuccess {
+                    lastPublishedArtKey = rawArtKey
+                    artAvailable = true
+                }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Logbook.log("watch remote: art not sent (${it.message})")
+                }
+        }
 
-        val request = PutDataMapRequest.create(STATE).apply {
-            dataMap.putString("json", json)
-            dataMap.putByteArray("viz", viz.samples)
-            if (artBytes != null) dataMap.putByteArray("art", artBytes)
-        }.asPutDataRequest().setUrgent()
-        runCatching { Wearable.getDataClient(app).putDataItem(request).await() }
-            .onFailure { Logbook.log("watch remote: state not sent (${it.message})") }
-        publishQueue(c, state)
+        if (vizToUpload != null) {
+            val vizReq = PutDataMapRequest.create(VIZ).apply {
+                dataMap.putString("key", vizPublishKey)
+                dataMap.putInt("seed", vizToUpload.seed)
+                dataMap.putInt("stepMs", vizToUpload.stepMs)
+                dataMap.putByteArray("viz", vizToUpload.samples)
+            }.asPutDataRequest().setUrgent()
+            runCatching { Wearable.getDataClient(app).putDataItem(vizReq).await() }
+                .onSuccess {
+                    lastPublishedVizKey = vizPublishKey
+                    lastPublishedVizSeed = vizToUpload.seed
+                    lastPublishedVizStepMs = vizToUpload.stepMs
+                    vizAvailable = true
+                }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Logbook.log("watch remote: viz not sent (${it.message})")
+                }
+        }
+
+        val effectiveArtKey = if (artAvailable) rawArtKey else ""
+        val effectiveVizKey = if (vizAvailable) vizPublishKey else ""
+        val signature = StateSignature(
+            hasSession = hasSession,
+            title = title,
+            artist = artist,
+            album = album,
+            contextTitle = contextTitle,
+            playing = playing,
+            buffering = buffering,
+            episode = episode,
+            explicit = explicit,
+            liked = liked,
+            durationMs = durationMs,
+            speed = speed,
+            shuffle = shuffle,
+            repeat = repeat,
+            volume = volume,
+            deviceName = deviceName,
+            deviceType = deviceType,
+            bgColor = bgColor,
+            accentColor = accentColor,
+            artKey = effectiveArtKey,
+            vizKey = effectiveVizKey,
+            positionMs = positionMs,
+            atElapsedMs = nowElapsed,
+        )
+
+        val duplicate = !forceState && isSemanticallyDuplicateState(lastStateSignature, signature)
+        if (!duplicate) {
+            val atEpochMs = System.currentTimeMillis()
+            val vizSeedVal = if (effectiveVizKey.isNotEmpty()) lastPublishedVizSeed else 0
+            val vizStepMsVal = if (effectiveVizKey.isNotEmpty()) lastPublishedVizStepMs else 100
+            val json = buildJsonObject {
+                put("hasSession", hasSession)
+                put("title", title)
+                put("artist", artist)
+                put("album", album)
+                put("contextTitle", contextTitle)
+                put("playing", playing)
+                put("buffering", buffering)
+                put("episode", episode)
+                put("explicit", explicit)
+                put("liked", liked)
+                put("positionMs", positionMs)
+                put("durationMs", durationMs)
+                put("speed", speed)
+                put("atEpochMs", atEpochMs)
+                put("volume", volume)
+                put("maxVolume", 100)
+                put("shuffle", shuffle)
+                put("repeat", repeat)
+                put("canRepeat", true)
+                // Where it plays: a Connect device's name, or nothing for this phone (kept for backwards compatibility).
+                activeDev?.let { put("device", it.name) }
+                put("deviceName", deviceName)
+                put("deviceType", deviceType)
+                put("color", bgColor)
+                put("accentColor", accentColor)
+                put("accent", accentColor)
+                put("artKey", effectiveArtKey)
+                put("vizKey", effectiveVizKey)
+                put("vizSeed", vizSeedVal)
+                put("vizStepMs", vizStepMsVal)
+            }.toString()
+
+            val request = PutDataMapRequest.create(STATE).apply {
+                dataMap.putString("json", json)
+            }.asPutDataRequest().apply {
+                if (mode == PublishMode.FULL_URGENT) setUrgent()
+            }
+            runCatching { Wearable.getDataClient(app).putDataItem(request).await() }
+                .onSuccess { lastStateSignature = signature }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Logbook.log("watch remote: state not sent (${it.message})")
+                }
+        }
+
+        if (mode == PublishMode.FULL_URGENT) {
+            publishQueue(c, state)
+        }
     }
 
     private var lastQueue: String? = null
@@ -389,7 +849,11 @@ object WatchRemote {
         lastQueue = json
         val request = PutDataMapRequest.create(QUEUE).apply { dataMap.putString("json", json) }.asPutDataRequest()
         runCatching { Wearable.getDataClient(app).putDataItem(request).await() }
-            .onFailure { lastQueue = null; Logbook.log("watch remote: queue not sent (${it.message})") }
+            .onFailure {
+                if (it is CancellationException) throw it
+                lastQueue = null
+                Logbook.log("watch remote: queue not sent (${it.message})")
+            }
     }
 
     /** The session's position is a snapshot: brought to now before it travels. */
@@ -398,99 +862,109 @@ object WatchRemote {
         return (position + ((SystemClock.elapsedRealtime() - lastPositionUpdateTime) * playbackSpeed).toLong()).coerceAtLeast(0L)
     }
 
-    /** Scales a bitmap safely (copying HARDWARE bitmaps first) and recycles temporaries without touching [bmp]. */
-    private inline fun <T> withScaledBitmap(bmp: Bitmap?, sizePx: Int, block: (Bitmap) -> T): T? {
-        if (bmp == null || bmp.isRecycled) return null
-        var soft: Bitmap? = null
-        var scaled: Bitmap? = null
-        return try {
-            soft = if (bmp.config == Bitmap.Config.HARDWARE) bmp.copy(Bitmap.Config.ARGB_8888, false) else bmp
-            if (soft == null || soft.isRecycled) {
-                null
-            } else {
-                scaled = Bitmap.createScaledBitmap(soft, sizePx, sizePx, true)
-                block(scaled)
-            }
-        } catch (_: Throwable) {
-            null
-        } finally {
-            if (scaled != null && scaled !== soft && scaled !== bmp) scaled.recycle()
-            if (soft != null && soft !== bmp) soft.recycle()
-        }
-    }
-
-    /** Extracts and caches (bg, accent) ARGB colors from the cover bitmap or phone-side palette cache. */
-    private fun extractColors(artKey: String, coverUrl: String?, bmp: Bitmap?): Pair<Int, Int> {
-        colorCache[artKey]?.let { return it }
-        val url = coverUrl?.takeIf { it.isNotBlank() }
-        val cachedFirst = url?.let { com.music.spotui.di.Palette.cachedFirst(it) }
-        val cachedSecond = url?.let { com.music.spotui.di.Palette.cachedSecond(it) }
-
-        val palette = withScaledBitmap(bmp, PALETTE_PX) { scaled ->
-            Palette.from(scaled).generate()
-        }
-        if (palette != null) {
-            val bgRgb = palette.darkVibrantSwatch?.rgb
-                ?: palette.vibrantSwatch?.rgb
-                ?: palette.dominantSwatch?.rgb
-                ?: palette.darkMutedSwatch?.rgb
-                ?: cachedFirst?.toArgb()
-            val bg = bgRgb?.let {
-                com.music.spotui.di.Palette.readableUnderWhite(Color(it or (0xFF shl 24))).toArgb()
-            } ?: DEFAULT_BG
-            val accentRgb = palette.vibrantSwatch?.rgb
-                ?: palette.lightVibrantSwatch?.rgb
-                ?: palette.dominantSwatch?.rgb
-                ?: cachedSecond?.toArgb()
-            val accent = accentRgb?.let { it or (0xFF shl 24) } ?: DEFAULT_ACCENT
-            return (bg to accent).also { colorCache[artKey] = it }
-        }
-
+    private fun cachedColorsFromPalette(coverUrl: String?): Pair<Int, Int>? {
+        val url = coverUrl?.takeIf { it.isNotBlank() } ?: return null
+        val cachedFirst = com.music.spotui.di.Palette.cachedFirst(url)
+        val cachedSecond = com.music.spotui.di.Palette.cachedSecond(url)
+        if (cachedFirst == null && cachedSecond == null) return null
         val bg = cachedFirst?.let {
             com.music.spotui.di.Palette.readableUnderWhite(it).toArgb()
         } ?: DEFAULT_BG
         val accent = cachedSecond?.toArgb()
             ?: runCatching { com.music.spotui.ui.theme.AppAccent.toArgb() }.getOrNull()
             ?: DEFAULT_ACCENT
-        val result = bg to accent
-        if (url != null && (cachedFirst != null || cachedSecond != null)) {
-            colorCache[artKey] = result
-        }
-        return result
+        return bg to accent
     }
 
-    /** Scales, blurs (3-pass box blur), JPEG-compresses, and caches cover art for watch screensaver backgrounds. */
-    private fun blurredArtworkOf(artKey: String, bmp: Bitmap?): ByteArray? {
-        if (artKey.isBlank()) return null
-        synchronized(artCache) { artCache[artKey] }?.let { return it }
-        if (bmp == null || bmp.isRecycled) return null
+    /**
+     * Single-scale bitmap path: extracts `soft` once (only if [artKey] isn't already cached),
+     * scales once to [ART_SIZE_PX]x[ART_SIZE_PX], and runs both Palette extraction and 3-pass box
+     * blur + JPEG compression on that single scaled bitmap without recycling [bmp].
+     */
+    private fun resolveColorsAndArt(
+        artKey: String,
+        coverUrl: String?,
+        bmp: Bitmap?,
+        needArt: Boolean,
+    ): Pair<Pair<Int, Int>, ByteArray?> {
+        val cachedColors = colorCache[artKey]
+        val cachedArt = if (needArt && artKey.isNotBlank()) synchronized(artCache) { artCache[artKey] } else null
+        if (cachedColors != null && (!needArt || cachedArt != null || artKey.isBlank())) {
+            return cachedColors to cachedArt
+        }
 
-        val bytes = withScaledBitmap(bmp, ART_PX) { scaled ->
-            val w = scaled.width
-            val h = scaled.height
-            if (w <= 0 || h <= 0) {
-                null
-            } else {
-                val pixels = IntArray(w * h)
-                scaled.getPixels(pixels, 0, w, 0, 0, w, h)
-                boxBlur3Pass(pixels, w, h, ART_BLUR_RADIUS)
-                var blurred: Bitmap? = null
-                try {
-                    blurred = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                    blurred.setPixels(pixels, 0, w, 0, 0, w, h)
-                    val out = ByteArrayOutputStream(4096)
-                    if (blurred.compress(Bitmap.CompressFormat.JPEG, ART_JPEG_QUALITY, out)) {
-                        out.toByteArray()
-                    } else {
-                        null
+        var resolvedColors = cachedColors
+        var resolvedArt = cachedArt
+
+        if (bmp != null && !bmp.isRecycled && (resolvedColors == null || (needArt && resolvedArt == null && artKey.isNotBlank()))) {
+            var soft: Bitmap? = null
+            var scaled: Bitmap? = null
+            try {
+                soft = if (bmp.config == Bitmap.Config.HARDWARE) bmp.copy(Bitmap.Config.ARGB_8888, false) else bmp
+                if (soft != null && !soft.isRecycled) {
+                    scaled = Bitmap.createScaledBitmap(soft, ART_SIZE_PX, ART_SIZE_PX, true)
+                    if (resolvedColors == null) {
+                        val palette = runCatching { Palette.from(scaled).generate() }.getOrNull()
+                        if (palette != null) {
+                            val url = coverUrl?.takeIf { it.isNotBlank() }
+                            val fallbackFirst = url?.let { com.music.spotui.di.Palette.cachedFirst(it) }
+                            val fallbackSecond = url?.let { com.music.spotui.di.Palette.cachedSecond(it) }
+                            val bgRgb = palette.darkVibrantSwatch?.rgb
+                                ?: palette.vibrantSwatch?.rgb
+                                ?: palette.dominantSwatch?.rgb
+                                ?: palette.darkMutedSwatch?.rgb
+                                ?: fallbackFirst?.toArgb()
+                            val bg = bgRgb?.let {
+                                com.music.spotui.di.Palette.readableUnderWhite(Color(it or (0xFF shl 24))).toArgb()
+                            } ?: DEFAULT_BG
+                            val accentRgb = palette.vibrantSwatch?.rgb
+                                ?: palette.lightVibrantSwatch?.rgb
+                                ?: palette.dominantSwatch?.rgb
+                                ?: fallbackSecond?.toArgb()
+                            val accent = accentRgb?.let { it or (0xFF shl 24) } ?: DEFAULT_ACCENT
+                            resolvedColors = (bg to accent).also { colorCache[artKey] = it }
+                        }
                     }
-                } finally {
-                    blurred?.recycle()
+                    if (needArt && resolvedArt == null && artKey.isNotBlank()) {
+                        val w = scaled.width
+                        val h = scaled.height
+                        if (w > 0 && h > 0) {
+                            val pixels = IntArray(w * h)
+                            scaled.getPixels(pixels, 0, w, 0, 0, w, h)
+                            boxBlur3Pass(pixels, w, h, ART_BLUR_RADIUS)
+                            var blurred: Bitmap? = null
+                            try {
+                                blurred = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                                blurred.setPixels(pixels, 0, w, 0, 0, w, h)
+                                val out = ByteArrayOutputStream(2048)
+                                if (blurred.compress(Bitmap.CompressFormat.JPEG, ART_JPEG_QUALITY, out)) {
+                                    resolvedArt = out.toByteArray().also { artCache[artKey] = it }
+                                }
+                            } finally {
+                                blurred?.recycle()
+                            }
+                        }
+                    }
                 }
+            } catch (_: Throwable) {
+                // Fall back to URL palette / defaults below.
+            } finally {
+                if (scaled != null && scaled !== soft && scaled !== bmp) scaled.recycle()
+                if (soft != null && soft !== bmp) soft.recycle()
             }
         }
-        if (bytes != null) artCache[artKey] = bytes
-        return bytes
+
+        if (resolvedColors == null) {
+            val fallback = cachedColorsFromPalette(coverUrl)
+            if (fallback != null) {
+                colorCache[artKey] = fallback
+                resolvedColors = fallback
+            } else {
+                val defaultAccent = runCatching { com.music.spotui.ui.theme.AppAccent.toArgb() }.getOrNull() ?: DEFAULT_ACCENT
+                resolvedColors = DEFAULT_BG to defaultAccent
+            }
+        }
+        return resolvedColors to resolvedArt
     }
 
     private fun boxBlur3Pass(pixels: IntArray, w: Int, h: Int, radius: Int) {
@@ -592,7 +1066,7 @@ object WatchRemote {
                     vizCache[trackKey] = parsed
                     vizRetryAt.remove(trackKey)
                     main.post {
-                        if (trackKey == currentVizKey) schedulePublish()
+                        if (trackKey == currentVizKey && isWatchActiveNow()) schedulePublish()
                     }
                 } else {
                     vizRetryAt[trackKey] = SystemClock.elapsedRealtime() + VIZ_RETRY_UNAVAILABLE_MS
@@ -712,7 +1186,7 @@ object WatchRemote {
         }
         val seed = root.obj("meta")?.num("timestamp")?.takeIf { it.isFinite() }?.toLong()?.toInt()
             ?: trackKey.hashCode()
-        return VizData(seed, stepMs, samples)
+        return VizData(seed, stepMs, samples, isFallback = false)
     }
 
     private fun percentileBounds(values: FloatArray): Pair<Double, Double> {
@@ -784,7 +1258,7 @@ object WatchRemote {
         }
 
         val seed = an.audioKey.takeIf { it.isNotBlank() }?.hashCode() ?: trackKey.hashCode()
-        return VizData(seed, stepMs, samples)
+        return VizData(seed, stepMs, samples, isFallback = false)
     }
 
     /** Deterministic rhythmic amplitude curve used immediately while async analysis loads or when offline. */
@@ -810,7 +1284,7 @@ object WatchRemote {
             val amp = (0.22 + 0.34 * beat + 0.24 * phrase + 0.16 * sub).coerceIn(0.08, 0.96)
             (amp * 255.0).roundToInt().coerceIn(0, 255).toByte()
         }
-        return VizData(seed, stepMs, samples)
+        return VizData(seed, stepMs, samples, isFallback = true)
     }
 
     /** Normalized 0..100 volume: Connect device volume if active, else remote media controller, else phone media stream. */

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -110,10 +111,10 @@ object TrackAudioSync {
     private const val RETRY_TRANSIENT_MS = 20_000L
     private const val RETRY_UNAVAILABLE_MS = 300_000L
     private const val AUTOMIX_POLL_MS = 400L
+    private const val SPOTIFY_POLL_MS = 400L
 
     private val SPOTIFY_TRACK_ID_REGEX =
         Regex("(?:spotify:track:|open\\.spotify\\.com/track/)([A-Za-z0-9]{22})")
-    private val BASE62_ID_REGEX = Regex("^[A-Za-z0-9]{22}$")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -183,6 +184,7 @@ object TrackAudioSync {
     }
 
     private class SpotifyModel(
+        val trackId: String,
         override val bpm: Float,
         override val beats: DoubleArray,
         override val bars: DoubleArray,
@@ -217,13 +219,8 @@ object TrackAudioSync {
         },
     )
 
-    private val retryAtMs = Collections.synchronizedMap(
-        object : LinkedHashMap<String, Long>(64, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?) = size > 64
-        },
-    )
-
-    private val inFlightIds = Collections.synchronizedSet(HashSet<String>())
+    private val retryAtMs = ConcurrentHashMap<String, Long>()
+    private val inFlightIds = ConcurrentHashMap.newKeySet<String>()
 
     @Volatile
     private var readyObserverStarted = false
@@ -235,9 +232,16 @@ object TrackAudioSync {
     private var activeTrackKey: String = ""
     @Volatile
     private var activeLocalModel: AutoMixModel? = null
+    @Volatile
+    private var activeSpotifyModel: SpotifyModel? = null
     private var lastModelRef: TrackModel? = null
     private var lastAutoMixCheckRealTimeMs: Long = 0L
+    private var lastSpotifyPollRealTimeMs: Long = 0L
     private var lastEffectivePosMs: Long = 0L
+    private var cachedTrackUri: String = ""
+    private var cachedLocalSpotifyId: String = ""
+    private var cachedIsEpisode: Boolean = false
+    private var cachedSpotifyTrackId: String? = null
 
     /** Uri of the local track currently being modelled (main thread writes; background publish checks it). */
     @Volatile
@@ -260,13 +264,53 @@ object TrackAudioSync {
 
     private val smoothBands12 = FloatArray(12)
     private val smoothSpectrum64 = FloatArray(64)
+    private val rawSpectrum64 = FloatArray(64)
     private var decorativeIntegralSec: Float = 0f
+
+    private val SPECTRUM_P0 = IntArray(64)
+    private val SPECTRUM_P1 = IntArray(64)
+    private val SPECTRUM_PMU = FloatArray(64)
+    private val SPECTRUM_H0 = IntArray(64)
+    private val SPECTRUM_H1 = IntArray(64)
+    private val SPECTRUM_HMU = FloatArray(64)
+    private val SPECTRUM_FACTOR = FloatArray(64)
+    private val SPECTRUM_BASS_WEIGHT = FloatArray(64)
+
+    init {
+        for (b in 0 until 64) {
+            val norm = b / 63f
+            val fPos = norm * 11f
+            val i0 = fPos.toInt().coerceIn(0, 11)
+            val i1 = (i0 + 1).coerceAtMost(11)
+            val frac = fPos - i0
+            SPECTRUM_P0[b] = i0
+            SPECTRUM_P1[b] = i1
+            SPECTRUM_PMU[b] = ((1.0 - cos(frac * PI)) * 0.5).toFloat()
+
+            val hPos = ((norm * 2.3f) % 1f) * 11f
+            val h0 = hPos.toInt().coerceIn(0, 11)
+            val h1 = (h0 + 1).coerceAtMost(11)
+            val hFrac = hPos - h0
+            SPECTRUM_H0[b] = h0
+            SPECTRUM_H1[b] = h1
+            SPECTRUM_HMU[b] = ((1.0 - cos(hFrac * PI)) * 0.5).toFloat()
+
+            val bassW = 1f - norm
+            SPECTRUM_BASS_WEIGHT[b] = bassW * bassW * 0.18f
+            SPECTRUM_FACTOR[b] = (0.80 + 0.20 * sin(norm * PI)).toFloat()
+        }
+    }
 
     /**
      * Samples the synchronized audio frame at [nowRealTimeMs] (`SystemClock.elapsedRealtime()`).
-     * Intended to be called once per display frame (60-120fps) on the main thread.
+     * Pass reusable [outBands12] (size >= 12) and [outSpectrum64] (size >= 64) to avoid per-frame
+     * array cloning; null preserves cloned immutable snapshot arrays for existing callers.
      */
-    fun sample(nowRealTimeMs: Long = SystemClock.elapsedRealtime()): AudioFrame {
+    fun sample(
+        nowRealTimeMs: Long = SystemClock.elapsedRealtime(),
+        outBands12: FloatArray? = null,
+        outSpectrum64: FloatArray? = null,
+    ): AudioFrame {
         ensureReadyObserver()
 
         val dtSec = if (lastSampleRealTimeMs == 0L) {
@@ -295,13 +339,26 @@ object TrackAudioSync {
             resetForTrack("")
             decayBuffers(dtSec)
             return AudioFrame.Empty.copy(
-                bands12 = smoothBands12.clone(),
-                spectrum64 = smoothSpectrum64.clone(),
+                bands12 = snapshotBands12(outBands12),
+                spectrum64 = snapshotSpectrum64(outSpectrum64),
             )
         }
 
         val trackKey = trackUri.ifBlank { "$title|$artist" }
-        val spotifyTrackId = if (isEpisode) null else extractSpotifyTrackId(trackUri, localSpotifyId)
+        val spotifyTrackId = if (
+            trackUri == cachedTrackUri &&
+            localSpotifyId == cachedLocalSpotifyId &&
+            isEpisode == cachedIsEpisode
+        ) {
+            cachedSpotifyTrackId
+        } else {
+            val resolved = if (isEpisode) null else extractSpotifyTrackId(trackUri, localSpotifyId)
+            cachedTrackUri = trackUri
+            cachedLocalSpotifyId = localSpotifyId
+            cachedIsEpisode = isEpisode
+            cachedSpotifyTrackId = resolved
+            resolved
+        }
 
         if (trackKey != activeTrackKey) {
             resetForTrack(trackKey)
@@ -355,14 +412,29 @@ object TrackAudioSync {
             localModelGen++
         }
 
-        // Fetch Spotify audio-analysis if we don't have local AutoMix data yet (or for Spotify tracks).
+        // Read @Volatile activeSpotifyModel lock-free on every steady-state frame; query LRU cache
+        // and fetch only on miss (throttled to SPOTIFY_POLL_MS to avoid per-frame lock contention).
         val spotifyModel = if (spotifyTrackId != null) {
-            val cached = synchronized(spotifyCache) { spotifyCache[spotifyTrackId] }
-            if (cached == null && activeLocalModel == null) {
-                maybeFetchSpotifyAnalysis(spotifyTrackId, nowRealTimeMs)
+            val hot = activeSpotifyModel?.takeIf { it.trackId == spotifyTrackId }
+            if (hot != null) {
+                hot
+            } else if (lastSpotifyPollRealTimeMs == 0L || (nowRealTimeMs - lastSpotifyPollRealTimeMs) >= SPOTIFY_POLL_MS) {
+                lastSpotifyPollRealTimeMs = nowRealTimeMs
+                val cached = synchronized(spotifyCache) { spotifyCache[spotifyTrackId] }
+                if (cached != null) {
+                    activeSpotifyModel = cached
+                    cached
+                } else {
+                    if (activeLocalModel == null) {
+                        maybeFetchSpotifyAnalysis(spotifyTrackId, nowRealTimeMs)
+                    }
+                    null
+                }
+            } else {
+                null
             }
-            cached
         } else {
+            activeSpotifyModel = null
             null
         }
 
@@ -433,6 +505,8 @@ object TrackAudioSync {
                 durationMs = durationMs,
                 dtSec = dtSec,
                 nowRealTimeMs = nowRealTimeMs,
+                outBands12 = outBands12,
+                outSpectrum64 = outSpectrum64,
             )
         }
 
@@ -524,8 +598,8 @@ object TrackAudioSync {
             barPulse = if (isPlaying) barPulse else barPulse * 0.4f,
             barFired = barFired && isPlaying,
             beatPhase = beatPhase,
-            bands12 = smoothBands12.clone(),
-            spectrum64 = smoothSpectrum64.clone(),
+            bands12 = snapshotBands12(outBands12),
+            spectrum64 = snapshotSpectrum64(outSpectrum64),
             bpm = model.bpm,
             hasRealData = true,
             isPlaying = isPlaying,
@@ -537,14 +611,38 @@ object TrackAudioSync {
         )
     }
 
+    private fun snapshotBands12(out: FloatArray?): FloatArray =
+        if (out != null && out.size >= 12) {
+            System.arraycopy(smoothBands12, 0, out, 0, 12)
+            out
+        } else {
+            smoothBands12.clone()
+        }
+
+    private fun snapshotSpectrum64(out: FloatArray?): FloatArray =
+        if (out != null && out.size >= 64) {
+            System.arraycopy(smoothSpectrum64, 0, out, 0, 64)
+            out
+        } else {
+            smoothSpectrum64.clone()
+        }
+
     private fun resetForTrack(newKey: String) {
         activeTrackKey = newKey
         activeLocalModel = null
+        activeSpotifyModel = null
         buildingLocalUri = ""
         localModelGen++
         lastModelRef = null
         lastAutoMixCheckRealTimeMs = 0L
+        lastSpotifyPollRealTimeMs = 0L
         lastEffectivePosMs = 0L
+        if (newKey.isEmpty()) {
+            cachedTrackUri = ""
+            cachedLocalSpotifyId = ""
+            cachedIsEpisode = false
+            cachedSpotifyTrackId = null
+        }
         lastBeatIdx = -1
         lastBarIdx = -1
         beatPulse = 0f
@@ -572,6 +670,8 @@ object TrackAudioSync {
         durationMs: Long,
         dtSec: Float,
         nowRealTimeMs: Long,
+        outBands12: FloatArray?,
+        outSpectrum64: FloatArray?,
     ): AudioFrame {
         val tSec = nowRealTimeMs / 1000.0
         val energy = if (isPlaying && isMoving) 1.0f else 0.32f
@@ -599,8 +699,8 @@ object TrackAudioSync {
             barPulse = softPulse * 0.6f,
             barFired = false,
             beatPhase = phase,
-            bands12 = smoothBands12.clone(),
-            spectrum64 = smoothSpectrum64.clone(),
+            bands12 = snapshotBands12(outBands12),
+            spectrum64 = snapshotSpectrum64(outSpectrum64),
             bpm = 0f,
             hasRealData = false,
             isPlaying = isPlaying,
@@ -706,30 +806,19 @@ object TrackAudioSync {
         val releaseAlpha = 1f - exp(-dtSec / 0.105f)
         val envelope = (0.28f + 0.72f * loudnessEnv).coerceIn(0f, 1f)
 
-        // Two-pass: compute interpolated raw 64 bins, then light neighbor smoothing [0.2, 0.6, 0.2].
-        val raw = FloatArray(64)
+        // Two-pass: compute interpolated raw 64 bins into reusable buffer, then smooth [0.2, 0.6, 0.2].
+        val raw = rawSpectrum64
         for (b in 0 until 64) {
-            val norm = b / 63f
-            // Map 64 channels across two folded pitch octaves so energy distributes cleanly across the spectrum.
-            val fPos = norm * 11f
-            val i0 = fPos.toInt().coerceIn(0, 11)
-            val i1 = (i0 + 1).coerceAtMost(11)
-            val frac = fPos - i0
-            val mu = (1f - cos(frac * PI.toFloat())) * 0.5f
-            val primary = bands12[i0] + (bands12[i1] - bands12[i0]) * mu
+            val i0 = SPECTRUM_P0[b]
+            val i1 = SPECTRUM_P1[b]
+            val primary = bands12[i0] + (bands12[i1] - bands12[i0]) * SPECTRUM_PMU[b]
 
-            // Secondary harmonic fold across the upper octave for organic spectral richness.
-            val hPos = ((norm * 2.3f) % 1f) * 11f
-            val h0 = hPos.toInt().coerceIn(0, 11)
-            val h1 = (h0 + 1).coerceAtMost(11)
-            val hFrac = hPos - h0
-            val hMu = (1f - cos(hFrac * PI.toFloat())) * 0.5f
-            val harmonic = bands12[h0] + (bands12[h1] - bands12[h0]) * hMu
+            val h0 = SPECTRUM_H0[b]
+            val h1 = SPECTRUM_H1[b]
+            val harmonic = bands12[h0] + (bands12[h1] - bands12[h0]) * SPECTRUM_HMU[b]
 
-            val bassWeight = (1f - norm).let { it * it }
-            val contour = 0.80f + 0.20f * sin(norm * PI.toFloat())
-            val combined = (0.74f * primary + 0.26f * harmonic) * envelope * contour +
-                pulse * 0.18f * bassWeight
+            val combined = (0.74f * primary + 0.26f * harmonic) * envelope * SPECTRUM_FACTOR[b] +
+                pulse * SPECTRUM_BASS_WEIGHT[b]
             raw[b] = combined.coerceIn(0f, 1f)
         }
 
@@ -765,7 +854,7 @@ object TrackAudioSync {
         pendingSpotifyId = trackId
         if (!MyspotiRuntime.isStarted || !MyspotiRuntime.spotify.ready.value) return
         if (DataSaver.active) return
-        val nextRetry = synchronized(retryAtMs) { retryAtMs[trackId] ?: 0L }
+        val nextRetry = retryAtMs[trackId] ?: 0L
         if (nowRealTimeMs < nextRetry) return
         if (!inFlightIds.add(trackId)) return
 
@@ -790,6 +879,9 @@ object TrackAudioSync {
                 if (parsed != null) {
                     spotifyCache[trackId] = parsed
                     retryAtMs.remove(trackId)
+                    if (pendingSpotifyId == trackId) {
+                        activeSpotifyModel = parsed
+                    }
                 } else {
                     retryAtMs[trackId] = SystemClock.elapsedRealtime() + RETRY_UNAVAILABLE_MS
                 }
@@ -868,6 +960,7 @@ object TrackAudioSync {
             ?: trackId.hashCode()
 
         return SpotifyModel(
+            trackId = trackId,
             bpm = bpm,
             beats = beatsList,
             bars = barsList,
@@ -1098,8 +1191,23 @@ object TrackAudioSync {
     }
 
     private fun extractSpotifyTrackId(uri: String, localSpotifyId: String): String? {
-        SPOTIFY_TRACK_ID_REGEX.find(uri)?.groupValues?.getOrNull(1)?.let { return it }
-        return localSpotifyId.takeIf { BASE62_ID_REGEX.matches(it) }
+        if (uri.startsWith("spotify:track:") && isBase62Id(uri, 14, 22)) {
+            return uri.substring(14, 36)
+        }
+        if (uri.isNotEmpty()) {
+            SPOTIFY_TRACK_ID_REGEX.find(uri)?.groupValues?.getOrNull(1)?.let { return it }
+        }
+        return localSpotifyId.takeIf { isBase62Id(it) }
+    }
+
+    private fun isBase62Id(s: String, start: Int = 0, len: Int = s.length - start): Boolean {
+        if (len != 22 || start + 22 > s.length) return false
+        for (i in start until start + 22) {
+            val c = s[i]
+            val valid = (c in '0'..'9') || (c in 'A'..'Z') || (c in 'a'..'z')
+            if (!valid) return false
+        }
+        return true
     }
 
     private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject

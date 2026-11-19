@@ -76,6 +76,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -137,7 +138,9 @@ import com.music.spotui.ui.navigation.profileRoute
 import com.music.spotui.ui.screens.ContextViewModel
 import com.music.spotui.ui.screens.PlaylistReorder
 import com.music.spotui.ui.screens.SmartShuffle
+import com.music.spotui.ui.screens.VerticalWashBrushCache
 import com.music.spotui.ui.screens.movableRow
+import com.music.spotui.ui.screens.offlineDownloadSummary
 import com.music.spotui.ui.screens.rememberPlaylistDrag
 import com.music.spotui.ui.screens.TrackOrder
 import com.music.spotui.ui.screens.TrackSort
@@ -256,7 +259,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     LaunchedEffect(p.coverUri) {
         if (p.coverUri.isNotBlank()) Palette().extractSecondColorFromCoverUrl(context, p.coverUri) { tintTarget = it }
     }
-    val tint by animateColorAsState(if (isLiked) LikedTint else tintTarget, tween(350), label = "context tint")
+    val tintAnim = animateColorAsState(if (isLiked) LikedTint else tintTarget, tween(350), label = "context tint")
 
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     // "Find in Liked Songs / in playlist", opened from the top bar.
@@ -479,7 +482,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                 ContextHeader(
                     navController = navController,
                     p = p,
-                    tint = tint,
+                    tint = { tintAnim.value },
                     sleeve = sleeve,
                     isLiked = isLiked,
                     isThisContext = isThisContext,
@@ -688,7 +691,7 @@ private val LikedTint = Color(0xFF4A3FA8)
 private fun ContextHeader(
     navController: NavController,
     p: ContextPageModel,
-    tint: Color,
+    tint: () -> Color,
     sleeve: Dp,
     isLiked: Boolean,
     isThisContext: Boolean,
@@ -711,10 +714,14 @@ private fun ContextHeader(
     val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
     val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
     val ringColor = if (pageBg == Color.Transparent) Color(0xFF0A1422) else pageBg
+    val headerBrushCache = remember { VerticalWashBrushCache() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Immersive.headerWash(tint), pageBg)))
+            .drawBehind {
+                val wash = Immersive.headerWash(tint())
+                drawRect(headerBrushCache.vertical(wash, pageBg, size.height))
+            }
             .padding(top = immersiveTopContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -854,15 +861,13 @@ private fun ContextHeader(
                     tint = if (saved) Immersive.Accent else Immersive.Text,
                 )
                 // The page's own songs, downloaded as a whole stay in step with the catalogue.
-                val ids = p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct()
+                val ids = remember(p.tracks) {
+                    p.tracks.asSequence().map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct().toList()
+                }
                 // Songs with no matching recording count as settled: the list can still be removed.
-                val downloadedCount = ids.count {
-                    OfflineStore.isDownloaded(it) || OfflineStore.status[it] == OfflineStatus.Unavailable
-                }
-                val busy = ids.any {
-                    val st = OfflineStore.status[it]
-                    st == OfflineStatus.Queued || st is OfflineStatus.Downloading
-                }
+                val downloadSummary by remember(ids) { derivedStateOf { offlineDownloadSummary(ids) } }
+                val downloadedCount = downloadSummary.toInt()
+                val busy = (downloadSummary ushr 32) != 0L
                 val listKept = OfflineCollections.isDownloaded(p.uri)
                 LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
                 DownloadCircle(downloadedCount, ids.size, busy, listKept) {

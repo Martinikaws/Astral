@@ -1,10 +1,13 @@
 package com.music.spotui.data.entity
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Personalized Spotify home feed (the `home` GQL operation): a greeting plus an
  * ordered list of titled sections ("Your top mixes", "Jump back in", "Your
  * favorite artists", …), each holding albums / artists / playlists.
  */
+@Immutable
 @kotlinx.serialization.Serializable
 data class HomeFeedModel(
     val greeting: String = "",
@@ -29,6 +32,7 @@ object HomeSubChips {
     }
 }
 
+@Immutable
 @kotlinx.serialization.Serializable
 data class HomeSection(
     val title: String,
@@ -76,11 +80,13 @@ fun List<HomeItem>.withLikedFirst(likedName: String): List<HomeItem> {
 
 private const val DJ_PLAYLIST_ID = "37i9dQZF1EYkqdzj48dyYq"
 
+@Immutable
 @kotlinx.serialization.Serializable
 sealed class HomeItem {
     abstract val name: String
     abstract val imageUrl: String
 
+    @Immutable
     @kotlinx.serialization.Serializable
     data class Album(
         val id: String = "",
@@ -90,6 +96,7 @@ sealed class HomeItem {
         val artists: String = "",
     ) : HomeItem()
 
+    @Immutable
     @kotlinx.serialization.Serializable
     data class Artist(
         override val name: String,
@@ -98,6 +105,7 @@ sealed class HomeItem {
     ) : HomeItem()
 
     /** Podcast show / audiobook, or a single episode ([isEpisode]). */
+    @Immutable
     @kotlinx.serialization.Serializable
     data class Show(
         val id: String,
@@ -107,6 +115,7 @@ sealed class HomeItem {
         val isEpisode: Boolean,
     ) : HomeItem()
 
+    @Immutable
     @kotlinx.serialization.Serializable
     data class Playlist(
         override val name: String,

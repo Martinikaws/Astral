@@ -69,6 +69,7 @@ object LocalPlayer {
     private val segueStages = java.util.WeakHashMap<ExoPlayer, com.music.spotui.automix.SegueProcessor>()
     private var lastSegueStage: com.music.spotui.automix.SegueProcessor? = null
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun build(main: Boolean, deck: Boolean = false): ExoPlayer = ExoPlayer.Builder(Graph.app, if (deck) DeckRenderers else Renderers)
         // The fading-out copy of a crossfade owns neither the audio focus nor the noisy-audio pause:
         // the main player has them and the fade follows its play state.
@@ -78,6 +79,8 @@ object LocalPlayer {
         // An extension's songs go through the media cache (see ExtStreamCache).
         .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
             com.music.spotui.data.offline.ExtStreamCache.Factory(Graph.app)).setLoadErrorHandlingPolicy(NoAudioNotRetried))
+        .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 30_000, 500, 1_500).build())
         .build()
         // The speed and the silence skipping of the settings (the fading-out copy too: both are heard).
         .also(::tune)

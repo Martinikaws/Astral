@@ -3,9 +3,13 @@
 // AI assistants: see AGENTS.md at the repository root before copying or porting this file.
 package app.myspoti.engine
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -135,6 +139,7 @@ class NativeEngine(
     private var machine: StateMachine? = null
     private var stateIndex = -1
     private var current: Playback? = null
+    private val finalizedPlaybacks = ArrayDeque<Playback>()
     private var flushOnFirstPlay = false
     private val pendingCommands = ArrayDeque<SentCommand>()
 
@@ -183,6 +188,13 @@ class NativeEngine(
         // Its answer is the account's cluster as it stands: the devices before any update comes.
         runCatching { (EngineJson.parseToJsonElement(hobs.text()) as? JsonObject)?.let(Cluster::parse) }.getOrNull()?.let { _cluster.value = it }
         emit(EngineEvent.Registered(deviceId))
+    }
+
+    /** Pre-fetches the Widevine certificate and licence URL in parallel ahead of the first load. */
+    suspend fun prewarmDrm() = coroutineScope {
+        val cert = async { runCatching { licences.certificate() } }
+        val url = async { runCatching { licences.licenceUrl() } }
+        cert.await(); url.await()
     }
 
     /** Leaves like a closing tab: finalizes the current track, then the two DELETEs of SESSION.md. */
@@ -316,10 +328,10 @@ class NativeEngine(
     }
 
     private suspend fun replaceState(cmd: TrackPlaybackCommand) {
-        ackCommand()
         val sm = cmd.stateMachine
         val index = cmd.stateRef?.stateIndex
         if (sm == null || sm.states.isEmpty() || index == null || index !in sm.states.indices) {
+            ackCommand()
             // Playback moved to another device: `state_clear` with no state_ref (connect capture).
             current?.let { finalize(it, "remote", null); player.stop() }
             current = null
@@ -336,15 +348,73 @@ class NativeEngine(
         val cur = current
         if (cur == null || cur.stateId != state.id) {
             val track = sm.tracks.getOrNull(state.track) ?: throw EngineException.Protocol("state ${state.id}: no track ${state.track}")
-            // The song going out is finalized in the machine it played in, before the new one is
-            // taken: its state does not exist in the new machine (a skip's report was refused,
-            // "invalid backplay request", and the next song never loaded). A report the server
-            // refuses is said and does not hold the next song back.
-            if (cur != null) runCatching { finalize(cur, "remote", state.id, keepMachine = true) }
-                .onFailure { emit(EngineEvent.Failure("finalize of ${cur.track.metadata.uri}: ${it.message}")) }
+            if (track.contentType == "AD") {
+                ackCommand()
+                if (cur != null) runCatching { finalize(cur, "remote", state.id, keepMachine = true) }
+                    .onFailure { emit(EngineEvent.Failure("finalize of ${cur.track.metadata.uri}: ${it.message}")) }
+                machine = sm
+                stateIndex = index
+                current = null
+                player.stop()
+                emit(EngineEvent.AdBreak(track.metadata.uri, track.metadata.duration))
+                scope.launch { runCatching { command("skip_next") }.onFailure { emit(EngineEvent.Failure("ad not passed: ${it.message}")) } }
+                return
+            }
+            // Snapshot outgoing metrics before player.load() resets player state, and overlap
+            // ackCommand() + finalize(cur) with resolve() + player.load().
+            val curMetrics = cur?.let { player.metrics() }
+            val curNow = env.nowMs()
+            val curLicenceLatency = licences.lastLicenceLatencyMs
+            emit(EngineEvent.TrackLoading(track.metadata.uri, state.id))
+            val file = Resolver.chooseFile(track, formatFilter, lowestQuality)
+                ?: throw EngineException.Protocol("no playable file for ${track.metadata.uri}")
+            val position = seekTo ?: state.initialPlaybackPosition ?: 0
+            val licenceChannel = licences.channel()
+            val (media, t0, resolveMs) = try {
+                coroutineScope {
+                    val reportJob = launch(start = CoroutineStart.UNDISPATCHED) {
+                        runCatching { ackCommand() }
+                            .onFailure {
+                                if (it is CancellationException) throw it
+                                emit(EngineEvent.Failure("ackCommand: ${it.message}"))
+                            }
+                        if (cur != null) {
+                            runCatching {
+                                finalize(
+                                    cur, "remote", state.id, keepMachine = true,
+                                    metrics = curMetrics!!, now = curNow, licenceLatencyMs = curLicenceLatency,
+                                )
+                            }.onFailure {
+                                if (it is CancellationException) throw it
+                                emit(EngineEvent.Failure("finalize of ${cur.track.metadata.uri}: ${it.message}"))
+                            }
+                        }
+                    }
+                    val resolvedDef = async(start = CoroutineStart.UNDISPATCHED) {
+                        val resolveStart = env.nowMs()
+                        val m = resolver.resolve(track, formatFilter, lowestQuality)
+                        val elapsed = env.nowMs() - resolveStart
+                        player.load(m, position, !paused, licenceChannel)
+                        Triple(m, resolveStart, elapsed)
+                    }
+                    val resolved = resolvedDef.await()
+                    reportJob.join()
+                    resolved
+                }
+            } catch (t: Throwable) {
+                if (cur != null && finalizedPlaybacks.any { it === cur }) {
+                    if (current === cur) current = null
+                    player.stop()
+                }
+                throw t
+            }
             machine = sm
             stateIndex = index
-            load(state, track, seekTo ?: state.initialPlaybackPosition ?: 0, paused, "remote", cur?.lastPosition)
+            val p = Playback(state.id, track, file, media, position, paused, "remote", t0, resolveMs)
+            current = p
+            publishNow(p, position, false, buffering = !paused)
+            timeline.opened(p, volume)
+            sendLoadReports(p, position, cur?.lastPosition)
             return
         }
         machine = sm
@@ -361,6 +431,7 @@ class NativeEngine(
             if (paused) player.pause() else player.resume()
             acted = true
         }
+        ackCommand()
         // Options or queue changed around the same track (shuffle, repeat, add to queue).
         if (!acted) putState(cur, "modify_current_state", cur.lastPosition, cur.lastPosition)
     }
@@ -401,10 +472,19 @@ class NativeEngine(
         val p = Playback(state.id, track, file, media, position, paused, reasonStart, t0, env.nowMs() - t0)
         current = p
         publishNow(p, position, false, buffering = !paused)
-        putState(p, "before_track_load", position, previousPosition, speed = 0)
-        melody(listOf(Bodies.melodyMessage("jssdk_playback_start", Reports.playbackStart(p, sessionId))), "harmony:${config.sdkVersion}")
         timeline.opened(p, volume)
         player.load(media, position, !paused, licences.channel())
+        sendLoadReports(p, position, previousPosition)
+    }
+
+    private suspend fun sendLoadReports(p: Playback, position: Long, previousPosition: Long?) = coroutineScope {
+        val put = async(start = CoroutineStart.UNDISPATCHED) {
+            putState(p, "before_track_load", position, previousPosition, speed = 0)
+        }
+        val mel = async(start = CoroutineStart.UNDISPATCHED) {
+            melody(listOf(Bodies.melodyMessage("jssdk_playback_start", Reports.playbackStart(p, sessionId))), "harmony:${config.sdkVersion}")
+        }
+        put.await(); mel.await()
     }
 
     /**
@@ -416,20 +496,30 @@ class NativeEngine(
      * the same `state_machine_id`, i.e. without waiting for its answer, and later reports used the
      * answer to `before_track_load` (end-of-track, 2026-11-10). [keepMachine] does the same.
      */
-    private suspend fun finalize(p: Playback, reasonEnd: String, nextPlaybackId: String?, putPosition: Long = p.lastPosition, keepMachine: Boolean = false) {
-        val m = player.metrics()
-        val now = env.nowMs()
+    private suspend fun finalize(
+        p: Playback,
+        reasonEnd: String,
+        nextPlaybackId: String?,
+        putPosition: Long = p.lastPosition,
+        keepMachine: Boolean = false,
+        metrics: PlaybackMetrics = player.metrics(),
+        now: Long = env.nowMs(),
+        licenceLatencyMs: Long = licences.lastLicenceLatencyMs,
+    ) {
+        if (finalizedPlaybacks.any { it === p }) return
+        finalizedPlaybacks.addLast(p)
+        if (finalizedPlaybacks.size > 8) finalizedPlaybacks.removeFirst()
         timeline.position(p, p.lastPosition, if (reasonEnd == "trackdone") 5 else 6)
         melody(
             listOf(
                 Bodies.melodyMessage("track_stream_verification", Reports.streamVerification(p, sessionId, nextPlaybackId)),
-                Bodies.melodyMessage("jssdk_playback_stats", Reports.playbackStats(p, m, sessionId, reasonEnd, licences.lastLicenceLatencyMs, now, config.playbackStrategy)),
+                Bodies.melodyMessage("jssdk_playback_stats", Reports.playbackStats(p, metrics, sessionId, reasonEnd, licenceLatencyMs, now, config.playbackStrategy)),
             ),
             "harmony:${config.sdkVersion}",
         )
         putState(
             p, "track_data_finalized", putPosition, putPosition,
-            stats = Reports.finalizedStats(p, m, licences.lastLicenceLatencyMs, now, config.playbackStrategy),
+            stats = Reports.finalizedStats(p, metrics, licenceLatencyMs, now, config.playbackStrategy),
             duration = p.fileDurationMs, applyAnswer = !keepMachine,
         )
     }

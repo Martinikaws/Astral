@@ -1,31 +1,38 @@
 package com.music.spotui.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import app.myspoti.extensions.UiStyle
 import app.myspoti.power.EnergySettings
 import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.extensions.ExtensionLook
 import com.music.spotui.ui.look.LocalReduceMotion
+import com.music.spotui.ui.navigation.PlayerSheet
 import com.music.spotui.ui.theme.StarrySkyBottom
 import com.music.spotui.ui.theme.StarrySkyTop
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.PI
+import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -48,6 +55,10 @@ private data class ShootingStarSpec(
     val deltaYFraction: Float,
     val tailLengthDp: Float,
 )
+
+private const val CYCLE_DURATION_NANOS = 24_000_000_000f
+private const val TWO_PI_F = (2.0 * PI).toFloat()
+private const val PI_F = PI.toFloat()
 
 private val ShootingStars = listOf(
     ShootingStarSpec(
@@ -89,9 +100,16 @@ fun StarryNightBackdrop(modifier: Modifier = Modifier) {
     remember(ctx) { StarryNightPref.init(ctx); true }
     val enabled by StarryNightPref.enabled.collectAsState()
     val shootingEnabled by StarryNightPref.shootingStars.collectAsState()
-    if (!enabled || EnergySettings.oledBlack || ExtensionLook.color(UiStyle.BACKGROUND) != null) return
+    val energy by EnergySettings.state.collectAsStateWithLifecycle()
+    val oledBlack = EnergySettings.oledBlack || energy.policy.oledBlack
+    if (!enabled || oledBlack || ExtensionLook.color(UiStyle.BACKGROUND) != null) return
 
     val reduceMotion = LocalReduceMotion.current == true
+    val saverEnabled = energy.policy.saverEnabled
+    val active = !reduceMotion && !PlayerSheet.open.value && !saverEnabled
+    val staticStarsOnly = reduceMotion || saverEnabled
+    val targetFps = minOf(if (shootingEnabled) 30 else 15, energy.policy.progressFps.coerceIn(1, 120))
+
     val stars = remember {
         val rng = Random(42)
         List(55) {
@@ -109,82 +127,159 @@ fun StarryNightBackdrop(modifier: Modifier = Modifier) {
         }
     }
 
-    val cycleProgress: Float = if (reduceMotion) {
-        0f
-    } else {
-        val transition = rememberInfiniteTransition(label = "starryNight")
-        val animated by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 24_000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "starryNightCycle",
-        )
-        animated
-    }
-
-    val skyBrush = remember {
-        Brush.verticalGradient(colors = listOf(StarrySkyTop, StarrySkyBottom))
-    }
-
-    Canvas(modifier = modifier) {
-        drawRect(brush = skyBrush)
-
-        val w = size.width
-        val h = size.height
-        val twoPi = (2.0 * PI).toFloat()
-
-        for (star in stars) {
-            val alpha = if (reduceMotion) {
-                (star.minAlpha + star.maxAlpha) * 0.5f
-            } else {
-                val wave = 0.5f + 0.5f * sin(twoPi * (cycleProgress * star.cycles + star.phase))
-                star.minAlpha + (star.maxAlpha - star.minAlpha) * wave
+    val cycleProgressState = remember { mutableFloatStateOf(0f) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(active, targetFps, lifecycle) {
+        if (!active) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val cadence = FrameCadence(targetFps)
+            val periodMs = 1000L / targetFps
+            var prevNanos = -1L
+            while (isActive) {
+                val nowNanos = withFrameNanos { it }
+                if (prevNanos < 0L) {
+                    prevNanos = nowNanos
+                } else if (cadence.shouldTick(nowNanos)) {
+                    val dtNanos = (nowNanos - prevNanos).coerceIn(0L, 250_000_000L)
+                    prevNanos = nowNanos
+                    cycleProgressState.floatValue =
+                        (cycleProgressState.floatValue + dtNanos / CYCLE_DURATION_NANOS) % 1f
+                }
+                delay((periodMs - 4L).coerceAtLeast(1L))
             }
-            drawCircle(
-                color = Color.White.copy(alpha = alpha),
-                radius = star.radiusDp.dp.toPx(),
-                center = Offset(star.xFraction * w, star.yFraction * h),
-            )
         }
+    }
 
-        if (!reduceMotion && shootingEnabled) {
-            for (meteor in ShootingStars) {
-                val endCycle = meteor.startCycle + meteor.durationCycle
-                if (cycleProgress in meteor.startCycle..endCycle) {
-                    val p = (cycleProgress - meteor.startCycle) / meteor.durationCycle
-                    val envelope = sin(PI.toFloat() * p).coerceIn(0f, 1f)
-                    val headX = (meteor.startXFraction + meteor.deltaXFraction * p) * w
-                    val headY = (meteor.startYFraction + meteor.deltaYFraction * p) * h
-                    val dx = meteor.deltaXFraction * w
-                    val dy = meteor.deltaYFraction * h
-                    val len = kotlin.math.hypot(dx, dy).coerceAtLeast(1f)
-                    val tailPx = meteor.tailLengthDp.dp.toPx() * (0.4f + 0.6f * envelope)
-                    val tailX = headX - (dx / len) * tailPx
-                    val tailY = headY - (dy / len) * tailPx
+    val staticStarsState = rememberUpdatedState(staticStarsOnly)
+    val shootingEnabledState = rememberUpdatedState(shootingEnabled)
 
-                    val head = Offset(headX, headY)
-                    val tail = Offset(tailX, tailY)
-                    drawLine(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.85f * envelope)),
-                            start = tail,
-                            end = head,
-                        ),
-                        start = tail,
-                        end = head,
-                        strokeWidth = 2.dp.toPx(),
-                        cap = StrokeCap.Round,
-                    )
+    Spacer(
+        modifier = modifier.drawWithCache {
+            val w = size.width
+            val h = size.height
+            val skyBrush = Brush.verticalGradient(
+                colors = listOf(StarrySkyTop, StarrySkyBottom),
+                startY = 0f,
+                endY = h,
+            )
+
+            val starCount = stars.size
+            val starX = FloatArray(starCount)
+            val starY = FloatArray(starCount)
+            val starRadius = FloatArray(starCount)
+            val starMinAlpha = FloatArray(starCount)
+            val starAlphaSpan = FloatArray(starCount)
+            val starMidAlpha = FloatArray(starCount)
+            val starCycles = IntArray(starCount)
+            val starPhase = FloatArray(starCount)
+            for (i in 0 until starCount) {
+                val star = stars[i]
+                starX[i] = star.xFraction * w
+                starY[i] = star.yFraction * h
+                starRadius[i] = star.radiusDp.dp.toPx()
+                starMinAlpha[i] = star.minAlpha
+                starAlphaSpan[i] = star.maxAlpha - star.minAlpha
+                starMidAlpha[i] = (star.minAlpha + star.maxAlpha) * 0.5f
+                starCycles[i] = star.cycles
+                starPhase[i] = star.phase
+            }
+
+            val meteorCount = ShootingStars.size
+            val meteorStartX = FloatArray(meteorCount)
+            val meteorStartY = FloatArray(meteorCount)
+            val meteorDeltaX = FloatArray(meteorCount)
+            val meteorDeltaY = FloatArray(meteorCount)
+            val meteorDirX = FloatArray(meteorCount)
+            val meteorDirY = FloatArray(meteorCount)
+            val meteorTailPx = FloatArray(meteorCount)
+            val meteorStrokePx = 2.dp.toPx()
+            for (i in 0 until meteorCount) {
+                val m = ShootingStars[i]
+                meteorStartX[i] = m.startXFraction * w
+                meteorStartY[i] = m.startYFraction * h
+                val dx = m.deltaXFraction * w
+                val dy = m.deltaYFraction * h
+                val len = hypot(dx, dy).coerceAtLeast(1f)
+                meteorDeltaX[i] = dx
+                meteorDeltaY[i] = dy
+                meteorDirX[i] = dx / len
+                meteorDirY[i] = dy / len
+                meteorTailPx[i] = m.tailLengthDp.dp.toPx()
+            }
+
+            onDrawBehind {
+                drawRect(brush = skyBrush)
+
+                val staticOnly = staticStarsState.value
+                val cycleProgress = cycleProgressState.floatValue
+
+                for (i in 0 until starCount) {
+                    val alpha = if (staticOnly) {
+                        starMidAlpha[i]
+                    } else {
+                        val wave = 0.5f + 0.5f * sin(TWO_PI_F * (cycleProgress * starCycles[i] + starPhase[i]))
+                        starMinAlpha[i] + starAlphaSpan[i] * wave
+                    }
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.95f * envelope),
-                        radius = 2.dp.toPx(),
-                        center = head,
+                        color = Color.White,
+                        radius = starRadius[i],
+                        center = Offset(starX[i], starY[i]),
+                        alpha = alpha,
                     )
                 }
+
+                if (!staticOnly && shootingEnabledState.value) {
+                    for (i in 0 until meteorCount) {
+                        val m = ShootingStars[i]
+                        val endCycle = m.startCycle + m.durationCycle
+                        if (cycleProgress in m.startCycle..endCycle) {
+                            val p = (cycleProgress - m.startCycle) / m.durationCycle
+                            val envelope = sin(PI_F * p).coerceIn(0f, 1f)
+                            val headX = meteorStartX[i] + meteorDeltaX[i] * p
+                            val headY = meteorStartY[i] + meteorDeltaY[i] * p
+                            val tailLen = meteorTailPx[i] * (0.4f + 0.6f * envelope)
+                            val ux = meteorDirX[i]
+                            val uy = meteorDirY[i]
+
+                            val seg1 = Offset(headX - ux * tailLen, headY - uy * tailLen)
+                            val seg2 = Offset(headX - ux * (tailLen * 0.62f), headY - uy * (tailLen * 0.62f))
+                            val seg3 = Offset(headX - ux * (tailLen * 0.28f), headY - uy * (tailLen * 0.28f))
+                            val head = Offset(headX, headY)
+
+                            drawLine(
+                                color = Color.White,
+                                start = seg1,
+                                end = seg2,
+                                strokeWidth = meteorStrokePx * 0.55f,
+                                cap = StrokeCap.Round,
+                                alpha = 0.22f * envelope,
+                            )
+                            drawLine(
+                                color = Color.White,
+                                start = seg2,
+                                end = seg3,
+                                strokeWidth = meteorStrokePx * 0.80f,
+                                cap = StrokeCap.Round,
+                                alpha = 0.52f * envelope,
+                            )
+                            drawLine(
+                                color = Color.White,
+                                start = seg3,
+                                end = head,
+                                strokeWidth = meteorStrokePx,
+                                cap = StrokeCap.Round,
+                                alpha = 0.85f * envelope,
+                            )
+                            drawCircle(
+                                color = Color.White,
+                                radius = meteorStrokePx,
+                                center = head,
+                                alpha = 0.95f * envelope,
+                            )
+                        }
+                    }
+                }
             }
-        }
-    }
+        },
+    )
 }

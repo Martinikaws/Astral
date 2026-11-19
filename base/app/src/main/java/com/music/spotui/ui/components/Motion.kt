@@ -83,15 +83,21 @@ fun Modifier.pressHint(onHint: () -> Unit): Modifier = composed {
     }
 }
 
+private val PressScaleSpring = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+
 /** The shrink of [pressable], for a control whose clickable sits further down the chain. */
 fun Modifier.pressScale(source: MutableInteractionSource, pressedScale: Float = 0.9f): Modifier = composed {
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(
+    val scale = animateFloatAsState(
         if (pressed) pressedScale else 1f,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        PressScaleSpring,
         label = "press",
     )
-    graphicsLayer { scaleX = scale; scaleY = scale }
+    graphicsLayer {
+        val s = scale.value
+        scaleX = s
+        scaleY = s
+    }
 }
 
 /**

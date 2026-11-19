@@ -1,5 +1,7 @@
 package app.myspoti.extensions
 
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.Dns
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -116,6 +118,11 @@ object SafeNet {
      */
     val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dispatcher(Dispatcher().apply {
+                maxRequests = 128
+                maxRequestsPerHost = 32
+            })
+            .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
             .dns(SafeDns)
             .followRedirects(false)
             .followSslRedirects(false)

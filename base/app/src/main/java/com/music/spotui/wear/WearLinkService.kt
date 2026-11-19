@@ -11,6 +11,7 @@ import com.google.android.gms.wearable.WearableListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
@@ -62,7 +63,17 @@ class WearLinkService : WearableListenerService() {
 
     /** The watch's "Phone" mode: remote commands for what this phone plays ([WatchRemote]). */
     override fun onMessageReceived(event: MessageEvent) {
-        if (event.path.startsWith(WatchRemote.PREFIX)) WatchRemote.onMessage(applicationContext, event.sourceNodeId, event.path, event.data)
+        if (!event.path.startsWith(WatchRemote.PREFIX)) return
+        when (event.path.removePrefix(WatchRemote.COMMAND)) {
+            "watch_open" -> WatchRemote.setWatchActive(true)
+            "watch_close" -> WatchRemote.setWatchActive(false)
+            else -> WatchRemote.onMessage(applicationContext, event.sourceNodeId, event.path, event.data)
+        }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {

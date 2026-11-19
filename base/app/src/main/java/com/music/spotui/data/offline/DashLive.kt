@@ -3,8 +3,10 @@ package com.music.spotui.data.offline
 import java.io.IOException
 import com.music.spotui.extensions.MediaHttp
 import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * An MPEG-DASH manifest of FLAC in fragmented MP4 (an `audio-source` answer),
@@ -18,6 +20,7 @@ internal class DashLive(
     private val segmentSizes: LongArray,
     /** Each segment fetched: its index, its length and how long it took (the debug log). */
     private val fetched: (index: Int, bytes: Int, ms: Long) -> Unit = { _, _, _ -> },
+    initialSeg0: ByteArray? = null,
     private val fetch: (url: String) -> ByteArray,
 ) {
     /** The whole virtual file's length. */
@@ -39,6 +42,10 @@ internal class DashLive(
     }
     /** The segments being fetched: a read of one waits for that fetch instead of starting another. */
     private val loading = HashMap<Int, FutureTask<ByteArray>>()
+
+    init {
+        if (initialSeg0 != null && segmentSizes.isNotEmpty()) cached[0] = initialSeg0
+    }
 
     /** Fetches the first segment ahead, so the song starts without waiting for it. */
     fun warm() {
@@ -103,38 +110,83 @@ internal class DashLive(
     companion object {
         /** Segments kept per song: two readers, each with the one it is on and the one before. */
         private const val KEPT_SEGMENTS = 4
-        // Segment sizes are asked all at once (same CDN host, kept-alive connections): ~4 rounds for a song.
-        private const val PARALLEL = 16
+        // Segment sizes and seg 0 are fetched together on a warm daemon pool: ~2 rounds for a song.
+        private const val PARALLEL = 32
+        private val pool: ThreadPoolExecutor by lazy {
+            ThreadPoolExecutor(
+                PARALLEL, PARALLEL, 60L, TimeUnit.SECONDS,
+                LinkedBlockingQueue(),
+            ) { r -> Thread(r, "dash-live").apply { isDaemon = true } }
+                .apply { allowCoreThreadTimeOut(true) }
+        }
         private val cache = object : LinkedHashMap<String, Pair<Long, DashLive>>(8, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, DashLive>>?) = size > 4
         }
+        private val opening = HashMap<String, FutureTask<DashLive>>()
         private const val KEEP_MS = 10 * 60_000L
         private const val LOG = app.myspoti.host.android.WebPlayerHost.LOG
 
         /** The live file of [manifestB64] (kept a few minutes: the player opens it again on every seek). */
         fun open(manifestB64: String, headers: Map<String, String>, userAgent: String): DashLive {
-            synchronized(cache) {
+            val task = synchronized(cache) {
                 cache[manifestB64]?.takeIf { System.currentTimeMillis() - it.first < KEEP_MS }?.let { return it.second }
+                opening.getOrPut(manifestB64) { FutureTask { openNow(manifestB64, headers, userAgent) } }
             }
+            task.run()
+            return try {
+                val live = task.get()
+                synchronized(cache) { cache[manifestB64] = System.currentTimeMillis() to live }
+                live
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw java.io.InterruptedIOException("dash open interrupted")
+            } catch (e: java.util.concurrent.ExecutionException) {
+                if (e.cause is InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw java.io.InterruptedIOException("dash open interrupted")
+                }
+                throw (e.cause as? IOException) ?: IOException(e.cause)
+            } finally {
+                if (task.isDone) synchronized(cache) { opening.remove(manifestB64, task) }
+            }
+        }
+
+        private fun openNow(manifestB64: String, headers: Map<String, String>, userAgent: String): DashLive {
             val mpd = String(java.util.Base64.getMimeDecoder().decode(manifestB64))
             val plan = parse(mpd) ?: throw IOException("not a segmented DASH manifest")
             val get = { url: String -> httpBytes(url, headers, userAgent) }
-            val pool = Executors.newFixedThreadPool(PARALLEL)
+            val n = plan.segmentUrls.size
+            val initFut = pool.submit(Callable { get(plan.initUrl) })
+            val seg0Fut = if (n > 0) pool.submit(Callable { get(plan.segmentUrls[0]) }) else null
+            val sizeFuts = (1 until n).map { i -> pool.submit(Callable { size(plan.segmentUrls[i], headers, userAgent) }) }
             val live = try {
-                val init = pool.submit(Callable { get(plan.initUrl) })
-                val sizes = plan.segmentUrls.map { u -> pool.submit(Callable { size(u, headers, userAgent) }) }
-                val initBytes = init.get()
-                val segmentSizes = LongArray(sizes.size) { sizes[it].get() }
-                DashLive(initBytes + sidx(plan.timescale, plan.durations, segmentSizes), plan.segmentUrls, segmentSizes, fetched = { i, n, ms ->
-                    android.util.Log.d(LOG, "dash: segment ${i + 1}/${plan.segmentUrls.size} fetched, $n bytes in $ms ms")
-                }, fetch = get)
+                val initBytes = initFut.get()
+                val seg0Bytes = seg0Fut?.get()
+                val segmentSizes = LongArray(n) { i ->
+                    if (i == 0) seg0Bytes!!.size.toLong() else sizeFuts[i - 1].get()
+                }
+                DashLive(
+                    initBytes + sidx(plan.timescale, plan.durations, segmentSizes),
+                    plan.segmentUrls,
+                    segmentSizes,
+                    fetched = { i, bytes, ms ->
+                        android.util.Log.d(LOG, "dash: segment ${i + 1}/$n fetched, $bytes bytes in $ms ms")
+                    },
+                    initialSeg0 = seg0Bytes,
+                    fetch = get,
+                )
             } catch (e: java.util.concurrent.ExecutionException) {
+                initFut.cancel(true)
+                seg0Fut?.cancel(true)
+                sizeFuts.forEach { it.cancel(true) }
                 throw (e.cause as? IOException) ?: IOException(e.cause)
-            } finally {
-                pool.shutdownNow()
+            } catch (t: Throwable) {
+                initFut.cancel(true)
+                seg0Fut?.cancel(true)
+                sizeFuts.forEach { it.cancel(true) }
+                throw t
             }
-            synchronized(cache) { cache[manifestB64] = System.currentTimeMillis() to live }
-            android.util.Log.d(LOG, "dash: opened, ${live.length} bytes in ${plan.segmentUrls.size} segments")
+            android.util.Log.d(LOG, "dash: opened, ${live.length} bytes in $n segments")
             return live
         }
 

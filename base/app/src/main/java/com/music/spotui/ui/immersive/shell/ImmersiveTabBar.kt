@@ -138,6 +138,16 @@ private val TabRoutes = listOf(Routes.Home.route, Routes.Search.route, Routes.Li
 /** The tabs the bar shows. */
 internal val TabItems = listOf(Routes.Home, Routes.Library, Routes.Modules, Routes.Search)
 
+private val GlassifyTabBorderBrush = Brush.linearGradient(
+    colors = listOf(
+        Color.White.copy(alpha = 0.24f),
+        Color.White.copy(alpha = 0.10f),
+        Color.White.copy(alpha = 0.04f),
+    ),
+    start = Offset.Zero,
+    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+)
+
 /** The tab bar itself (pill and Search circle), filling the width [modifier] leaves it. */
 @Composable
 internal fun TabBarContent(
@@ -166,25 +176,19 @@ internal fun TabBarContent(
     val reduceMotion = rememberReduceMotion()
 
     // A factory, not a value: each surface gets its own glass modifier styled for the active Look.
-    val glassSurface: @Composable () -> Modifier = {
-        when (look) {
-            Look.GLASSIFY -> Modifier
-                .shadow(10.dp, pillShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.45f))
-                .immersiveGlassSurface(pillShape)
-                .border(
-                    width = 1.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.24f),
-                            Color.White.copy(alpha = 0.10f),
-                            Color.White.copy(alpha = 0.04f),
-                        ),
-                        start = Offset.Zero,
-                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                    ),
-                    shape = pillShape,
-                )
-            else -> Modifier.immersiveGlassSurface(pillShape)
+    val glassSurface: @Composable () -> Modifier = remember(look, pillShape) {
+        {
+            when (look) {
+                Look.GLASSIFY -> Modifier
+                    .shadow(10.dp, pillShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.45f))
+                    .immersiveGlassSurface(pillShape)
+                    .border(
+                        width = 1.dp,
+                        brush = GlassifyTabBorderBrush,
+                        shape = pillShape,
+                    )
+                else -> Modifier.immersiveGlassSurface(pillShape)
+            }
         }
     }
     val indicatorColor = when (look) {

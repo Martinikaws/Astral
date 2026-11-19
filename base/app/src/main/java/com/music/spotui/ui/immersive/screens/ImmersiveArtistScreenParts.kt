@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,7 +51,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
@@ -67,7 +65,6 @@ import com.music.spotui.ui.immersive.components.ImmersivePlayingBars
 import com.music.spotui.ui.immersive.components.ImmersiveSongTitle
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.components.immersiveThumbnailBorder
-import kotlin.math.roundToInt
 
 /** How far the artist photo is blurred over its foot, where it dissolves into the page. */
 private val SoftFootBlur = 48.dp
@@ -101,8 +98,8 @@ private fun LazyListState.headerTop(artHeightPx: Float): Float =
 /**
  * Everything on an artist page that is colour rather than words: the photo, full bleed up under
  * the bar, with its foot dissolved into the page. A layer of its own so the list can be scrolled
- * over it rather than carry it: it follows the scroll (read in the offset block, so a scroll moves
- * it without recomposing anything) instead of being scrolled.
+ * over it rather than carry it: it follows the scroll (read in the graphicsLayer block, so a scroll
+ * moves it at layer/draw phase without recomposing or re-laying out anything) instead of being scrolled.
  *
  * A blurred copy of the photo is faded in over the lower half, so the picture loses its detail
  * before it loses its colour — a merge rather than a fade to flat black. Drawn once: nothing
@@ -136,7 +133,7 @@ internal fun ArtistBackdrop(
             Modifier
                 .fillMaxWidth()
                 .height(artHeight)
-                .offset { IntOffset(0, listState.headerTop(artHeightPx).roundToInt()) },
+                .graphicsLayer { translationY = listState.headerTop(artHeightPx) },
         ) {
             Box(Modifier.matchParentSize().then(bottomFadeModifier)) {
                 Box(Modifier.matchParentSize().background(Immersive.Raised))

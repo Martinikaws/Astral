@@ -23,6 +23,7 @@ import app.myspoti.host.android.NativeTokens
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -119,6 +120,30 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val spotify = MyspotiRuntime.spotify
         spotify.player.audio = this
         spotify.devices.ownDeviceId = { deviceId }
+        val prefs = Graph.app.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE)
+        if (on &&
+            !com.music.spotui.extensions.Extensions.hasAudioSource() &&
+            !com.music.spotui.data.DataSaver.active &&
+            SongPlayer.accountPlays &&
+            prefs.getBoolean("LoggedIn", false)
+        ) {
+            scope.launch {
+                if (!spotify.http.hasToken()) {
+                    spotify.ready.first { it }
+                    if (!runCatching { MyspotiRuntime.isSignedIn() }.getOrDefault(false)) return@launch
+                } else if (MyspotiRuntime.host.loginRequired.value) {
+                    return@launch
+                }
+                if (on &&
+                    !com.music.spotui.extensions.Extensions.hasAudioSource() &&
+                    !com.music.spotui.data.DataSaver.active &&
+                    SongPlayer.accountPlays &&
+                    com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)
+                ) {
+                    runCatching { ready() }
+                }
+            }
+        }
     }
 
     /** The engine, started and registered first if it was not (the account's player, or the listen mirror's device). */
@@ -144,10 +169,11 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
 
     /** The playback service in the foreground before the engine's player asks for the audio (Android refuses it otherwise). */
     private suspend fun foreground() {
-        if (app.myspoti.host.android.PlaybackService.isRunning) return
+        if (app.myspoti.host.android.PlaybackService.isForeground) return
         app.myspoti.host.android.PlaybackService.ensureStarted(Graph.app)
-        kotlinx.coroutines.withTimeoutOrNull(FOREGROUND_MS) { while (!app.myspoti.host.android.PlaybackService.isRunning) kotlinx.coroutines.delay(40) }
-        kotlinx.coroutines.delay(150)
+        kotlinx.coroutines.withTimeoutOrNull(FOREGROUND_MS) {
+            while (!app.myspoti.host.android.PlaybackService.isForeground) kotlinx.coroutines.delay(15)
+        }
     }
     private const val FOREGROUND_MS = 2_000L
     private const val LOAD_WAIT_MS = 6_000L
@@ -219,28 +245,41 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val chromium = ChromiumHttp(context).also { http = it }
         val logged = LoggedHttp(chromium)
         val p = Media3DrmPlayer(context, chromium, log = ::log, forceL3 = forceL3).also { player = it }
-        val config = NativeTokens.config(spotify.http)
-        val e = NativeEngine(logged, NativeTokens(spotify.http), OkHttpWebSockets(MyspotiRuntime.apiHttp), Observed(p), AndroidEnvironment, config, scope)
-        // A pause the player made itself (focus lost, headphones out) becomes a pause command, so
-        // the account's state follows and the engine reports it when the push comes back.
-        p.onPlayerPause = { why -> log("player paused itself: $why"); scope.launch { runCatching { e.pause() } } }
-        scope.launch {
-            e.events.collect { ev ->
-                lastEvent = ev.toString().take(120)
-                log("event $ev")
-                if (ev is EngineEvent.Failure || ev is EngineEvent.Unauthorized) log("attention: $ev")
-                // The player itself failed (the licence refused, the file unreadable): the page takes over.
-                if (ev is EngineEvent.Failure && ev.message.startsWith("player:")) setAside(ev.message)
-                // The dealer closed: no command reaches the engine any more; the next use starts it again.
-                if (ev is EngineEvent.Disconnected) dropped(e)
+        var eventsJob: kotlinx.coroutines.Job? = null
+        var created: NativeEngine? = null
+        try {
+            val config = NativeTokens.config(spotify.http)
+            val e = NativeEngine(logged, NativeTokens(spotify.http), OkHttpWebSockets(MyspotiRuntime.apiHttp), Observed(p), AndroidEnvironment, config, scope)
+            created = e
+            // A pause the player made itself (focus lost, headphones out) becomes a pause command, so
+            // the account's state follows and the engine reports it when the push comes back.
+            p.onPlayerPause = { why -> log("player paused itself: $why"); scope.launch { runCatching { e.pause() } } }
+            eventsJob = scope.launch {
+                e.events.collect { ev ->
+                    lastEvent = ev.toString().take(120)
+                    log("event $ev")
+                    if (ev is EngineEvent.Failure || ev is EngineEvent.Unauthorized) log("attention: $ev")
+                    // The player itself failed (the licence refused, the file unreadable): the page takes over.
+                    if (ev is EngineEvent.Failure && ev.message.startsWith("player:")) setAside(ev.message)
+                    // The dealer closed: no command reaches the engine any more; the next use starts it again.
+                    if (ev is EngineEvent.Disconnected) dropped(e)
+                }
             }
+            log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")
+            e.start()
+            log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
+            engine = e
+            _current.value = e
+            scope.launch { e.prewarmDrm() }
+            e
+        } catch (t: Throwable) {
+            eventsJob?.cancel()
+            created?.let { runCatching { it.close() } }
+            p.release()
+            player = null
+            http = null
+            throw t
         }
-        log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")
-        e.start()
-        log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
-        engine = e
-        _current.value = e
-        e
     }
 
     private fun dropped(e: NativeEngine) {

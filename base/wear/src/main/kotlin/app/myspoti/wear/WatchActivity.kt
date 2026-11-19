@@ -28,7 +28,7 @@ class WatchActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == ACTION_MEDIA_CONTROLS) RemoteLink.send("hello")
+        if (intent?.action == ACTION_MEDIA_CONTROLS) RemoteLink.send("watch_open")
     }
 
     private companion object {
