@@ -25,6 +25,7 @@ import androidx.media.MediaBrowserServiceCompat
 import androidx.media.VolumeProviderCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media.session.MediaButtonReceiver
+import androidx.media.utils.MediaConstants
 import android.util.LruCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,16 @@ data class NowPlayingInfo(
      * a radio); false for a file of the phone or a download. The Wi-Fi lock is for the first only.
      */
     val streamed: Boolean = true,
+    /** Repeat as the car shows it: [CarActions.REPEAT_OFF], [CarActions.REPEAT_ALL] (the list) or [CarActions.REPEAT_ONE] (the song). */
+    val repeat: Int = 0,
+    /** Podcast speed (1 for music): the speed button of an episode. */
+    val speed: Float = 1f,
+    /** The explicit badge of the song. */
+    val explicit: Boolean = false,
+    /** The list or album playing ("Playing from ..."); empty when none. */
+    val contextName: String = "",
+    /** The browse id of the song in the list it plays from (see PlaybackState extras): the car marks that row. */
+    val browseId: String? = null,
 ) {
     /**
      * Audio goes on, or is about to: a song plays or loads, or an ad break runs. An ad is shown
@@ -69,11 +80,13 @@ data class NowPlayingInfo(
 
     /** Everything but the position: a moving position alone is not a new state. */
     fun sameAs(other: NowPlayingInfo) = sameMetadata(other) && playing == other.playing && buffering == other.buffering &&
-        liked == other.liked && shuffle == other.shuffle && episode == other.episode && streamed == other.streamed
+        liked == other.liked && shuffle == other.shuffle && episode == other.episode && streamed == other.streamed &&
+        repeat == other.repeat && speed == other.speed && browseId == other.browseId
 
     /** The session's metadata is the same (what it carries with its artwork, sent again only when it changes). */
     fun sameMetadata(other: NowPlayingInfo) = id == other.id && title == other.title && artist == other.artist &&
-        album == other.album && coverUrl == other.coverUrl && durationMs == other.durationMs
+        album == other.album && coverUrl == other.coverUrl && durationMs == other.durationMs &&
+        explicit == other.explicit && contextName == other.contextName
 
     /** The notification shows the same (its text, its cover, its play / pause, like and 15 s buttons): not posted again. */
     fun sameNotification(other: NowPlayingInfo) = title == other.title && artist == other.artist && album == other.album &&
@@ -116,6 +129,18 @@ interface PlaybackControls {
     fun playFromSearch(query: String)
     fun setRemoteVolume(volume: Int)
     fun setShuffle(on: Boolean) {}
+    /** The car's repeat button: [CarActions.REPEAT_OFF] / [CarActions.REPEAT_ALL] / [CarActions.REPEAT_ONE]. */
+    fun setRepeatMode(mode: Int) {}
+    /** A tap on the repeat button: the next mode ([CarActions.nextRepeat]). */
+    fun cycleRepeat() {}
+    /** "Start radio" from the song playing. */
+    fun startRadio() {}
+    /** "Add to playlist": the song playing goes to the playlist chosen for the car. */
+    fun addToPlaylist() {}
+    /** The speed button of an episode: the next speed ([CarActions.nextSpeed]). */
+    fun cycleSpeed() {}
+    /** A voice search with the structured extras the assistant gave (artist, album, title, focus); defaults to the words. */
+    fun playFromSearch(query: String, extras: Bundle?) = playFromSearch(query)
     /** What plays is a podcast episode. */
     val isEpisode: Boolean get() = false
     /** Skips [deltaMs] within the episode; at its end, goes on to the next item. */
@@ -128,6 +153,11 @@ interface PlaybackControls {
 interface MediaLibrary {
     suspend fun children(context: Context, parentId: String): List<MediaBrowserCompat.MediaItem>
     suspend fun search(query: String): List<MediaBrowserCompat.MediaItem>
+    /**
+     * The folder as last listed (kept from an earlier browse, even before the player is up): shown
+     * at once while [children] reads it again. Null when never listed.
+     */
+    fun cached(context: Context, parentId: String): List<MediaBrowserCompat.MediaItem>? = null
 }
 
 /**
@@ -159,10 +189,12 @@ class PlaybackService : MediaBrowserServiceCompat() {
             // Android Auto binds on a cold start, before the app has pushed any state: a
             // session without a playback state gives the car no play button, and no command
             // is ever sent (issue #41). Paused with the full action set: the car can play.
-            setPlaybackState(PlaybackStateCompat.Builder()
-                .setActions(ACTIONS)
-                .setState(PlaybackStateCompat.STATE_PAUSED, 0L, 0f)
-                .build())
+            setPlaybackState(idleState())
+            // Prev / next keep their place whether or not they can be used: the side buttons do not jump.
+            setExtras(Bundle().apply {
+                putBoolean(MediaConstants.SESSION_EXTRAS_KEY_SLOT_RESERVATION_SKIP_TO_PREV, true)
+                putBoolean(MediaConstants.SESSION_EXTRAS_KEY_SLOT_RESERVATION_SKIP_TO_NEXT, true)
+            })
             isActive = true
         }
         sessionToken = session.sessionToken
@@ -304,21 +336,35 @@ class PlaybackService : MediaBrowserServiceCompat() {
         override fun onStop() = command("stop", wake = false) { pause() }
         override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {
             // The "recent" item of the resumption root (see onGetRoot): play on where the last session stopped.
-            if (mediaId == RESUME_ID) command("resume") { play() } else command("play $mediaId") { playFromMediaId(mediaId) }
+            if (mediaId == RESUME_ID) command("resume") { play() }
+            // Choosing the add-to-playlist target plays nothing: no foreground service for it.
+            else command("play $mediaId", wake = !mediaId.startsWith("target|")) { playFromMediaId(mediaId) }
         }
         // The car's own shuffle button (Android Auto greys it out without the action).
         override fun onSetShuffleMode(shuffleMode: Int) = command("shuffle mode $shuffleMode", wake = false) {
             setShuffle(shuffleMode != PlaybackStateCompat.SHUFFLE_MODE_NONE)
         }
+        override fun onSetRepeatMode(repeatMode: Int) = command("repeat mode $repeatMode", wake = false) {
+            setRepeatMode(when (repeatMode) {
+                PlaybackStateCompat.REPEAT_MODE_ONE -> CarActions.REPEAT_ONE
+                PlaybackStateCompat.REPEAT_MODE_ALL, PlaybackStateCompat.REPEAT_MODE_GROUP -> CarActions.REPEAT_ALL
+                else -> CarActions.REPEAT_OFF
+            })
+        }
         override fun onSkipToQueueItem(id: Long) = command("queue row $id") { skipToQueueItem(id) }
         override fun onPlayFromSearch(query: String, extras: Bundle?) = command("play from search") {
             // "Play music" with no words (Assistant, the car's voice button) is a plain play, not a search.
-            if (query.isBlank()) play() else playFromSearch(query)
+            if (query.isBlank()) play() else playFromSearch(query, extras)
         }
         override fun onCustomAction(action: String, extras: Bundle?) {
             when (action) {
-                ACTION_LIKE -> command("like", wake = false) { setLiked(!(current?.liked ?: false)) }
-                ACTION_SHUFFLE -> command("shuffle", wake = false) { setShuffle(!(current?.shuffle ?: false)) }
+                CarActions.LIKE -> command("like", wake = false) { setLiked(!(current?.liked ?: false)) }
+                CarActions.SHUFFLE -> command("shuffle", wake = false) { setShuffle(!(current?.shuffle ?: false)) }
+                CarActions.REPEAT -> command("repeat", wake = false) { cycleRepeat() }
+                // Radio plays a new list: it makes sound, the service must be started for real.
+                CarActions.RADIO -> command("radio") { startRadio() }
+                CarActions.ADD_TO_PLAYLIST -> command("add to playlist", wake = false) { addToPlaylist() }
+                CarActions.SPEED -> command("speed", wake = false) { cycleSpeed() }
             }
         }
     }
@@ -340,8 +386,17 @@ class PlaybackService : MediaBrowserServiceCompat() {
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, info.title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, info.artist)
             .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, info.album)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, info.coverUrl)
+            // A content:// URI the car can load (stable per cover, see [artworkUri]); the bitmap below serves the rest.
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, info.coverUrl?.let { artworkUri?.invoke(it) } ?: info.coverUrl)
+            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, info.title)
+            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, info.artist)
+            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION,
+                info.contextName.takeIf { it.isNotBlank() }?.let { getString(R.string.msp_playing_from, it) })
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, info.durationMs)
+            .apply {
+                if (info.explicit) putLong(MediaConstants.METADATA_KEY_IS_EXPLICIT, MediaConstants.METADATA_VALUE_ATTRIBUTE_PRESENT)
+                if (info.id == NowPlayingInfo.AD_ID) putLong(MediaConstants.METADATA_KEY_IS_ADVERTISEMENT, MediaConstants.METADATA_VALUE_ATTRIBUTE_PRESENT)
+            }
             .apply {
                 // Both keys: the lock screen, the shade, Bluetooth and the car do not read the same one.
                 val art = cover.takeIf { withArt && info.coverUrl == lastCoverUrl && it?.isRecycled == false }
@@ -369,23 +424,59 @@ class PlaybackService : MediaBrowserServiceCompat() {
 
     /** The play / pause / buffering state, the position and the buttons; also all a moved position needs ([update]). */
     private fun applyPlaybackState(info: NowPlayingInfo) {
+        // Signed out: the car says so and offers the way in, whatever the player last reported.
+        // (Never over music that is playing: the controls everywhere keep working.)
+        if (signInRequired && !info.playing) { session.setPlaybackState(idleState()); return }
         val state = when {
             info.buffering && info.playing -> PlaybackStateCompat.STATE_BUFFERING
             info.playing -> PlaybackStateCompat.STATE_PLAYING
             else -> PlaybackStateCompat.STATE_PAUSED
         }
         session.setShuffleMode(if (info.shuffle) PlaybackStateCompat.SHUFFLE_MODE_ALL else PlaybackStateCompat.SHUFFLE_MODE_NONE)
-        session.setPlaybackState(PlaybackStateCompat.Builder()
-            .setActions(if (info.episode) ACTIONS or SKIP_ACTIONS else ACTIONS)
-            // Like on the left of previous / play / next, shuffle on the right: five buttons, so
-            // play / pause sits in the middle (lock screen, Samsung Now Bar, Android 13+ shade).
-            .addCustomAction(ACTION_LIKE, getString(if (info.liked) R.string.msp_unlike else R.string.msp_like),
-                if (info.liked) R.drawable.msp_ic_liked else R.drawable.msp_ic_like)
-            .addCustomAction(ACTION_SHUFFLE, getString(if (info.shuffle) R.string.msp_shuffle_off else R.string.msp_shuffle_on),
-                if (info.shuffle) R.drawable.msp_ic_shuffle_on else R.drawable.msp_ic_shuffle)
-            .setState(state, info.positionMs, if (info.playing && !info.buffering) 1f else 0f)
+        session.setRepeatMode(when (info.repeat) {
+            CarActions.REPEAT_ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
+            CarActions.REPEAT_ONE -> PlaybackStateCompat.REPEAT_MODE_ONE
+            else -> PlaybackStateCompat.REPEAT_MODE_NONE
+        })
+        val builder = PlaybackStateCompat.Builder()
+            .setActions((if (info.episode) ACTIONS or SKIP_ACTIONS else ACTIONS) or PlaybackStateCompat.ACTION_SET_REPEAT_MODE)
+        // The side buttons in the order of [CarActions]: Like first (it also sits left of previous /
+        // play / next on the lock screen), the car keeps the first ones when short of room.
+        CarActions.forState(info).forEach { builder.addCustomAction(it.id, getString(it.label), it.icon) }
+        builder.setState(state, info.positionMs, if (info.playing && !info.buffering) 1f else 0f)
             .setActiveQueueItemId(QueueSync.activeRow(queue, activeQueueId, info.title, info.artist))
-            .build())
+        // The browse row of the song playing: the car marks it in the list it came from.
+        info.browseId?.let { id -> builder.setExtras(Bundle().apply { putString(MediaConstants.PLAYBACK_STATE_EXTRAS_KEY_MEDIA_ID, id) }) }
+        // A message that does not stop the music ("added to ...", "nothing found"): the car shows it, playback goes on.
+        notice?.let { builder.setErrorMessage(PlaybackStateCompat.ERROR_CODE_APP_ERROR, it) }
+        session.setPlaybackState(builder.build())
+    }
+
+    /**
+     * The state with nothing playing: paused with every transport action (the car can play), or the
+     * sign-in error when the account is gone: a message and a button that opens the app on the phone.
+     */
+    private fun idleState(): PlaybackStateCompat {
+        val builder = PlaybackStateCompat.Builder().setActions(ACTIONS)
+        if (!signInRequired) {
+            // A message with nothing playing (nothing found, choose a playlist first): shown on the paused state.
+            notice?.let { builder.setErrorMessage(PlaybackStateCompat.ERROR_CODE_APP_ERROR, it) }
+            return builder.setState(PlaybackStateCompat.STATE_PAUSED, 0L, 0f).build()
+        }
+        val extras = Bundle()
+        launchIntent()?.let {
+            extras.putParcelable(MediaConstants.PLAYBACK_STATE_EXTRAS_KEY_ERROR_RESOLUTION_ACTION_INTENT, it)
+            extras.putString(MediaConstants.PLAYBACK_STATE_EXTRAS_KEY_ERROR_RESOLUTION_ACTION_LABEL, getString(R.string.msp_open_app))
+        }
+        return builder.setState(PlaybackStateCompat.STATE_ERROR, 0L, 0f)
+            .setErrorMessage(PlaybackStateCompat.ERROR_CODE_AUTHENTICATION_EXPIRED, getString(R.string.msp_signin_required))
+            .setExtras(extras).build()
+    }
+
+    /** The state again (a notice came or went, the sign-in state changed), from what the player last said. */
+    private fun refreshState() {
+        val info = current
+        if (info != null && (!signInRequired || info.playing)) applyPlaybackState(info) else session.setPlaybackState(idleState())
     }
 
     /** The pushed queue ([updateQueue]) to the session; the row now playing is marked in the playback state. */
@@ -502,6 +593,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
      */
     @Volatile private var pausedOnPurpose = false
     private val locksRecheck = Runnable { updateLocks(current) }
+    private val clearNotice = Runnable { notice = null; refreshState() }
 
     /** Takes or drops the locks [PlaybackLocks] says the state [info] needs now. */
     private fun updateLocks(info: NowPlayingInfo?) {
@@ -721,11 +813,11 @@ class PlaybackService : MediaBrowserServiceCompat() {
             return BrowserRoot(RECENT_ROOT_ID, Bundle().apply { putBoolean(BrowserRoot.EXTRA_RECENT, true) })
         }
         return BrowserRoot(ROOT_ID, Bundle().apply {
-            putBoolean("android.media.browse.SEARCH_SUPPORTED", true)
+            putBoolean(MediaConstants.BROWSER_SERVICE_EXTRAS_KEY_SEARCH_SUPPORTED, true)
             // Without this the car ignores the list / grid hints of the folders (AutoBrowser).
             putBoolean("android.media.browse.CONTENT_STYLE_SUPPORTED", true)
-            putInt("android.media.browse.CONTENT_STYLE_BROWSABLE_HINT", 1)
-            putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT", 1)
+            putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+            putInt(MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
         })
     }
 
@@ -736,7 +828,17 @@ class PlaybackService : MediaBrowserServiceCompat() {
         if (parentId == RECENT_ROOT_ID) return result.sendResult(recentItems())
         val lib = library ?: return result.sendResult(mutableListOf())
         result.detach()
+        // The folder as it was last listed goes out at once (a cold start waits up to 25 s for the player
+        // page); it is read again behind, and the car asked to come back only if something changed.
+        // Read off the main thread: the kept folder is prefs, JSON and media items.
         scope.launch {
+            val shown = withContext(Dispatchers.IO) { runCatching { lib.cached(this@PlaybackService, parentId) }.getOrNull() }
+            if (shown != null) {
+                result.sendResult(shown.toMutableList())
+                val fresh = runCatching { lib.children(this@PlaybackService, parentId) }.getOrNull() ?: return@launch
+                if (signature(fresh) != signature(shown)) notifyChildrenChanged(parentId)
+                return@launch
+            }
             val outcome = runCatching { lib.children(this@PlaybackService, parentId).toMutableList() }
             val items = outcome.getOrNull()
             if (items == null) {
@@ -762,10 +864,19 @@ class PlaybackService : MediaBrowserServiceCompat() {
         }
     }
 
+    /** What the car would show of [items]: a folder that reads the same is not announced as changed. */
+    private fun signature(items: List<MediaBrowserCompat.MediaItem>) = items.map {
+        val d = it.description
+        // The extras too: episode progress, explicit, download and group change what a row shows.
+        val e = d.extras
+        val extra = e?.keySet()?.sorted()?.joinToString(",") { k -> "$k=${e.get(k)}" }.orEmpty()
+        "${it.mediaId}|${d.title}|${d.subtitle}|${d.iconUri}|${d.description}|$extra"
+    }
+
     /** The song played last, as the one playable item of the resumption root: a tap plays on ([RESUME_ID]). */
     private fun recentItems(): MutableList<MediaBrowserCompat.MediaItem> {
         val info = current?.takeIf { it.title.isNotBlank() } ?: return mutableListOf()
-        val icon = info.coverUrl?.takeIf { it.startsWith("http") }
+        val icon = info.coverUrl?.takeIf { it.startsWith("http") }?.let { artworkUri?.invoke(it) ?: it }
         return mutableListOf(MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder()
             .setMediaId(RESUME_ID).setTitle(info.title).setSubtitle(info.artist).setIconUri(icon?.let(Uri::parse))
             .build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))
@@ -827,8 +938,9 @@ class PlaybackService : MediaBrowserServiceCompat() {
         private const val RESUME_ID = "resume"
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
-        private const val ACTION_LIKE = "like"
-        private const val ACTION_SHUFFLE = "shuffle"
+        private const val ACTION_LIKE = CarActions.LIKE
+        /** How long a message that does not stop the music stays on the car's screen. */
+        private const val NOTICE_MS = 4_000L
         /** Everything the car, the lock screen and the notification may ask for. */
         private val ACTIONS = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or
             PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
@@ -917,6 +1029,38 @@ class PlaybackService : MediaBrowserServiceCompat() {
         /** Set once by the app. */
         @Volatile var controls: PlaybackControls? = null
         @Volatile var library: MediaLibrary? = null
+
+        /**
+         * Maps a cover url to the content:// URI the car loads (the app's artwork provider); null: the
+         * url as it is. Set once by the app, so a cover keeps one stable URI and is not reloaded.
+         */
+        @Volatile var artworkUri: ((String) -> String?)? = null
+
+        /** A message for the car that does not stop playback; shown by the state's error message for [NOTICE_MS]. */
+        @Volatile private var notice: String? = null
+
+        /** Any thread. */
+        fun notice(text: String) {
+            // No service running: nothing shows it and nothing would clear it, so it is not kept.
+            val svc = instance ?: return
+            notice = text
+            svc.handler.post {
+                svc.refreshState()
+                svc.handler.removeCallbacks(svc.clearNotice)
+                svc.handler.postDelayed(svc.clearNotice, NOTICE_MS)
+            }
+        }
+
+        /**
+         * No account is signed in: the car's player shows an error with a button to open the app
+         * (until signed in again). Kept for a service not running yet: it starts in that state.
+         */
+        @Volatile var signInRequired = false
+            set(value) {
+                if (field == value) return
+                field = value
+                instance?.handler?.post { instance?.refreshState() }
+            }
 
         /**
          * Starts the service ahead of a play that is about to make sound: Android gives the audio

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">Riproduci</string>
+    <string name="aa_shuffle">Casuale</string>
+    <string name="aa_quick_play">Riproduzione rapida</string>
+    <string name="aa_shuffle_liked">Brani preferiti in casuale</string>
+    <string name="aa_top_songs">Brani più popolari</string>
+    <string name="aa_add_to_playlist">Aggiungi a playlist</string>
+    <string name="aa_add_to_playlist_none">Scegli dove il pulsante Aggiungi mette i brani</string>
+    <string name="aa_add_to_playlist_current">I brani vengono aggiunti qui</string>
+    <string name="aa_target_set">I brani aggiunti dall’auto vanno in %1$s</string>
+    <string name="aa_added_to">Aggiunto a %1$s</string>
+    <string name="aa_add_failed">Impossibile aggiungere il brano</string>
+    <string name="aa_add_no_target">Scegli prima una playlist: Libreria, Aggiungi a playlist</string>
+    <string name="aa_nothing_found">Nessun risultato per %1$s</string>
+    <string name="aa_radio_failed">Impossibile avviare una radio</string>
+    <string name="aa_speed_set">Velocità %1$s</string>
+    <string name="aa_unreachable">Servizio non raggiungibile. Controlla la connessione.</string>
+    <string name="aa_play_failed">Impossibile riprodurre</string>
+</resources>

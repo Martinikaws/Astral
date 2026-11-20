@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">Lecture</string>
+    <string name="aa_shuffle">Aléatoire</string>
+    <string name="aa_quick_play">Lecture rapide</string>
+    <string name="aa_shuffle_liked">Titres likés en aléatoire</string>
+    <string name="aa_top_songs">Titres populaires</string>
+    <string name="aa_add_to_playlist">Ajouter à une playlist</string>
+    <string name="aa_add_to_playlist_none">Choisis où le bouton d’ajout place les titres</string>
+    <string name="aa_add_to_playlist_current">Les titres sont ajoutés ici</string>
+    <string name="aa_target_set">Les titres ajoutés depuis la voiture vont dans %1$s</string>
+    <string name="aa_added_to">Ajouté à %1$s</string>
+    <string name="aa_add_failed">Impossible d’ajouter le titre</string>
+    <string name="aa_add_no_target">Choisis d’abord une playlist : Bibliothèque, Ajouter à une playlist</string>
+    <string name="aa_nothing_found">Aucun résultat pour %1$s</string>
+    <string name="aa_radio_failed">Impossible de lancer une radio</string>
+    <string name="aa_speed_set">Vitesse %1$s</string>
+    <string name="aa_unreachable">Service injoignable. Vérifie la connexion.</string>
+    <string name="aa_play_failed">Lecture impossible</string>
+</resources>

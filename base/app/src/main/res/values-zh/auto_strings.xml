@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">播放</string>
+    <string name="aa_shuffle">随机播放</string>
+    <string name="aa_quick_play">快速播放</string>
+    <string name="aa_shuffle_liked">随机播放喜欢的歌曲</string>
+    <string name="aa_top_songs">热门歌曲</string>
+    <string name="aa_add_to_playlist">添加到播放列表</string>
+    <string name="aa_add_to_playlist_none">选择添加按钮把歌曲放到哪里</string>
+    <string name="aa_add_to_playlist_current">歌曲会添加到这里</string>
+    <string name="aa_target_set">从车内添加的歌曲将进入 %1$s</string>
+    <string name="aa_added_to">已添加到 %1$s</string>
+    <string name="aa_add_failed">无法添加歌曲</string>
+    <string name="aa_add_no_target">请先选择播放列表：音乐库，添加到播放列表</string>
+    <string name="aa_nothing_found">未找到与 %1$s 相关的内容</string>
+    <string name="aa_radio_failed">无法启动电台</string>
+    <string name="aa_speed_set">速度 %1$s</string>
+    <string name="aa_unreachable">无法连接服务，请检查网络连接。</string>
+    <string name="aa_play_failed">无法播放</string>
+</resources>

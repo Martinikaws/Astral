@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">Воспроизвести</string>
+    <string name="aa_shuffle">Вперемешку</string>
+    <string name="aa_quick_play">Быстрый запуск</string>
+    <string name="aa_shuffle_liked">Любимые треки вперемешку</string>
+    <string name="aa_top_songs">Популярные треки</string>
+    <string name="aa_add_to_playlist">Добавить в плейлист</string>
+    <string name="aa_add_to_playlist_none">Выберите, куда кнопка добавления кладёт треки</string>
+    <string name="aa_add_to_playlist_current">Треки добавляются сюда</string>
+    <string name="aa_target_set">Треки из автомобиля попадают в «%1$s»</string>
+    <string name="aa_added_to">Добавлено в «%1$s»</string>
+    <string name="aa_add_failed">Не удалось добавить трек</string>
+    <string name="aa_add_no_target">Сначала выберите плейлист: Библиотека, Добавить в плейлист</string>
+    <string name="aa_nothing_found">Ничего не найдено по запросу «%1$s»</string>
+    <string name="aa_radio_failed">Не удалось запустить радио</string>
+    <string name="aa_speed_set">Скорость %1$s</string>
+    <string name="aa_unreachable">Нет связи со службой. Проверьте подключение.</string>
+    <string name="aa_play_failed">Не удалось воспроизвести</string>
+</resources>

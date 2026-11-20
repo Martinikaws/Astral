@@ -43,6 +43,10 @@ object Onboarding {
     fun open(spotifySignedIn: Boolean, accountChosen: Boolean, provider: String, tv: Boolean): Boolean =
         spotifySignedIn || opensWithoutSpotify(accountChosen, provider, tv)
 
+    /** The car and the media session ask to sign in: the app is not open to the user (not signed in, no other account chosen). */
+    fun carSignInRequired(spotifySignedIn: Boolean, accountChosen: Boolean, provider: String, tv: Boolean): Boolean =
+        !open(spotifySignedIn, accountChosen, provider, tv)
+
     fun entry(
         spotifySignedIn: Boolean, accountChosen: Boolean, provider: String, setupNeeded: Boolean,
         connecting: Boolean, choosingAccount: Boolean, tv: Boolean,

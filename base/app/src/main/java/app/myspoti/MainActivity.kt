@@ -489,6 +489,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (!signedIn) {
             prefs.edit().putBoolean("LoggedIn", true).apply()
+            app.myspoti.host.android.PlaybackService.signInRequired = false
             signedIn = true
         }
         connecting = false

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="msp_repeat_all">Alle wiederholen</string>
+    <string name="msp_repeat_one">Titel wiederholen</string>
+    <string name="msp_repeat_off">Wiederholen aus</string>
+    <string name="msp_start_radio">Radio starten</string>
+    <string name="msp_add_to_playlist">Zur Playlist hinzufügen</string>
+    <string name="msp_speed">Wiedergabegeschwindigkeit</string>
+    <string name="msp_playing_from">Wiedergabe aus %1$s</string>
+    <string name="msp_signin_required">Melde dich auf dem Handy bei Astral an, um weiterzuhören</string>
+    <string name="msp_open_app">Astral öffnen</string>
+</resources>

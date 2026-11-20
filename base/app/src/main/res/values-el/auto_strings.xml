@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">Αναπαραγωγή</string>
+    <string name="aa_shuffle">Τυχαία σειρά</string>
+    <string name="aa_quick_play">Γρήγορη αναπαραγωγή</string>
+    <string name="aa_shuffle_liked">Τυχαία αναπαραγωγή αγαπημένων</string>
+    <string name="aa_top_songs">Κορυφαία τραγούδια</string>
+    <string name="aa_add_to_playlist">Προσθήκη σε playlist</string>
+    <string name="aa_add_to_playlist_none">Επίλεξε πού προσθέτει τραγούδια το κουμπί προσθήκης</string>
+    <string name="aa_add_to_playlist_current">Τα τραγούδια προστίθενται εδώ</string>
+    <string name="aa_target_set">Τα τραγούδια από το αυτοκίνητο πηγαίνουν στο %1$s</string>
+    <string name="aa_added_to">Προστέθηκε στο %1$s</string>
+    <string name="aa_add_failed">Δεν ήταν δυνατή η προσθήκη του τραγουδιού</string>
+    <string name="aa_add_no_target">Επίλεξε πρώτα playlist: Βιβλιοθήκη, Προσθήκη σε playlist</string>
+    <string name="aa_nothing_found">Δεν βρέθηκε τίποτα για «%1$s»</string>
+    <string name="aa_radio_failed">Δεν ήταν δυνατή η έναρξη ραδιοφώνου</string>
+    <string name="aa_speed_set">Ταχύτητα %1$s</string>
+    <string name="aa_unreachable">Δεν ήταν δυνατή η σύνδεση με την υπηρεσία. Έλεγξε τη σύνδεση.</string>
+    <string name="aa_play_failed">Δεν ήταν δυνατή η αναπαραγωγή</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="msp_repeat_all">Επανάληψη όλων</string>
+    <string name="msp_repeat_one">Επανάληψη ενός</string>
+    <string name="msp_repeat_off">Επανάληψη ανενεργή</string>
+    <string name="msp_start_radio">Έναρξη ραδιοφώνου</string>
+    <string name="msp_add_to_playlist">Προσθήκη σε playlist</string>
+    <string name="msp_speed">Ταχύτητα αναπαραγωγής</string>
+    <string name="msp_playing_from">Αναπαραγωγή από %1$s</string>
+    <string name="msp_signin_required">Συνδέσου στο Astral από το τηλέφωνό σου για να συνεχίσεις</string>
+    <string name="msp_open_app">Άνοιγμα του Astral</string>
+</resources>

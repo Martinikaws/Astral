@@ -12,6 +12,7 @@ import app.myspoti.api.MyspotiApi
 import app.myspoti.api.PlayerState
 import app.myspoti.api.Repeat
 import app.myspoti.host.android.MyspotiRuntime
+import app.myspoti.host.android.CarActions
 import app.myspoti.host.android.NowPlayingInfo
 import app.myspoti.host.android.PlaybackService
 import com.music.spotui.data.entity.SongsModel
@@ -412,8 +413,23 @@ object SongPlayer {
         override fun setLiked(liked: Boolean) = SongPlayer.setLiked(liked)
         override fun playFromMediaId(mediaId: String) = AutoBrowser.play(mediaId)
         override fun playFromSearch(query: String) { scope.launch { AutoBrowser.playFromSearch(query) } }
+        override fun playFromSearch(query: String, extras: android.os.Bundle?) {
+            scope.launch { AutoBrowser.playFromSearch(AutoBrowser.voiceRequest(query, extras)) }
+        }
+        // The side buttons of the car. Each pushes the state at once, so the icon changes with the tap.
+        override fun setRepeatMode(mode: Int) {
+            SongPlayer.setRepeatMode(when (mode) { CarActions.REPEAT_ALL -> 1; CarActions.REPEAT_ONE -> 2; else -> 0 }, haptic = false)
+        }
+        override fun cycleRepeat() = setRepeatMode(CarActions.nextRepeat(repeatOfCar(SongPlayer.repeatMode.value)))
+        override fun startRadio() = AutoBrowser.startRadioOfCurrent(_nowPlaying.value.uri)
+        override fun addToPlaylist() = AutoBrowser.addCurrentToPlaylist(currentTrackId)
+        override fun cycleSpeed() {
+            val next = CarActions.nextSpeed(SongPlayer.speed.value)
+            SongPlayer.setSpeed(next)
+            PlaybackService.notice(Graph.app.getString(app.myspoti.engine.R.string.aa_speed_set, "${next}x".replace(".0x", "x")))
+        }
         override fun setRemoteVolume(volume: Int) = SongPlayer.setRemoteVolume(volume)
-        override fun setShuffle(on: Boolean) = SongPlayer.setShuffle(on)
+        override fun setShuffle(on: Boolean) = SongPlayer.setShuffle(on, haptic = false)
         override val isEpisode: Boolean get() = SongPlayer.isEpisode
         override fun skipBy(deltaMs: Long) {
             // Past the end of the episode a +15 s is the normal end: on to the next item.
@@ -654,6 +670,11 @@ object SongPlayer {
             shuffle = isShuffleOn(),
             episode = !ad && isEpisode,
             streamed = streamedNow(),
+            repeat = repeatOfCar(_repeatMode.value),
+            speed = if (isEpisode) _speed.value.toFloat() else 1f,
+            explicit = !ad && _nowPlaying.value.explicit,
+            contextName = if (ad) "" else _nowPlaying.value.contextName,
+            browseId = if (ad || _nowPlaying.value.uri.isBlank()) null else AutoIds.playingRow(_nowPlaying.value.contextUri, _nowPlaying.value.uri),
         ))
         com.music.spotui.widget.NowPlayingWidget.show(Graph.app,
             title = title,
@@ -2356,8 +2377,8 @@ object SongPlayer {
     /** Shuffle as the player shows it (Spotify's, or the local queue's). */
     fun isShuffleOn(): Boolean = if (LocalPlayer.active.value) LocalPlayer.shuffled else boundState?.shuffle?.value == true
 
-    fun setShuffle(on: Boolean) {
-        Haptics.toggle(on)
+    fun setShuffle(on: Boolean, haptic: Boolean = true) {
+        if (haptic) Haptics.toggle(on)
         // Neither of these has a page state to bring the news to the media session.
         if (LocalPlayer.active.value) LocalPlayer.setShuffle(on)
         else if (!AppShuffle.toggle(on)) { setPageShuffle(on); return }
@@ -2385,17 +2406,21 @@ object SongPlayer {
     private val _repeatMode = mutableStateOf(0)
     val repeatMode: State<Int> get() = _repeatMode
 
+    /** The car's side buttons show the new repeat mode / speed at once. */
+    private fun pushCar() = pushNotification(null, boundState?.likeState?.value ?: false)
+
     fun setRepeat(on: Boolean) = setRepeatMode(if (on) 1 else 0)
 
-    fun setRepeatMode(mode: Int) {
-        if (LocalPlayer.active.value) { _repeatMode.value = mode; boundState?.repeat?.value = mode != 0; LocalPlayer.setRepeatMode(mode); lastTrackPrefs().edit().putInt("repeat", mode.coerceIn(0, 3)).apply(); return }
-        Haptics.toggle(mode != 0)
+    fun setRepeatMode(mode: Int, haptic: Boolean = true) {
+        if (LocalPlayer.active.value) { _repeatMode.value = mode; boundState?.repeat?.value = mode != 0; LocalPlayer.setRepeatMode(mode); lastTrackPrefs().edit().putInt("repeat", mode.coerceIn(0, 3)).apply(); pushCar(); return }
+        if (haptic) Haptics.toggle(mode != 0)
         _repeatMode.value = mode
         repeatWanted = LocalRepeat.pageMode(mode)
         repeatWantedUntil = SystemClock.elapsedRealtime() + SHUFFLE_HOLD_MS
         boundState?.repeat?.value = mode != 0
         lastTrackPrefs().edit().putInt("repeat", mode.coerceIn(0, 3)).apply()
         command { api.player.setRepeat(Repeat.entries[LocalRepeat.pageMode(mode)]) }
+        pushCar()
     }
 
     /**
@@ -2412,6 +2437,9 @@ object SongPlayer {
         MyspotiRuntime.spotify.player.restoreRepeat(Repeat.entries[LocalRepeat.pageMode(mode)])
     }
 
+    /** The car's three repeat states of the app's four modes (the song once is a repeat of the song). */
+    private fun repeatOfCar(mode: Int) = when (mode) { 0 -> CarActions.REPEAT_OFF; 1 -> CarActions.REPEAT_ALL; else -> CarActions.REPEAT_ONE }
+
     /** Off, the queue, the song for good, the song once, off. */
     fun cycleRepeat() = setRepeatMode((_repeatMode.value + 1) % 4)
 
@@ -2426,6 +2454,7 @@ object SongPlayer {
     fun setSpeed(speed: Double) {
         _speed.value = speed
         command { api.player.setSpeed(speed) }
+        pushCar()
     }
 
     private val _speed = mutableStateOf(1.0)

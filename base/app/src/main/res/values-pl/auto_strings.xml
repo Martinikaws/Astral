@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aa_play">Odtwarzaj</string>
+    <string name="aa_shuffle">Losowo</string>
+    <string name="aa_quick_play">Szybkie odtwarzanie</string>
+    <string name="aa_shuffle_liked">Polubione utwory losowo</string>
+    <string name="aa_top_songs">Popularne utwory</string>
+    <string name="aa_add_to_playlist">Dodaj do playlisty</string>
+    <string name="aa_add_to_playlist_none">Wybierz, dokąd przycisk dodawania wstawia utwory</string>
+    <string name="aa_add_to_playlist_current">Utwory są dodawane tutaj</string>
+    <string name="aa_target_set">Utwory dodane z samochodu trafiają do: %1$s</string>
+    <string name="aa_added_to">Dodano do: %1$s</string>
+    <string name="aa_add_failed">Nie udało się dodać utworu</string>
+    <string name="aa_add_no_target">Najpierw wybierz playlistę: Biblioteka, Dodaj do playlisty</string>
+    <string name="aa_nothing_found">Nic nie znaleziono dla: %1$s</string>
+    <string name="aa_radio_failed">Nie udało się uruchomić radia</string>
+    <string name="aa_speed_set">Prędkość %1$s</string>
+    <string name="aa_unreachable">Brak połączenia z usługą. Sprawdź połączenie.</string>
+    <string name="aa_play_failed">Nie udało się odtworzyć</string>
+</resources>

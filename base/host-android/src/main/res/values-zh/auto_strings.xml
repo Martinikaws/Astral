@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="msp_repeat_all">全部循环</string>
+    <string name="msp_repeat_one">单曲循环</string>
+    <string name="msp_repeat_off">关闭循环</string>
+    <string name="msp_start_radio">启动电台</string>
+    <string name="msp_add_to_playlist">添加到播放列表</string>
+    <string name="msp_speed">播放速度</string>
+    <string name="msp_playing_from">正在播放自 %1$s</string>
+    <string name="msp_signin_required">请在手机上登录 Astral 以继续收听</string>
+    <string name="msp_open_app">打开 Astral</string>
+</resources>
