@@ -183,7 +183,12 @@ import com.music.spotui.ui.components.cappedLyricsWidth
  * list keeps clear of whatever the player draws over it.
  */
 @Composable
-fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
+fun ImmersiveLyricsPanel(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+    /** The background, romanize and translate buttons over the lines; off where nothing can be touched (the car). */
+    showControls: Boolean = true,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); SpicyBackgroundPref.init(context); true }
     val vm: LyricsViewModel = viewModel()
@@ -341,7 +346,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                     val target = com.music.spotui.ui.components.readerLanguage()
                     val canRomanize = current.lyrics.hasRomanization
                     val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
-                    if (!selecting) {
+                    if (!selecting && showControls) {
                         val layoutDirection = LocalLayoutDirection.current
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),

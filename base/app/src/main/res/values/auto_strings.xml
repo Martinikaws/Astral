@@ -18,4 +18,5 @@
     <string name="aa_speed_set">Speed %1$s</string>
     <string name="aa_unreachable">Could not reach the service. Check the connection.</string>
     <string name="aa_play_failed">Could not play that</string>
+    <string name="aa_car_nothing_playing">Play something in Astral</string>
 </resources>

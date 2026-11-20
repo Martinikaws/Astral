@@ -214,6 +214,9 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.media)
+    // Android Auto: a navigation-category car app that draws the immersive player (see ui/car).
+    implementation(libs.androidx.car.app)
+    implementation(libs.androidx.car.app.projected)
 
 
     // Jetpack Compose

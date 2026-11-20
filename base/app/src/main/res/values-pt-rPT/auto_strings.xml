@@ -17,4 +17,5 @@
     <string name="aa_speed_set">Velocidade %1$s</string>
     <string name="aa_unreachable">Não foi possível contactar o serviço. Verifique a ligação.</string>
     <string name="aa_play_failed">Não foi possível reproduzir</string>
+    <string name="aa_car_nothing_playing">Reproduza algo no Astral</string>
 </resources>

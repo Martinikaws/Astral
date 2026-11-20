@@ -17,4 +17,5 @@
     <string name="aa_speed_set">Vitesse %1$s</string>
     <string name="aa_unreachable">Service injoignable. Vérifie la connexion.</string>
     <string name="aa_play_failed">Lecture impossible</string>
+    <string name="aa_car_nothing_playing">Lancez quelque chose dans Astral</string>
 </resources>

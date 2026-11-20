@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android Auto car app (car/AstralCarAppService): the immersive player drawn on the car's surface. -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -65,6 +68,9 @@
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="2" />
 
         <meta-data
             android:name="firebase_analytics_collection_deactivated"
@@ -283,6 +289,17 @@
                 android:resource="@xml/widget_now_playing_info" />
         </receiver>
         <!-- The watch's app (same id and signature) asks for the account's session, playlists, songs and extensions. -->
+        <!-- The immersive player on Android Auto. Only navigation apps get a surface to draw on, so this is
+             a navigation-category car app (sideloaded builds only; Google Play would not accept it). The
+             media browser (PlaybackService) is a separate integration. -->
+        <service
+            android:name="com.music.spotui.car.AstralCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
+            </intent-filter>
+        </service>
         <service android:name="com.music.spotui.wear.WearLinkService" android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.REQUEST_RECEIVED" />
