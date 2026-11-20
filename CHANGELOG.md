@@ -2,6 +2,21 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.6 — Tablet Layouts, Cupertino Look, Android Auto Rework (2026-11-20)
+
+### New
+- **Tablet and large-screen layouts**: on tablets, foldables and big windows the glass Looks use a sidebar instead of the bottom tab bar, sheets are sized to the window, and the queue, lyrics, hero cards and onboarding no longer stretch edge to edge. Split-screen and free-form windows adapt too.
+- **Cupertino Look** (Apple Music-style): a new Look with its own Library, Home, Search and sidebar. The player and Spicy Lyrics stay the same as in the other Looks.
+- **Android Auto rework**: tabs for Home, Library and Search, shuffle / repeat / like / add-to-playlist buttons beside the player, grouped search results, voice search ("play … on Astral"), smoother artwork and loading, and a clear message in the car when you are signed out.
+
+### Fixed
+- With **Volume Bar in the Player** turned off (Settings → Display and language), the song title and controls now move down to fill the gap instead of staying at the top.
+
+### Notes
+- Android Auto only lists apps installed outside Google Play when **Unknown sources** is on in Android Auto's developer settings.
+
+---
+
 ## v1.0.5 — Public Release: Licences Screen, Privacy & Security Hardening, Experimental DJ Transition Editor (2026-11-20)
 
 First release since the repository went public.
