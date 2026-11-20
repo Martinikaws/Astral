@@ -11,7 +11,9 @@ import androidx.car.app.model.CarIcon
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.core.graphics.drawable.IconCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import app.myspoti.engine.R
 import com.music.spotui.di.Graph
 import com.music.spotui.di.SongPlayer
@@ -27,13 +29,16 @@ class CarPlayerScreen(carContext: CarContext) : Screen(carContext) {
         // The play glyph follows the playback. The state is Compose state, polled rather than observed so
         // that nothing depends on a Compose host being alive while the surface is not.
         lifecycleScope.launch {
-            var shown = Graph.currentSongState.playingState.value
-            while (true) {
-                delay(POLL_MS)
-                val now = Graph.currentSongState.playingState.value
-                if (now != shown) {
-                    shown = now
-                    invalidate()
+            // Only while the screen is on show; the template is rebuilt when it starts again.
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                var shown = Graph.currentSongState.playingState.value
+                while (true) {
+                    delay(POLL_MS)
+                    val now = Graph.currentSongState.playingState.value
+                    if (now != shown) {
+                        shown = now
+                        invalidate()
+                    }
                 }
             }
         }
@@ -46,6 +51,7 @@ class CarPlayerScreen(carContext: CarContext) : Screen(carContext) {
             .addAction(
                 action(if (playing) R.drawable.car_ic_pause else R.drawable.car_ic_play) {
                     if (Graph.currentSongState.playingState.value) SongPlayer.pause(by = "car") else SongPlayer.play(by = "car")
+                    invalidate()
                 },
             )
             .addAction(action(R.drawable.car_ic_next) { SongPlayer.next(by = "car") })

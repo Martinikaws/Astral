@@ -188,6 +188,8 @@ fun ImmersiveLyricsPanel(
     contentPadding: PaddingValues = PaddingValues(),
     /** The background, romanize and translate buttons over the lines; off where nothing can be touched (the car). */
     showControls: Boolean = true,
+    /** Keep the device screen on while synced lyrics play. Off in the car's window: it must not hold the phone awake. */
+    keepScreenOn: Boolean = true,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     remember(context) { StarryNightPref.init(context); AstralThemePref.init(context); SpicyBackgroundPref.init(context); true }
@@ -199,14 +201,17 @@ fun ImmersiveLyricsPanel(
     val artist = song.singer.value
     val playingUri = SongPlayer.nowPlaying.value.uri
     val state = com.music.spotui.ui.screens.rememberLyricsState(vm, title, artist, hold)
-    com.music.spotui.ui.screens.KeepScreenOnForLyrics(Graph.currentSongState.playingState.value && state is LyricsViewModel.State.Loaded)
+    if (keepScreenOn) com.music.spotui.ui.screens.KeepScreenOnForLyrics(Graph.currentSongState.playingState.value && state is LyricsViewModel.State.Loaded)
     val liveKey = "$playingUri|${SongPlayer.currentTrackId}|$title|$artist"
     val heldKey = remember { arrayOf(liveKey) }
     if (!hold) heldKey[0] = liveKey
     val trackKey = if (hold) heldKey[0] else liveKey
+    // Phone and car panels build the same clock from the same mix state; a closing panel only
+    // resets it if it is still the one that set it, so it never clobbers the other's.
     DisposableEffect(hold, blend) {
-        lyricsPosition = if (hold && blend != null) ({ blend.positionMs().coerceAtLeast(0L) }) else ({ SongPlayer.getCurrentPosition().coerceAtLeast(0L) })
-        onDispose { lyricsPosition = { SongPlayer.getCurrentPosition().coerceAtLeast(0L) } }
+        val mine: () -> Long = if (hold && blend != null) ({ blend.positionMs().coerceAtLeast(0L) }) else ({ SongPlayer.getCurrentPosition().coerceAtLeast(0L) })
+        lyricsPosition = mine
+        onDispose { if (lyricsPosition === mine) lyricsPosition = { SongPlayer.getCurrentPosition().coerceAtLeast(0L) } }
     }
     val selecting by vm.selecting.collectAsState()
     val picked by vm.picked.collectAsState()

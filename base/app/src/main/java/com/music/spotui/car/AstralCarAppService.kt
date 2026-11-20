@@ -2,6 +2,7 @@
 // Astral's own code.
 package com.music.spotui.car
 
+import android.content.pm.ApplicationInfo
 import androidx.car.app.CarAppService
 import androidx.car.app.Session
 import androidx.car.app.validation.HostValidator
@@ -12,10 +13,17 @@ import androidx.car.app.validation.HostValidator
  * The media browser of PlaybackService is a separate integration and stays as it was.
  */
 class AstralCarAppService : CarAppService() {
-    // Astral is sideloaded, never on Google Play, so the host cannot be checked against Play's list of
-    // allowed hosts: any host is accepted. It is only given the player's state and the control buttons,
-    // which any media controller of the device can read and press anyway.
-    override fun createHostValidator(): HostValidator = HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+    // The validator checks the signature of the host app (Android Auto, Android Automotive) against the
+    // allow-list of known hosts, so only a genuine host can bind to this service. A debuggable build
+    // accepts any host so the Desktop Head Unit, which is not on that list, works.
+    override fun createHostValidator(): HostValidator =
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+        } else {
+            HostValidator.Builder(applicationContext)
+                .addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample)
+                .build()
+        }
 
     override fun onCreateSession(): Session = AstralCarSession()
 }

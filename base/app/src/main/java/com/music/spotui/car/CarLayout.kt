@@ -73,3 +73,18 @@ fun activeLyricLine(lineTimesMs: List<Long>, positionMs: Long): Int {
     }
     return active
 }
+
+/** A rectangle of the surface, in pixels (a plain type so the area choice can be unit-tested). */
+data class CarAreaPx(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+    val isEmpty: Boolean get() = right <= left || bottom <= top
+}
+
+/**
+ * The margins for the content of a [surfaceWidth] x [surfaceHeight] surface: the [stable] area (it does not
+ * change when the host shows or hides the action strip, so the layout does not jump), else the [visible]
+ * one, else the whole surface. Empty or unreported areas are skipped.
+ */
+fun carContentInsets(surfaceWidth: Int, surfaceHeight: Int, stable: CarAreaPx?, visible: CarAreaPx?): CarInsetsPx {
+    val area = listOfNotNull(stable, visible).firstOrNull { !it.isEmpty } ?: return CarInsetsPx.None
+    return carInsets(surfaceWidth, surfaceHeight, area.left, area.top, area.right, area.bottom)
+}

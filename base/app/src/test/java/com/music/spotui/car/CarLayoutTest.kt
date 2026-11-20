@@ -46,6 +46,31 @@ class CarLayoutTest {
         assertEquals(CarInsetsPx(0, 0, 0, 0), carInsets(1000, 500, -50, -10, 1200, 600))
     }
 
+    @Test fun aspectExactlyAtThresholdIsWide() {
+        // 750 / 600 is exactly 1.25.
+        assertEquals(CarLayoutMode.WIDE, carLayoutMode(750f, 600f))
+        assertEquals(CarLayoutMode.STACKED, carLayoutMode(749f, 600f))
+    }
+
+    @Test fun widthJustUnderWideMinimumIsNotWide() {
+        assertEquals(CarLayoutMode.STACKED, carLayoutMode(599.9f, 400f))
+        assertEquals(CarLayoutMode.WIDE, carLayoutMode(600f, 400f))
+    }
+
+    private val stableArea = CarAreaPx(0, 0, 900, 500)
+    private val visibleArea = CarAreaPx(100, 0, 1000, 450)
+
+    @Test fun contentUsesTheStableAreaWhenThereIsOne() {
+        assertEquals(CarInsetsPx(0, 0, 100, 0), carContentInsets(1000, 500, stableArea, visibleArea))
+    }
+
+    @Test fun contentFallsBackToTheVisibleAreaThenTheWholeSurface() {
+        assertEquals(CarInsetsPx(100, 0, 0, 50), carContentInsets(1000, 500, null, visibleArea))
+        assertEquals(CarInsetsPx(100, 0, 0, 50), carContentInsets(1000, 500, CarAreaPx(0, 0, 0, 0), visibleArea))
+        assertEquals(CarInsetsPx.None, carContentInsets(1000, 500, null, null))
+        assertEquals(CarInsetsPx.None, carContentInsets(1000, 500, CarAreaPx(0, 0, 0, 0), CarAreaPx(5, 5, 5, 5)))
+    }
+
     @Test fun activeLineIsTheLastOneStarted() {
         val times = listOf(1000L, 5000L, 9000L)
         assertEquals(-1, activeLyricLine(times, 500))

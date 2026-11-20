@@ -104,11 +104,15 @@ class CarSurfaceRenderer(private val carContext: CarContext) : SurfaceCallback {
         updateInsets()
     }
 
-    /** The visible area decides the layout; the stable one stands in until the host has reported a visible one. */
+    /**
+     * The content is laid out in the stable area (it does not move when the host shows or hides the
+     * action strip), else the visible one, else the whole surface; see [carContentInsets].
+     */
     private fun updateInsets() {
-        val area = visible?.takeUnless { it.isEmpty } ?: stable ?: return
-        insets = carInsets(surfaceWidth, surfaceHeight, area.left, area.top, area.right, area.bottom)
+        insets = carContentInsets(surfaceWidth, surfaceHeight, stable?.toAreaPx(), visible?.toAreaPx())
     }
+
+    private fun Rect.toAreaPx() = CarAreaPx(left, top, right, bottom)
 
     private fun releaseDisplay() {
         val shown = presentation

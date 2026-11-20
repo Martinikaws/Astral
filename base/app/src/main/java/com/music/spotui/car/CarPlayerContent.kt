@@ -123,6 +123,7 @@ private fun WideLayout(title: String, artist: String, coverUrl: String, width: D
             Modifier.weight(1f).fillMaxHeight(),
             PaddingValues(vertical = 8.dp),
             showControls = false,
+            keepScreenOn = false,
         )
     }
 }
@@ -144,6 +145,7 @@ private fun StackedLayout(title: String, artist: String, coverUrl: String, width
             Modifier.weight(1f).fillMaxWidth(),
             PaddingValues(top = 12.dp, bottom = 8.dp),
             showControls = false,
+            keepScreenOn = false,
         )
     }
 }
