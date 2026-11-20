@@ -37,7 +37,9 @@ class NowPlayingInfoTest {
     /** A buffering flip or a shuffle change is the session's alone: the notification is not posted again. */
     @Test fun theNotificationAndTheMetadataChangeOnlyWithWhatTheyShow() {
         val a = info(playing = true)
-        assertTrue(a.sameNotification(a.copy(buffering = true, shuffle = true, liked = true, positionMs = 99_000)))
+        assertTrue(a.sameNotification(a.copy(buffering = true, shuffle = true, positionMs = 99_000)))
+        // The like button is in the notification: a like change posts it again.
+        assertFalse(a.sameNotification(a.copy(liked = true)))
         assertFalse(a.sameNotification(a.copy(playing = false)))
         assertFalse(a.sameNotification(a.copy(title = "other")))
         assertTrue(a.sameMetadata(a.copy(playing = false, liked = true)))

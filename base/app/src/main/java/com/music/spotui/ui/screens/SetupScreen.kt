@@ -115,7 +115,11 @@ object Setup {
         !com.music.spotui.data.preferences.LookPref.isChosen(context) ||
         !extensionsSeen(context) || !accountSeen(context)
     fun accountSeen(context: Context) = prefs(context).getBoolean(ACCOUNT_KEY, false)
-    fun setAccountSeen(context: Context) = prefs(context).edit().putBoolean(ACCOUNT_KEY, true).apply()
+    fun setAccountSeen(context: Context) {
+        prefs(context).edit().putBoolean(ACCOUNT_KEY, true).apply()
+        // The app may now open without Spotify: the car stops asking to sign in.
+        app.myspoti.host.android.PlaybackService.signInRequired = com.music.spotui.di.SessionActions.carNeedsSignIn(context)
+    }
     fun permissionsDone(context: Context) = prefs(context).getBoolean(KEY, false)
     fun done(context: Context) = prefs(context).edit().putBoolean(KEY, true).apply()
     fun extensionsSeen(context: Context) = prefs(context).getBoolean(EXTENSIONS_KEY, false)

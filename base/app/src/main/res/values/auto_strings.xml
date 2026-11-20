@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto / Automotive: browse tree and messages of the car's player. -->
+<resources>
+    <string name="aa_play">Play</string>
+    <string name="aa_shuffle">Shuffle</string>
+    <string name="aa_quick_play">Quick play</string>
+    <string name="aa_shuffle_liked">Shuffle Liked Songs</string>
+    <string name="aa_top_songs">Top songs</string>
+    <string name="aa_add_to_playlist">Add to playlist</string>
+    <string name="aa_add_to_playlist_none">Choose where the add button puts songs</string>
+    <string name="aa_add_to_playlist_current">Songs are added here</string>
+    <string name="aa_target_set">Songs added from the car go to %1$s</string>
+    <string name="aa_added_to">Added to %1$s</string>
+    <string name="aa_add_failed">Could not add the song</string>
+    <string name="aa_add_no_target">Choose a playlist first: Library, Add to playlist</string>
+    <string name="aa_nothing_found">Nothing found for %1$s</string>
+    <string name="aa_radio_failed">Could not start a radio</string>
+    <string name="aa_speed_set">Speed %1$s</string>
+    <string name="aa_unreachable">Could not reach the service. Check the connection.</string>
+    <string name="aa_play_failed">Could not play that</string>
+</resources>

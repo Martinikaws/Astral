@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="msp_repeat_all">Tout répéter</string>
+    <string name="msp_repeat_one">Répéter le titre</string>
+    <string name="msp_repeat_off">Répétition désactivée</string>
+    <string name="msp_start_radio">Lancer la radio</string>
+    <string name="msp_add_to_playlist">Ajouter à une playlist</string>
+    <string name="msp_speed">Vitesse de lecture</string>
+    <string name="msp_playing_from">Lecture depuis %1$s</string>
+    <string name="msp_signin_required">Connecte-toi à Astral sur ton téléphone pour continuer à écouter</string>
+    <string name="msp_open_app">Ouvrir Astral</string>
+</resources>

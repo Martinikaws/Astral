@@ -34,10 +34,15 @@ class MyspotiApplication : Application() {
         // Downloaded songs are no longer reported to Spotify: drop the old report queue,
         // whose replays sent play commands that took over the Web Player.
         runCatching { java.io.File(filesDir, "wrapped_queue.json").delete() }
+        // One stable content:// URI per cover: the car loads it through the artwork provider and keeps it.
+        PlaybackService.artworkUri = { com.music.spotui.di.ArtworkProvider.uriFor(it)?.toString() }
+        // Signed out from the start (the car shows the sign-in message instead of an empty player).
+        PlaybackService.signInRequired = com.music.spotui.di.SessionActions.carNeedsSignIn(this)
         PlaybackService.library = object : MediaLibrary {
             override suspend fun children(context: Context, parentId: String): List<MediaBrowserCompat.MediaItem> =
                 AutoBrowser.children(context, parentId)
             override suspend fun search(query: String): List<MediaBrowserCompat.MediaItem> = AutoBrowser.search(query)
+            override fun cached(context: Context, parentId: String): List<MediaBrowserCompat.MediaItem>? = AutoBrowser.cached(context, parentId)
         }
         // The report's header: the extensions installed, with their versions.
         app.myspoti.host.android.Logbook.headerExtras = {

@@ -28,5 +28,6 @@ object AccountProviderPref {
         prefs(c).edit().putString(KEY, v).apply()
         com.music.spotui.di.AccountSync.providerChanged()
         com.music.spotui.di.YtmRuntime.startIfChosen()
+        app.myspoti.host.android.PlaybackService.signInRequired = com.music.spotui.di.SessionActions.carNeedsSignIn(c)
     }
 }

@@ -13,6 +13,18 @@ object SessionActions {
     /** True from a logout until the next sign-in: the activity shows the login page, then starts over. */
     val signedOut: StateFlow<Boolean> = _signedOut
 
+    /** The same check the app opens by (signed in, or another music account chosen): true means the car asks to sign in. */
+    fun carNeedsSignIn(context: android.content.Context): Boolean = com.music.spotui.ui.screens.Onboarding.carSignInRequired(
+        context.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE).getBoolean("LoggedIn", false),
+        com.music.spotui.ui.screens.Setup.accountSeen(context), com.music.spotui.data.preferences.AccountProviderPref.id,
+        com.music.spotui.ui.tv.Tv.isTv(context))
+
+    /** The car's player says "sign in on the phone" while no account is signed in. */
+    private fun setSignedOut(value: Boolean) {
+        _signedOut.value = value
+        PlaybackService.signInRequired = value && carNeedsSignIn(Graph.app)
+    }
+
     private val _switching = MutableStateFlow(false)
     /**
      * True from an account switch until that account's session is confirmed: the activity waits for
@@ -35,7 +47,7 @@ object SessionActions {
             return
         }
         leaveAccount(context.applicationContext, forget = true)
-        _signedOut.value = true
+        setSignedOut(true)
         host.logout()
     }
 
@@ -106,7 +118,7 @@ object SessionActions {
         if (!host.multiProfile) { logout(context); return }
         Logbook.log("account: adding an account")
         leaveAccount(context.applicationContext, forget = false)
-        _signedOut.value = true
+        setSignedOut(true)
         host.addProfile()
     }
 
@@ -139,7 +151,7 @@ object SessionActions {
             val next = list.others.firstOrNull()
             if (!host.multiProfile || next == null) {
                 leaveAccount(context.applicationContext, forget = true)
-                _signedOut.value = true
+                setSignedOut(true)
                 host.logout()
                 return
             }
@@ -172,5 +184,5 @@ object SessionActions {
     }
 
     /** The new account is signed in. */
-    fun signedIn() { _signedOut.value = false; _switching.value = false }
+    fun signedIn() { setSignedOut(false); _switching.value = false }
 }

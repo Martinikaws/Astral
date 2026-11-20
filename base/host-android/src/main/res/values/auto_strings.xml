@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto / Automotive: labels of the player's side buttons and the car's messages. -->
+<resources>
+    <string name="msp_repeat_all">Repeat all</string>
+    <string name="msp_repeat_one">Repeat one</string>
+    <string name="msp_repeat_off">Repeat off</string>
+    <string name="msp_start_radio">Start radio</string>
+    <string name="msp_add_to_playlist">Add to playlist</string>
+    <string name="msp_speed">Playback speed</string>
+    <string name="msp_playing_from">Playing from %1$s</string>
+    <string name="msp_signin_required">Sign in to Astral on your phone to keep listening</string>
+    <string name="msp_open_app">Open Astral</string>
+</resources>
