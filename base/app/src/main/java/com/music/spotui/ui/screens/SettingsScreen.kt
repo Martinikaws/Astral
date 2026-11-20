@@ -933,7 +933,7 @@ private fun TransitionsRow(navController: NavController) {
         AutoMixCacheRow()
     }
     Divider()
-    Text("EXPERIMENTAL", color = com.music.spotui.ui.theme.AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+    Text(stringResource(R.string.transition_editor_section_experimental), color = com.music.spotui.ui.theme.AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp))
     OptionRow(
         label = stringResource(R.string.transition_editor_setting_title),

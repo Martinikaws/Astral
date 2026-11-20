@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Experimental DJ Transition Editor. English only for now. -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="transition_editor_section_experimental">EXPERIMENTAL</string>
     <string name="transition_editor_row">Transition Editor</string>
     <string name="transition_editor_setting_title">DJ Transition Editor (Experimental)</string>
     <string name="transition_editor_setting_detail">Edit overlap bars, cue points, and volume curves between songs on Astral\'s local player (lossless/extension streams, downloads, or local files).</string>
