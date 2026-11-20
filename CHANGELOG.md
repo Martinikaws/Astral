@@ -2,6 +2,29 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.5 — Public Release: Licences Screen, Privacy & Security Hardening, Experimental DJ Transition Editor (2026-11-20)
+
+First release since the repository went public.
+
+### New
+- **Open-source licences screen**: Settings and About now list every licence and notice Astral ships with (GPL-3.0, AGPL-3.0 for the Spicy Lyrics renderer, MIT, Apache-2.0, LGPL-3.0, font licences). The texts are packed into the app, so they work offline.
+- **Experimental: DJ transition editor** (Settings → Experimental, off by default): shape the AutoMix transition between the current song and the next one. Two waveforms on one timeline with BPM and key, the overlap length in bars, Auto / Fade / Rise / Custom curves, bass swap and a live preview. Saved transitions are used when that pair plays again. It works only with Astral's own player (lossless/extension streams, downloads, phone files), not with songs streamed by Spotify's web player. With the switch off nothing changes.
+
+### Fixed
+- **Full-screen Spicy Lyrics background** in the player (no longer a rectangle under the header).
+- **"Update to the beta" prompt** on test builds installed as Astral Beta with a stable version number: those builds no longer check for updates.
+
+### Privacy & security
+- Your Spotify sign-in and app data are no longer copied to a new phone by Android's backup or device transfer.
+- Moving your settings to another phone (Pass) no longer sends the SpotiFLAC session.
+- The updater only downloads from GitHub's own servers and refuses a damaged APK with a clear message.
+- Release builds refuse to be signed with anything but the release key, for betas too.
+
+### Docs
+- README: install steps, a disclaimer, and a privacy section listing every service that receives data (no analytics or tracking). Security policy, contributing guide and issue forms added.
+
+---
+
 ## v1.0.4 — Wear OS Battery & Performance, Faster Playback Startup, App-Wide Performance & Full-Screen Spicy Lyrics Background (2026-11-19)
 
 ### Wear OS Battery Life & Performance Overhaul
