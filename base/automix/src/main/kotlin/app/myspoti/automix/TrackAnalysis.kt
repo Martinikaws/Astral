@@ -303,10 +303,12 @@ class TrackAnalysis(
         writePhase(o, headPhase); writePhase(o, tailPhase); o.writeFloat(headMetre); o.writeFloat(tailMetre)
         o.writeInt(modelBeats.size); modelBeats.forEach(o::writeDouble)
         o.writeInt(barDownConfidence.size); barDownConfidence.forEach(o::writeFloat)
-        val wf = waveform10Hz
-        o.writeInt(WAVEFORM_MAGIC)
-        o.writeInt(wf.size)
-        for (v in wf) o.writeByte((v.coerceIn(0f, 1f) * 255f).roundToInt())
+        // Only a measured waveform is stored; the bar-estimated one is rebuilt on read (never kept as measured).
+        if (rawWaveform10Hz.isNotEmpty()) {
+            o.writeInt(WAVEFORM_MAGIC)
+            o.writeInt(rawWaveform10Hz.size)
+            for (v in rawWaveform10Hz) o.writeByte((v.coerceIn(0f, 1f) * 255f).roundToInt())
+        }
         o.flush()
     }
 

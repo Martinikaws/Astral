@@ -21,6 +21,12 @@ import java.io.File
  */
 object CustomTransitionStore {
     private const val FILE_NAME = "custom_transitions.json"
+    internal const val MAX_ENTRIES = 500
+
+    /** Disk writes happen here, in order, never on the caller's (often main) thread. */
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "custom-transitions-io").apply { isDaemon = true }
+    }
 
     private val lock = Any()
     private val entries = LinkedHashMap<String, CustomTransition>()
@@ -55,6 +61,7 @@ object CustomTransitionStore {
             ensureLoadedLocked()
             val key = keyOf(transition.fromTrackId, transition.toTrackId, contextUri)
             entries[key] = transition
+            trimLocked()
             persistLocked()
             _version.value = _version.value + 1
         }
@@ -96,12 +103,24 @@ object CustomTransitionStore {
         return runCatching { File(Graph.app.filesDir, FILE_NAME) }.getOrNull()
     }
 
+    /** Loads the file on the IO thread so the first lookup on the main thread does not read the disk. */
+    fun warmUp() {
+        io.execute { synchronized(lock) { ensureLoadedLocked() } }
+    }
+
+    /** Drops the oldest entries (by updatedAtMs) beyond [MAX_ENTRIES]. */
+    private fun trimLocked() {
+        val extra = entries.size - MAX_ENTRIES
+        if (extra <= 0) return
+        entries.entries.sortedBy { it.value.updatedAtMs }.take(extra).forEach { entries.remove(it.key) }
+    }
+
     private fun ensureLoadedLocked() {
         if (loaded) return
         loaded = true
         val file = storageFileLocked() ?: return
         if (!file.exists()) return
-        runCatching {
+        try {
             val text = file.readText(Charsets.UTF_8)
             if (text.isBlank()) return
             val root = JSONObject(text)
@@ -113,26 +132,37 @@ object CustomTransitionStore {
                 val effectiveKey = key.ifBlank { keyOf(parsed.fromTrackId, parsed.toTrackId, null) }
                 entries[effectiveKey] = parsed
             }
+            trimLocked()
+        } catch (_: Exception) {
+            // Corrupt file: kept aside as .bad so the next save does not destroy it.
+            entries.clear()
+            runCatching {
+                val bad = File(file.parentFile, "${file.name}.bad")
+                bad.delete()
+                file.renameTo(bad)
+            }
         }
     }
 
     private fun persistLocked() {
         val file = storageFileLocked() ?: return
-        runCatching {
-            file.parentFile?.mkdirs()
-            val arr = JSONArray()
-            for ((k, tr) in entries) {
-                arr.put(serializeTransition(k, tr))
-            }
-            val root = JSONObject().apply {
-                put("version", 1)
-                put("transitions", arr)
-            }
-            val tmp = File(file.parentFile, "${file.name}.tmp")
-            tmp.writeText(root.toString(), Charsets.UTF_8)
-            if (!tmp.renameTo(file)) {
-                file.writeText(root.toString(), Charsets.UTF_8)
-                tmp.delete()
+        val arr = JSONArray()
+        for ((k, tr) in entries) {
+            arr.put(serializeTransition(k, tr))
+        }
+        val json = JSONObject().apply {
+            put("version", 1)
+            put("transitions", arr)
+        }.toString()
+        io.execute {
+            runCatching {
+                file.parentFile?.mkdirs()
+                val tmp = File(file.parentFile, "${file.name}.tmp")
+                tmp.writeText(json, Charsets.UTF_8)
+                if (!tmp.renameTo(file)) {
+                    file.writeText(json, Charsets.UTF_8)
+                    tmp.delete()
+                }
             }
         }
     }
@@ -203,6 +233,9 @@ object CustomTransitionStore {
         }
         return out
     }
+
+    /** Test hook: wait until queued disk writes are done. */
+    internal fun flushForTest() { io.submit {}.get() }
 
     /** Test hook: redirect disk persistence to [file] and force reload on next access. */
     internal fun replaceStorageFileForTest(file: File?) {

@@ -936,8 +936,8 @@ private fun TransitionsRow(navController: NavController) {
     Text("EXPERIMENTAL", color = com.music.spotui.ui.theme.AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp))
     OptionRow(
-        label = "DJ Transition Editor (Experimental)",
-        detail = "Edit overlap bars, cue points, and volume curves between songs on Astral's local player (lossless/extension streams, downloads, or local files).",
+        label = stringResource(R.string.transition_editor_setting_title),
+        detail = stringResource(R.string.transition_editor_setting_detail),
         checked = com.music.spotui.data.preferences.TransitionEditorPref.enabled,
         onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setEnabled(ctx, it) },
     )
@@ -949,15 +949,15 @@ private fun TransitionsRow(navController: NavController) {
                 .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Open Transition Editor", color = AppText, fontSize = 16.sp)
-                Text("Fine-tune the mix between the currently playing song and the next track in queue.", color = AppMuted, fontSize = 12.sp)
+                Text(stringResource(R.string.transition_editor_open), color = AppText, fontSize = 16.sp)
+                Text(stringResource(R.string.transition_editor_open_detail), color = AppMuted, fontSize = 12.sp)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppMuted)
         }
     }
-    OptionRow(
-        label = "Dump Spotify mixed-playlist data (Debug)",
-        detail = "When opening a playlist, save its raw redacted GraphQL JSON response to mixed-playlists/ so Spotify mix transition fields can be inspected.",
+    if (app.myspoti.engine.BuildConfig.DEBUG) OptionRow(
+        label = stringResource(R.string.transition_dump_title),
+        detail = stringResource(R.string.transition_dump_detail),
         checked = com.music.spotui.data.preferences.TransitionEditorPref.dumpMixedPlaylists,
         onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setDumpMixedPlaylists(ctx, it) },
     )

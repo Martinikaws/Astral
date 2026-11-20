@@ -55,7 +55,7 @@ fun MyNavHost(
 ) {
 
     val context = LocalContext.current
-    androidx.compose.runtime.remember(context) { com.music.spotui.data.preferences.TransitionEditorPref.installRecorder(); true }
+    androidx.compose.runtime.remember(context) { com.music.spotui.data.preferences.TransitionEditorPref.restoreRecorder(); true }
     val startDestination = Routes.Home.route
     // The look (Settings > Display) is read through State objects: the graph builder and the
     // transitions keep the same lambdas, so a switch never rebuilds the graph (or the back stack).

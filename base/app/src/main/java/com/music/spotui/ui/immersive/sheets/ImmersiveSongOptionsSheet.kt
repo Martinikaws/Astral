@@ -318,11 +318,10 @@ fun ImmersiveSongOptionsSheet(
         if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {
             ImmersiveSheetRow(Icons.Rounded.GraphicEq, stringResource(R.string.equalizer_title)) {
                 onDismiss()
-                com.music.spotui.ui.navigation.PlayerSheet.close()
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Equalizer.route)
             }
             if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) {
-                ImmersiveSheetRow(Icons.Rounded.Tune, "Transition Editor") {
+                ImmersiveSheetRow(Icons.Rounded.Tune, stringResource(R.string.transition_editor_row)) {
                     onDismiss()
                     com.music.spotui.ui.navigation.PlayerSheet.close()
                     navController.navigate(com.music.spotui.ui.navigation.Routes.TransitionEditor.route)

@@ -145,6 +145,19 @@ class CustomTransitionTest {
     }
 
     @Test
+    fun writeOmitsWaveformSectionWhenNoMeasuredWaveform() {
+        val estimated = syntheticAnalysis(duration = 15.0, key = 7, rawWaveform = FloatArray(0))
+        val measured = syntheticAnalysis(duration = 15.0, key = 7, rawWaveform = FloatArray(150) { 0.5f })
+        val a = ByteArrayOutputStream().also { estimated.write(it) }.toByteArray()
+        val m = ByteArrayOutputStream().also { measured.write(it) }.toByteArray()
+        assertEquals("measured adds magic + size + samples", a.size + 4 + 4 + 150, m.size)
+        val restored = TrackAnalysis.read(ByteArrayInputStream(a))
+        assertNotNull(restored)
+        assertEquals(0, restored!!.rawWaveform10Hz.size)
+        assertTrue(restored.waveform10Hz.isNotEmpty())
+    }
+
+    @Test
     fun defaultCurvesAndGainEvaluationForAllPresets() {
         val a = syntheticAnalysis(duration = 90.0, bpm = 124.0, key = 0)
         val b = syntheticAnalysis(duration = 90.0, bpm = 122.0, key = 7)

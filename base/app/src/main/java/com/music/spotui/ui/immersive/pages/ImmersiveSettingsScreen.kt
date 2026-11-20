@@ -691,26 +691,26 @@ private fun CrossfadePage(navController: NavController, back: () -> Unit) {
         immersiveGroup("transition-experimental") {
             row {
                 ImmersiveSwitchRow(
-                    "DJ Transition Editor (Experimental)",
+                    stringResource(R.string.transition_editor_setting_title),
                     checked = com.music.spotui.data.preferences.TransitionEditorPref.enabled,
                     onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setEnabled(ctx, it) },
-                    detail = "Edit overlap bars, cue points, and volume curves between songs on Astral's local player (lossless/extension streams, downloads, or local files).",
+                    detail = stringResource(R.string.transition_editor_setting_detail),
                 )
             }
             if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) row {
                 ImmersiveGroupRow(
-                    "Open Transition Editor",
-                    detail = "Fine-tune the mix between the currently playing song and the next track in queue.",
+                    stringResource(R.string.transition_editor_open),
+                    detail = stringResource(R.string.transition_editor_open_detail),
                     chevron = true,
                     onClick = { navController.navigate(Routes.TransitionEditor.route) },
                 )
             }
-            row {
+            if (app.myspoti.engine.BuildConfig.DEBUG) row {
                 ImmersiveSwitchRow(
-                    "Dump Spotify mixed-playlist data (Debug)",
+                    stringResource(R.string.transition_dump_title),
                     checked = com.music.spotui.data.preferences.TransitionEditorPref.dumpMixedPlaylists,
                     onChecked = { com.music.spotui.data.preferences.TransitionEditorPref.setDumpMixedPlaylists(ctx, it) },
-                    detail = "When opening a playlist, save its raw redacted GraphQL JSON response to mixed-playlists/ so Spotify mix transition fields can be inspected.",
+                    detail = stringResource(R.string.transition_dump_detail),
                 )
             }
         }

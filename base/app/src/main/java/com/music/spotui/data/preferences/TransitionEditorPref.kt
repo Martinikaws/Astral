@@ -27,18 +27,28 @@ object TransitionEditorPref {
     var enabled by mutableStateOf(runCatching { prefs().getBoolean(KEY_ENABLED, false) }.getOrDefault(false))
         private set
 
-    var dumpMixedPlaylists by mutableStateOf(runCatching { prefs().getBoolean(KEY_DUMP_MIXED_PLAYLISTS, false) }.getOrDefault(false))
+    private const val MAX_DUMP_FILES = 50
+
+    /** Debug builds only: a stored "on" in a release build is ignored. */
+    var dumpMixedPlaylists by mutableStateOf(
+        app.myspoti.engine.BuildConfig.DEBUG &&
+            runCatching { prefs().getBoolean(KEY_DUMP_MIXED_PLAYLISTS, false) }.getOrDefault(false),
+    )
         private set
 
     init {
-        installRecorder()
+        applyRecorder()
+        if (enabled) com.music.spotui.automix.CustomTransitionStore.warmUp()
     }
 
-    fun installRecorder() {
-        SpotifyPlaylists.rawPlaylistRecorder = { uri, op, rawJson ->
-            maybeDumpPlaylist(uri, op, rawJson)
-        }
+    /** The recorder is set only while the dump is on, and cleared otherwise. */
+    private fun applyRecorder() {
+        SpotifyPlaylists.rawPlaylistRecorder =
+            if (dumpMixedPlaylists) { uri, op, rawJson -> maybeDumpPlaylist(uri, op, rawJson) } else null
     }
+
+    /** Re-arms the recorder after a restart when the dump was left on (does nothing otherwise). */
+    fun restoreRecorder() = applyRecorder()
 
     @JvmName("updateEnabled")
     fun setEnabled(value: Boolean) {
@@ -48,6 +58,7 @@ object TransitionEditorPref {
 
     fun setEnabled(context: Context, value: Boolean) {
         enabled = value
+        if (value) com.music.spotui.automix.CustomTransitionStore.warmUp()
         runCatching { prefs(context).edit().putBoolean(KEY_ENABLED, value).apply() }
     }
 
@@ -55,18 +66,27 @@ object TransitionEditorPref {
     fun setDumpMixedPlaylists(value: Boolean) {
         dumpMixedPlaylists = value
         runCatching { prefs().edit().putBoolean(KEY_DUMP_MIXED_PLAYLISTS, value).apply() }
-        installRecorder()
+        applyRecorder()
     }
 
     fun setDumpMixedPlaylists(context: Context, value: Boolean) {
         dumpMixedPlaylists = value
         runCatching { prefs(context).edit().putBoolean(KEY_DUMP_MIXED_PLAYLISTS, value).apply() }
-        installRecorder()
+        applyRecorder()
     }
 
     fun dumpDir(context: Context = Graph.app): File {
         val base = context.getExternalFilesDir(null) ?: context.filesDir
         return File(base, "mixed-playlists")
+    }
+
+    /** Keeps only the newest [MAX_DUMP_FILES] dumps in [dir]. */
+    internal fun pruneDumps(dir: File, keep: Int = MAX_DUMP_FILES) {
+        val files = dir.listFiles { f -> f.isFile } ?: return
+        if (files.size <= keep) return
+        files.sortedWith(compareByDescending<File> { it.lastModified() }.thenByDescending { it.name })
+            .drop(keep)
+            .forEach { runCatching { it.delete() } }
     }
 
     /**
@@ -84,6 +104,7 @@ object TransitionEditorPref {
             val file = File(dir, "playlist-${id}-${opSafe}-${timestamp}.json")
             val redacted = LogMask.redact(jsonText)
             file.writeText(redacted)
+            pruneDumps(dir)
             Logbook.log("transition-debug: dumped $operation for $uri to ${file.absolutePath} (${redacted.length} chars)")
             file
         }.onFailure { e ->

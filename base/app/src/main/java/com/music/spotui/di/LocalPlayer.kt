@@ -255,6 +255,8 @@ object LocalPlayer {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             log("isPlaying $isPlaying at ${p.currentPosition} ms")
             if (isPlaying) errors.played()
+            // The editor's audition never plays under the real player.
+            if (isPlaying && com.music.spotui.automix.TransitionPreviewPlayer.isActive) com.music.spotui.automix.TransitionPreviewPlayer.stop()
             if (isPlaying) tick.run()
             // A station that plays on for a while has its reconnect tries back (see reconnectRadio).
             handler.removeCallbacks(radioSteady)
@@ -805,7 +807,8 @@ object LocalPlayer {
         }
         // Policies are checked before a cached plan: a setting must apply immediately.
         if (spoken(a, b)) { planned = null; whyNot(com.music.spotui.automix.AutoMix.Reason.Podcast); return null }
-        val custom = com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(a), transitionTrackId(b), listUri)
+        // Saved transitions apply only while the experimental editor is on.
+        val custom = if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(a), transitionTrackId(b), listUri) else null
         if (custom == null && followsOnAlbum(a, b)) { planned = null; whyNot(com.music.spotui.automix.AutoMix.Reason.Album); return null }
         val ahead = "$cur|$nextId|${a.uri}|${b.uri}|${if (next + 1 < p.mediaItemCount) p.getMediaItemAt(next + 1).mediaId else ""}"
         val now = android.os.SystemClock.uptimeMillis()
@@ -825,6 +828,9 @@ object LocalPlayer {
         val rb = com.music.spotui.automix.AutoMix.analysis(b.uri)
         val old = planned?.takeIf { it.fromIndex == cur && it.toId == nextId }
         if (custom != null) {
+            // The lead time is gone (the old plan's or the custom cue's): what was planned stays, nothing is recompiled.
+            val posMs = p.currentPosition + MixPreparation.MIN_LEAD_MS
+            if (custom.exitA * 1000 <= posMs || old != null && old.plan.exitA * 1000 <= posMs) return old?.plan
             if (old != null && old.analysisA === ra && old.analysisB === rb && old.plan.exitA * 1000 > p.currentPosition + MixPreparation.MIN_LEAD_MS) {
                 return old.plan
             }
@@ -993,9 +999,12 @@ object LocalPlayer {
         val b = tracks.getOrNull(next)?.let { com.music.spotui.automix.AutoMix.analysis(it.uri) } ?: return
         val trackA = tracks.getOrNull(p.currentMediaItemIndex) ?: return
         val trackB = tracks.getOrNull(next) ?: return
-        val custom = com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(trackA), transitionTrackId(trackB), listUri)
+        val custom = if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) com.music.spotui.automix.CustomTransitionStore.get(transitionTrackId(trackA), transitionTrackId(trackB), listUri) else null
         val plan = if (custom != null) {
-            com.music.spotui.automix.CustomTransitionStore.toMixPlan(custom, a, b)
+            val customPlan = com.music.spotui.automix.CustomTransitionStore.toMixPlan(custom, a, b)
+            // No lead time left for the custom cue: the prepared fallback stays.
+            if (customPlan.exitA * 1000 <= p.currentPosition + MixPreparation.MIN_LEAD_MS) return
+            customPlan
         } else {
             val earliest = (p.currentPosition + RUN_UP_MS + startLead + 500) / 1000.0
             if (!segueDecided(trackA, trackB, a, b, earliest)) return

@@ -6,10 +6,13 @@ import app.myspoti.automix.CustomTransition
 import app.myspoti.automix.MixPlan
 import app.myspoti.automix.TrackAnalysis
 import com.music.spotui.data.local.LocalTrack
+import com.music.spotui.data.preferences.TransitionEditorPref
 import com.music.spotui.di.LocalPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 data class TransitionPairSession(
     val fromTrackId: String,
@@ -55,8 +58,15 @@ object TransitionEditorBridge {
     private var lastReason: AutoMix.Reason? = null
     private var lastActive: Boolean = false
 
-    /** Refresh / ensure analysis is requested for the active + next track when the editor opens. */
+    /** Number of open editor screens; [refresh] does nothing while it is 0 (users without the editor pay nothing). */
+    private val openCount = AtomicInteger(0)
+
+    /** Planning and session building happen here, never on the main thread. */
+    private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "transition-editor").apply { isDaemon = true } }
+
+    /** Called when the editor screen opens; pair with [close] when it leaves. */
     fun openCurrentPair(): StateFlow<TransitionPairSession?> {
+        openCount.incrementAndGet()
         refresh(force = true)
         val snap = runCatching { LocalPlayer.editorPairSnapshot() }.getOrNull()
         if (snap != null) {
@@ -73,8 +83,27 @@ object TransitionEditorBridge {
 
     fun camelotOf(key: Int): String = TrackAnalysis.camelotOf(key)
 
+    /** The editor screen left: stop refreshing and drop the cached session. */
+    fun close() {
+        if (openCount.updateAndGet { (it - 1).coerceAtLeast(0) } == 0) {
+            worker.execute {
+                if (openCount.get() == 0) {
+                    clearCacheState()
+                    _currentPair.value = null
+                }
+            }
+        }
+    }
+
+    /** Cheap for everyone else: returns at once unless the editor is enabled and its screen is open. */
     fun refresh(force: Boolean = false) {
+        if (openCount.get() <= 0 || !TransitionEditorPref.enabled) return
         val snap = runCatching { LocalPlayer.editorPairSnapshot() }.getOrNull()
+        worker.execute { compute(snap, force) }
+    }
+
+    private fun compute(snap: LocalPlayer.EditorPairSnapshot?, force: Boolean) {
+        if (openCount.get() <= 0) return
         if (snap == null) {
             if (_currentPair.value != null || lastFromTrack != null) {
                 clearCacheState()

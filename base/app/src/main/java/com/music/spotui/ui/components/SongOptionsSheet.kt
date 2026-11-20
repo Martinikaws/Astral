@@ -331,11 +331,10 @@ fun SongOptionsSheet(
             if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {
                 MenuRow(Icons.Outlined.GraphicEq, stringResource(R.string.equalizer_title)) {
                     onDismiss()
-                    com.music.spotui.ui.navigation.PlayerSheet.close()
                     navController.navigate(com.music.spotui.ui.navigation.Routes.Equalizer.route)
                 }
                 if (com.music.spotui.data.preferences.TransitionEditorPref.enabled) {
-                    MenuRow(Icons.Outlined.Tune, "Transition Editor") {
+                    MenuRow(Icons.Outlined.Tune, stringResource(R.string.transition_editor_row)) {
                         onDismiss()
                         com.music.spotui.ui.navigation.PlayerSheet.close()
                         navController.navigate(com.music.spotui.ui.navigation.Routes.TransitionEditor.route)

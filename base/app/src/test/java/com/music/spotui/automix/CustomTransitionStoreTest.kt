@@ -130,6 +130,7 @@ class CustomTransitionStoreTest {
         )
 
         CustomTransitionStore.save(custom, contextUri = "spotify:album:alb1")
+        CustomTransitionStore.flushForTest()
         assertTrue(diskFile.exists())
         assertTrue(diskFile.length() > 0)
 
@@ -176,5 +177,37 @@ class CustomTransitionStoreTest {
         assertEquals(16.0, plan.length, 1e-3)
         assertNotNull(plan.segue)
         assertTrue(SegueDeck.playable(plan.segue!!))
+    }
+
+    @Test
+    fun corruptFileIsKeptAsBadAndNotOverwrittenBySave() {
+        val diskFile = tempFolder.newFile("corrupt_transitions.json")
+        diskFile.writeText("{ this is not json")
+        CustomTransitionStore.replaceStorageFileForTest(diskFile)
+
+        assertNull(CustomTransitionStore.get("a", "b"))
+        val bad = java.io.File(diskFile.parentFile, "corrupt_transitions.json.bad")
+        assertTrue(bad.exists())
+        assertEquals("{ this is not json", bad.readText())
+
+        CustomTransitionStore.save(CustomTransition(fromTrackId = "a", toTrackId = "b", exitA = 10.0, entryB = 1.0, overlapBars = 8, overlapSec = 8.0))
+        CustomTransitionStore.flushForTest()
+        assertEquals("{ this is not json", bad.readText())
+        assertTrue(diskFile.readText().contains("\"fromTrackId\""))
+    }
+
+    @Test
+    fun entriesAreCappedDroppingOldestByUpdatedAt() {
+        val max = CustomTransitionStore.MAX_ENTRIES
+        for (i in 0 until max + 5) {
+            CustomTransitionStore.save(
+                CustomTransition(fromTrackId = "f$i", toTrackId = "t$i", exitA = 10.0, entryB = 1.0, overlapBars = 8, overlapSec = 8.0, updatedAtMs = 1000L + i),
+            )
+        }
+        CustomTransitionStore.flushForTest()
+        assertNull(CustomTransitionStore.get("f0", "t0"))
+        assertNull(CustomTransitionStore.get("f4", "t4"))
+        assertNotNull(CustomTransitionStore.get("f5", "t5"))
+        assertNotNull(CustomTransitionStore.get("f${max + 4}", "t${max + 4}"))
     }
 }

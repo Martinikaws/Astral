@@ -56,6 +56,9 @@ object TransitionPreviewPlayer {
     private var bStarted = false
     private var aFinished = false
 
+    /** True while the preview decks exist (preparing or playing). */
+    val isActive: Boolean get() = deckA != null || deckB != null
+
     fun play(
         session: TransitionPairSession,
         transition: CustomTransition,
@@ -102,6 +105,9 @@ object TransitionPreviewPlayer {
         val (pB, _) = LocalPlayer.buildPreviewDeck()
         deckA = pA
         deckB = pB
+        // Unplugging headphones pauses the decks (see onPlayWhenReadyChanged), never blasts the speaker.
+        pA.setHandleAudioBecomingNoisy(true)
+        pB.setHandleAudioBecomingNoisy(true)
 
         if (AutoMix.djEq) {
             eqA = DeckEq.attach(pA.audioSessionId)
@@ -129,6 +135,10 @@ object TransitionPreviewPlayer {
                 }
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (deckA === pA && !playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) stop()
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 if (deckA === pA) stop()
             }
@@ -149,6 +159,10 @@ object TransitionPreviewPlayer {
                     readyB = true
                     tryStartDecks()
                 }
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (deckB === pB && !playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) stop()
             }
 
             override fun onPlayerError(error: PlaybackException) {

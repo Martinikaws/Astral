@@ -112,11 +112,11 @@ private enum class EditorMode {
     OVERLAP,
 }
 
-private enum class HarmonicMatch(val label: String, val color: Color) {
-    COMPATIBLE("Compatible", Color(0xFF34D399)),
-    NEAR("Near Key", Color(0xFFFBBF24)),
-    CLASH("Key Clash", Color(0xFFF87171)),
-    UNKNOWN("Key —", Color(0xFF94A3B8)),
+private enum class HarmonicMatch(@androidx.annotation.StringRes val labelRes: Int, val color: Color) {
+    COMPATIBLE(R.string.transition_harmonic_compatible, Color(0xFF34D399)),
+    NEAR(R.string.transition_harmonic_near, Color(0xFFFBBF24)),
+    CLASH(R.string.transition_harmonic_clash, Color(0xFFF87171)),
+    UNKNOWN(R.string.transition_harmonic_unknown, Color(0xFF94A3B8)),
 }
 
 private val OutgoingDeckColor = Color(0xFF38BDF8) // Astral Sky Cyan
@@ -125,8 +125,7 @@ private val IncomingDeckColor = Color(0xFFC084FC) // Astral Neon Orchid
 @Composable
 fun TransitionEditorScreen(navController: NavController) {
     val context = LocalContext.current
-    val pairFlow = remember { TransitionEditorBridge.openCurrentPair() }
-    val session by pairFlow.collectAsState()
+    val session by TransitionEditorBridge.currentPair.collectAsState()
     val previewState by TransitionPreviewPlayer.state.collectAsState()
     val storeVersion by CustomTransitionStore.version.collectAsState()
     val localActive by LocalPlayer.active
@@ -140,11 +139,25 @@ fun TransitionEditorScreen(navController: NavController) {
         }
     }
 
-    // Stop preview decks immediately when leaving the screen so ExoPlayer decks never leak.
-    DisposableEffect(Unit) {
-        onDispose {
-            TransitionPreviewPlayer.stop()
+    // The bridge only works while this screen is open; the preview stops when the screen goes
+    // to the background (ON_STOP) or is left, so ExoPlayer decks never leak or play unseen.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        TransitionEditorBridge.openCurrentPair()
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) TransitionPreviewPlayer.stop()
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            TransitionPreviewPlayer.stop()
+            TransitionEditorBridge.close()
+        }
+    }
+
+    // Another song took over (skip, the queue moved on): the preview of the old pair stops.
+    LaunchedEffect(session?.fromTrackId, session?.toTrackId) {
+        TransitionPreviewPlayer.stop()
     }
 
     val pairKey = session?.let { "${it.fromTrackId}->${it.toTrackId}@${it.contextUri}" } ?: "none"
@@ -196,7 +209,7 @@ fun TransitionEditorScreen(navController: NavController) {
         )
         working = autoTr
         hasUnsavedEdits = false
-        Toast.makeText(context, "Reset transition to AutoMix plan", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.transition_toast_reset), Toast.LENGTH_SHORT).show()
     }
 
     fun saveTransition() {
@@ -211,7 +224,7 @@ fun TransitionEditorScreen(navController: NavController) {
         working = normalized
         CustomTransitionStore.save(normalized, s.contextUri)
         hasUnsavedEdits = false
-        Toast.makeText(context, "Custom transition saved", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.transition_toast_saved), Toast.LENGTH_SHORT).show()
     }
 
     val pageBg = if (starryEnabled && AppBackground == Color.Transparent) Color.Transparent else AppBackground
@@ -243,7 +256,7 @@ fun TransitionEditorScreen(navController: NavController) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Transition",
+                        text = stringResource(R.string.transition_editor_title),
                         color = AppText,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
@@ -252,7 +265,7 @@ fun TransitionEditorScreen(navController: NavController) {
                     PresetBadge(preset = working.preset, hasCustomSaved = hasCustomSaved || hasUnsavedEdits)
                 }
                 Text(
-                    text = "Astral Studio · Overlap & Envelope Editor",
+                    text = stringResource(R.string.transition_editor_subtitle),
                     color = AppMuted,
                     fontSize = 11.sp,
                     maxLines = 1,
@@ -271,7 +284,7 @@ fun TransitionEditorScreen(navController: NavController) {
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = null, tint = AppText, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Reset to Auto", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.transition_reset_auto), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
                 Spacer(Modifier.width(6.dp))
             }
@@ -287,7 +300,7 @@ fun TransitionEditorScreen(navController: NavController) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = accentInk, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = if (hasUnsavedEdits) "Apply" else "Save",
+                        text = if (hasUnsavedEdits) stringResource(R.string.transition_apply) else stringResource(R.string.transition_save_short),
                         color = accentInk,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -421,10 +434,10 @@ fun TransitionEditorScreen(navController: NavController) {
 @Composable
 private fun PresetBadge(preset: TransitionPreset, hasCustomSaved: Boolean) {
     val label = when (preset) {
-        TransitionPreset.AUTO -> if (hasCustomSaved) "Auto · Edited" else "Auto"
-        TransitionPreset.FADE -> "Fade"
-        TransitionPreset.RISE -> "Rise"
-        TransitionPreset.CUSTOM -> "Custom"
+        TransitionPreset.AUTO -> if (hasCustomSaved) stringResource(R.string.transition_preset_auto_edited) else stringResource(R.string.transition_preset_auto)
+        TransitionPreset.FADE -> stringResource(R.string.transition_preset_fade)
+        TransitionPreset.RISE -> stringResource(R.string.transition_preset_rise)
+        TransitionPreset.CUSTOM -> stringResource(R.string.transition_preset_custom)
     }
     val tint = when (preset) {
         TransitionPreset.AUTO -> OutgoingDeckColor
@@ -477,9 +490,9 @@ private fun LimitationBanner(localActive: Boolean, hasSession: Boolean) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = if (!localActive) {
-                    "Local Audio Engine Required"
+                    stringResource(R.string.transition_banner_engine_title)
                 } else {
-                    "Queue Two Local Tracks to Edit Their Transition"
+                    stringResource(R.string.transition_banner_queue_title)
                 },
                 color = AppText,
                 fontSize = 14.sp,
@@ -487,9 +500,9 @@ private fun LimitationBanner(localActive: Boolean, hasSession: Boolean) {
             )
             Text(
                 text = if (!localActive) {
-                    "Transition Editor mixes require Astral's local audio engine (lossless/SpotiFLAC or extension streams, downloads, or local files). Spotify Web Player streams play inside a single sandboxed media element and only support plain crossfade."
+                    stringResource(R.string.transition_banner_engine_body)
                 } else if (!hasSession) {
-                    "Start playing a playlist, album, or queue with at least one upcoming track on Astral's local player so Track A (Outgoing) and Track B (Incoming) can be loaded into the dual-deck timeline."
+                    stringResource(R.string.transition_banner_queue_body)
                 } else {
                     ""
                 },
@@ -523,14 +536,14 @@ private fun DualTrackHeaderCards(
     ) {
         // Track A (Outgoing)
         TrackDeckRow(
-            deckLabel = "DECK A · OUT",
+            deckLabel = stringResource(R.string.transition_deck_a),
             deckColor = OutgoingDeckColor,
-            title = session.titleA.ifBlank { "Outgoing Track" },
-            artist = session.artistA.ifBlank { "Unknown Artist" },
+            title = session.titleA.ifBlank { stringResource(R.string.transition_track_outgoing) },
+            artist = session.artistA.ifBlank { stringResource(R.string.transition_artist_unknown) },
             coverUrl = session.coverA,
             bpm = analysisA?.tail?.bpm ?: analysisA?.bpm,
             camelot = analysisA?.camelotKey ?: "—",
-            cueLabel = "Exit ${formatTimeSec(transition.exitA)}",
+            cueLabel = stringResource(R.string.transition_cue_exit, formatTimeSec(transition.exitA)),
             analyzing = session.analyzing && analysisA == null,
         )
 
@@ -553,7 +566,7 @@ private fun DualTrackHeaderCards(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "Harmonic: ${harmonic.label}",
+                    text = stringResource(R.string.transition_harmonic_fmt, stringResource(harmonic.labelRes)),
                     color = harmonic.color,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -569,14 +582,14 @@ private fun DualTrackHeaderCards(
 
         // Track B (Incoming)
         TrackDeckRow(
-            deckLabel = "DECK B · IN",
+            deckLabel = stringResource(R.string.transition_deck_b),
             deckColor = IncomingDeckColor,
-            title = session.titleB.ifBlank { "Incoming Track" },
-            artist = session.artistB.ifBlank { "Unknown Artist" },
+            title = session.titleB.ifBlank { stringResource(R.string.transition_track_incoming) },
+            artist = session.artistB.ifBlank { stringResource(R.string.transition_artist_unknown) },
             coverUrl = session.coverB,
             bpm = analysisB?.head?.bpm ?: analysisB?.bpm,
             camelot = analysisB?.camelotKey ?: "—",
-            cueLabel = "Entry ${formatTimeSec(transition.entryB)}",
+            cueLabel = stringResource(R.string.transition_cue_entry, formatTimeSec(transition.entryB)),
             analyzing = session.analyzing && analysisB == null,
         )
     }
@@ -664,7 +677,7 @@ private fun TrackDeckRow(
                         color = deckColor,
                     )
                     Spacer(Modifier.width(5.dp))
-                    Text("Analyzing…", color = deckColor, fontSize = 11.sp)
+                    Text(stringResource(R.string.transition_analyzing), color = deckColor, fontSize = 11.sp)
                 }
             } else {
                 // BPM Badge
@@ -677,9 +690,9 @@ private fun TrackDeckRow(
                 ) {
                     Text(
                         text = if (bpm != null && bpm.isFinite() && bpm > 30.0) {
-                            "${bpm.roundToInt()} BPM"
+                            stringResource(R.string.transition_bpm_fmt, bpm.roundToInt().toString())
                         } else {
-                            "— BPM"
+                            stringResource(R.string.transition_bpm_unknown)
                         },
                         color = deckColor,
                         fontSize = 11.sp,
@@ -696,7 +709,7 @@ private fun TrackDeckRow(
                     .padding(horizontal = 7.dp, vertical = 2.dp),
             ) {
                 Text(
-                    text = "Key $camelot",
+                    text = stringResource(R.string.transition_key_fmt, camelot),
                     color = AppText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -728,8 +741,8 @@ private fun ModeAndEqBar(
                 .padding(3.dp),
         ) {
             listOf(
-                EditorMode.VOLUME to "Volume Curves",
-                EditorMode.OVERLAP to "Overlap & Cues",
+                EditorMode.VOLUME to stringResource(R.string.transition_mode_volume),
+                EditorMode.OVERLAP to stringResource(R.string.transition_mode_overlap),
             ).forEach { (m, label) ->
                 val selected = mode == m
                 Box(
@@ -771,7 +784,7 @@ private fun ModeAndEqBar(
             )
             Spacer(Modifier.width(5.dp))
             Text(
-                text = if (eqSwap) "Bass Swap ON" else "Bass Swap OFF",
+                text = if (eqSwap) stringResource(R.string.transition_bass_swap_on) else stringResource(R.string.transition_bass_swap_off),
                 color = if (eqSwap) OutgoingDeckColor else AppMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -853,9 +866,9 @@ private fun DualWaveformTimelineCard(
         ) {
             Text(
                 text = if (mode == EditorMode.VOLUME) {
-                    "DRAG CONTROL POINTS TO SHAPE VOLUME ENVELOPES"
+                    stringResource(R.string.transition_hint_volume)
                 } else {
-                    "DRAG TRACK A OR TRACK B WAVEFORM TO SHIFT CUE POINTS"
+                    stringResource(R.string.transition_hint_overlap)
                 },
                 color = AstralTrailLight,
                 fontSize = 10.sp,
@@ -1362,7 +1375,7 @@ private fun OverlapControlsPanel(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "Overlap Length",
+                text = stringResource(R.string.transition_overlap_length),
                 color = AppText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -1412,7 +1425,7 @@ private fun OverlapControlsPanel(
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                 ) {
                     Text(
-                        text = "$bars ${if (bars == 1) "bar" else "bars"}",
+                        text = stringResource(if (bars == 1) R.string.transition_bars_one else R.string.transition_bars_other, bars),
                         color = if (selected) accentInk else AppText,
                         fontSize = 13.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -1423,7 +1436,7 @@ private fun OverlapControlsPanel(
 
         // Fine Cue Point Stepper Buttons (-1 bar / +1 bar) for Track A and Track B
         CuePointNudgeRow(
-            label = "Track A Exit Cue",
+            label = stringResource(R.string.transition_cue_a_label),
             timeText = formatTimeSec(transition.exitA),
             accent = OutgoingDeckColor,
             onStepBars = { deltaBars ->
@@ -1447,7 +1460,7 @@ private fun OverlapControlsPanel(
         )
 
         CuePointNudgeRow(
-            label = "Track B Entry Cue",
+            label = stringResource(R.string.transition_cue_b_label),
             timeText = formatTimeSec(transition.entryB),
             accent = IncomingDeckColor,
             onStepBars = { deltaBars ->
@@ -1493,7 +1506,7 @@ private fun CuePointNudgeRow(
             ) {
                 Icon(Icons.Default.Remove, contentDescription = null, tint = AppText, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("-1 bar", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.transition_minus_bar), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1506,7 +1519,7 @@ private fun CuePointNudgeRow(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, tint = AppText, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("+1 bar", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.transition_plus_bar), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -1541,13 +1554,13 @@ private fun VolumeControlsPanel(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "5-Point Volume Envelopes",
+                text = stringResource(R.string.transition_envelopes_title),
                 color = AppText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Reset Curves",
+                text = stringResource(R.string.transition_reset_curves),
                 color = AppAccent,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1569,7 +1582,7 @@ private fun VolumeControlsPanel(
             )
         }
         Text(
-            text = "Drag the 5 glowing handles on Deck A (top cyan curve) or Deck B (bottom orchid curve) to sculpt the volume hand-off in real time.",
+            text = stringResource(R.string.transition_envelopes_hint),
             color = AppMuted,
             fontSize = 12.sp,
             lineHeight = 16.sp,
@@ -1579,7 +1592,7 @@ private fun VolumeControlsPanel(
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
         ) {
             Text(
-                text = "Deck A: " + outCurve.joinToString(" → ") { "${(it.gain * 100).roundToInt()}%" },
+                text = stringResource(R.string.transition_deck_a_curve) + outCurve.joinToString(" → ") { "${(it.gain * 100).roundToInt()}%" },
                 color = OutgoingDeckColor,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
@@ -1590,7 +1603,7 @@ private fun VolumeControlsPanel(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "Deck B: " + inCurve.joinToString(" → ") { "${(it.gain * 100).roundToInt()}%" },
+                text = stringResource(R.string.transition_deck_b_curve) + inCurve.joinToString(" → ") { "${(it.gain * 100).roundToInt()}%" },
                 color = IncomingDeckColor,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
@@ -1617,7 +1630,7 @@ private fun PresetSelectorBar(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = "Transition Preset",
+            text = stringResource(R.string.transition_preset_title),
             color = AppText,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -1627,10 +1640,10 @@ private fun PresetSelectorBar(
             modifier = Modifier.fillMaxWidth(),
         ) {
             listOf(
-                TransitionPreset.AUTO to "Auto",
-                TransitionPreset.FADE to "Fade",
-                TransitionPreset.RISE to "Rise",
-                TransitionPreset.CUSTOM to "Custom",
+                TransitionPreset.AUTO to stringResource(R.string.transition_preset_auto),
+                TransitionPreset.FADE to stringResource(R.string.transition_preset_fade),
+                TransitionPreset.RISE to stringResource(R.string.transition_preset_rise),
+                TransitionPreset.CUSTOM to stringResource(R.string.transition_preset_custom),
             ).forEach { (preset, label) ->
                 val isSelected = selected == preset
                 Box(
@@ -1695,9 +1708,9 @@ private fun PreviewTransportAndSaveCard(
             Column {
                 Text(
                     text = when {
-                        previewState.preparing -> "Preparing Dual-Deck Preview…"
-                        previewState.playing -> "Auditioning Transition"
-                        else -> "Preview Transition (3s pre-roll + overlap + 3s post-roll)"
+                        previewState.preparing -> stringResource(R.string.transition_preview_preparing)
+                        previewState.playing -> stringResource(R.string.transition_preview_playing)
+                        else -> stringResource(R.string.transition_preview_idle)
                     },
                     color = AppText,
                     fontSize = 13.sp,
@@ -1707,7 +1720,7 @@ private fun PreviewTransportAndSaveCard(
                     text = if (isPreviewActive) {
                         "${formatTimeSec(previewState.elapsedSec)} / ${formatTimeSec(previewState.totalSec)}"
                     } else {
-                        "A ${formatTimeSec(transition.exitA)} → B ${formatTimeSec(transition.entryB)} · ${String.format(Locale.US, "%.1f s", transition.overlapSec)}"
+                        stringResource(R.string.transition_preview_summary, formatTimeSec(transition.exitA), formatTimeSec(transition.entryB), String.format(Locale.US, "%.1f", transition.overlapSec))
                     },
                     color = AppMuted,
                     fontSize = 12.sp,
@@ -1715,7 +1728,7 @@ private fun PreviewTransportAndSaveCard(
             }
             if (hasCustomSaved && !hasUnsavedEdits) {
                 Text(
-                    text = "Saved",
+                    text = stringResource(R.string.transition_saved),
                     color = Color(0xFF34D399),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -1780,7 +1793,7 @@ private fun PreviewTransportAndSaveCard(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = if (isPreviewActive) "Stop Preview" else "Preview Mix",
+                    text = if (isPreviewActive) stringResource(R.string.transition_stop_preview) else stringResource(R.string.transition_preview_mix),
                     color = AppText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -1806,7 +1819,7 @@ private fun PreviewTransportAndSaveCard(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "Save Transition",
+                    text = stringResource(R.string.transition_save),
                     color = accentInk,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,

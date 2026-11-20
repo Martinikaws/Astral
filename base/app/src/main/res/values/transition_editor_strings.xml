@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Experimental DJ Transition Editor. English only for now. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="transition_editor_row">Transition Editor</string>
+    <string name="transition_editor_setting_title">DJ Transition Editor (Experimental)</string>
+    <string name="transition_editor_setting_detail">Edit overlap bars, cue points, and volume curves between songs on Astral\'s local player (lossless/extension streams, downloads, or local files).</string>
+    <string name="transition_editor_open">Open Transition Editor</string>
+    <string name="transition_editor_open_detail">Fine-tune the mix between the currently playing song and the next track in queue.</string>
+    <string name="transition_dump_title">Dump Spotify mixed-playlist data (Debug)</string>
+    <string name="transition_dump_detail">When opening a playlist, save its raw GraphQL JSON response (secrets redacted) to mixed-playlists/ so Spotify mix transition fields can be inspected. The dumps contain playlist owner and collaborator ids and names. Only the newest 50 files are kept.</string>
+
+    <string name="transition_toast_reset">Reset transition to AutoMix plan</string>
+    <string name="transition_toast_saved">Custom transition saved</string>
+    <string name="transition_editor_title">Transition</string>
+    <string name="transition_editor_subtitle">Astral Studio · Overlap &amp; Envelope Editor</string>
+    <string name="transition_reset_auto">Reset to Auto</string>
+    <string name="transition_apply">Apply</string>
+    <string name="transition_save_short">Save</string>
+    <string name="transition_save">Save Transition</string>
+    <string name="transition_saved">Saved</string>
+
+    <string name="transition_preset_auto">Auto</string>
+    <string name="transition_preset_auto_edited">Auto · Edited</string>
+    <string name="transition_preset_fade">Fade</string>
+    <string name="transition_preset_rise">Rise</string>
+    <string name="transition_preset_custom">Custom</string>
+    <string name="transition_preset_title">Transition Preset</string>
+
+    <string name="transition_banner_engine_title">Local Audio Engine Required</string>
+    <string name="transition_banner_queue_title">Queue Two Local Tracks to Edit Their Transition</string>
+    <string name="transition_banner_engine_body">Transition Editor mixes require Astral\'s local audio engine (lossless/SpotiFLAC or extension streams, downloads, or local files). Spotify Web Player streams play inside a single sandboxed media element and only support plain crossfade.</string>
+    <string name="transition_banner_queue_body">Start playing a playlist, album, or queue with at least one upcoming track on Astral\'s local player so Track A (Outgoing) and Track B (Incoming) can be loaded into the dual-deck timeline.</string>
+
+    <string name="transition_deck_a">DECK A · OUT</string>
+    <string name="transition_deck_b">DECK B · IN</string>
+    <string name="transition_track_outgoing">Outgoing Track</string>
+    <string name="transition_track_incoming">Incoming Track</string>
+    <string name="transition_artist_unknown">Unknown Artist</string>
+    <string name="transition_cue_exit">Exit %1$s</string>
+    <string name="transition_cue_entry">Entry %1$s</string>
+    <string name="transition_harmonic_fmt">Harmonic: %1$s</string>
+    <string name="transition_harmonic_compatible">Compatible</string>
+    <string name="transition_harmonic_near">Near Key</string>
+    <string name="transition_harmonic_clash">Key Clash</string>
+    <string name="transition_harmonic_unknown">Key —</string>
+    <string name="transition_analyzing">Analyzing…</string>
+    <string name="transition_bpm_fmt">%1$s BPM</string>
+    <string name="transition_bpm_unknown">— BPM</string>
+    <string name="transition_key_fmt">Key %1$s</string>
+
+    <string name="transition_mode_volume">Volume Curves</string>
+    <string name="transition_mode_overlap">Overlap &amp; Cues</string>
+    <string name="transition_bass_swap_on">Bass Swap ON</string>
+    <string name="transition_bass_swap_off">Bass Swap OFF</string>
+    <string name="transition_hint_volume">DRAG CONTROL POINTS TO SHAPE VOLUME ENVELOPES</string>
+    <string name="transition_hint_overlap">DRAG TRACK A OR TRACK B WAVEFORM TO SHIFT CUE POINTS</string>
+    <string name="transition_overlap_length">Overlap Length</string>
+    <string name="transition_bars_one">%1$d bar</string>
+    <string name="transition_bars_other">%1$d bars</string>
+    <string name="transition_cue_a_label">Track A Exit Cue</string>
+    <string name="transition_cue_b_label">Track B Entry Cue</string>
+    <string name="transition_minus_bar">-1 bar</string>
+    <string name="transition_plus_bar">+1 bar</string>
+    <string name="transition_envelopes_title">5-Point Volume Envelopes</string>
+    <string name="transition_reset_curves">Reset Curves</string>
+    <string name="transition_envelopes_hint">Drag the 5 glowing handles on Deck A (top cyan curve) or Deck B (bottom orchid curve) to sculpt the volume hand-off in real time.</string>
+    <string name="transition_deck_a_curve">Deck A: </string>
+    <string name="transition_deck_b_curve">Deck B: </string>
+
+    <string name="transition_preview_preparing">Preparing Dual-Deck Preview…</string>
+    <string name="transition_preview_playing">Auditioning Transition</string>
+    <string name="transition_preview_idle">Preview Transition (3s pre-roll + overlap + 3s post-roll)</string>
+    <string name="transition_preview_summary">A %1$s → B %2$s · %3$s s</string>
+    <string name="transition_stop_preview">Stop Preview</string>
+    <string name="transition_preview_mix">Preview Mix</string>
+</resources>
