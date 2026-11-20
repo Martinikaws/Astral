@@ -40,7 +40,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import com.music.spotui.ui.components.WindowSize
+import com.music.spotui.ui.components.cappedPageWidth
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -186,6 +189,9 @@ fun SetupScreen(onDone: () -> Unit) {
                 label = "setupStep",
                 modifier = Modifier.weight(1f),
             ) { i ->
+              // The steps are forms: on a large window a centred column, not a phone stretched across.
+              Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+              Box(Modifier.fillMaxHeight().then(if (order[i] == STEP_LOOK) Modifier.fillMaxWidth() else Modifier.setupColumn())) {
                 when (order[i]) {
                     STEP_INTRO -> IntroStep(onNext = ::next)
                     STEP_QUALITY -> QualityStep(onNext = {
@@ -208,10 +214,17 @@ fun SetupScreen(onDone: () -> Unit) {
                     )
                     else -> PermissionsStep(onNext = { Setup.done(context); next() })
                 }
+              }
+              }
             }
         }
     }
 }
+
+/** A setup step's column: capped and centred on a large window, the whole width on a phone. */
+@Composable
+private fun Modifier.setupColumn(): Modifier =
+    if (com.music.spotui.ui.components.windowSize().large && !com.music.spotui.ui.tv.Tv.isTv(androidx.compose.ui.platform.LocalContext.current)) cappedPageWidth(WindowSize.SetupColumnWidth) else fillMaxWidth()
 
 internal const val STEP_INTRO = 0
 internal const val STEP_LOOK = 1
@@ -242,8 +255,8 @@ fun AccountChoiceScreen(onBack: () -> Unit, onDone: () -> Unit) {
             }
             else -> Glow(Modifier.fillMaxSize(), alpha = 0.16f)
         }
-        Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            AccountStep(onNext = onDone, beforeSignIn = true)
+        Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.fillMaxHeight().setupColumn()) { AccountStep(onNext = onDone, beforeSignIn = true) }
         }
     }
 }

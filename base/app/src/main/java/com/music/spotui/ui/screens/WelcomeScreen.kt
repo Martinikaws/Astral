@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import com.music.spotui.ui.components.WindowSize
+import com.music.spotui.ui.components.cappedPageWidth
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -74,6 +76,11 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** The welcome's columns: capped and centred on a large window, the whole width on a phone. */
+@Composable
+private fun Modifier.welcomeColumn(): Modifier =
+    if (com.music.spotui.ui.components.windowSize().large && !com.music.spotui.ui.tv.Tv.isTv(androidx.compose.ui.platform.LocalContext.current)) cappedPageWidth(WindowSize.WelcomeColumnWidth) else fillMaxWidth()
+
 /**
  * First screen of an app with no account in place: what Myspoti is, then the music account to use
  * ([AccountChoiceScreen]; on a TV, Spotify's own login page, shown by the engine), once [onLogin] is tapped. The logo, the name, what the app adds and
@@ -107,7 +114,7 @@ fun WelcomeScreen(onLogin: () -> Unit) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth().align(Alignment.Center).padding(bottom = 140.dp),
+                modifier = Modifier.welcomeColumn().align(Alignment.Center).padding(bottom = 140.dp),
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -153,7 +160,7 @@ fun WelcomeScreen(onLogin: () -> Unit) {
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).rise(3),
+                modifier = Modifier.welcomeColumn().align(Alignment.BottomCenter).rise(3),
             ) {
                 // A TV remote: the button takes the focus at once and shows it (a white ring); a
                 // focus with no look left nothing on screen to say what OK would do.

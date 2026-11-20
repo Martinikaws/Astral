@@ -154,17 +154,28 @@ fun App() {
         // Before the Scaffold, in a group of its own: the nav host keeps its place when the
         // window grows or shrinks past the threshold (back stack and pages kept).
         if (rail && !immersive) com.music.spotui.ui.navigation.MainNavigationRail(navController)
-        Scaffold(
-            modifier = Modifier.weight(1f),
-            containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            bottomBar = {
-                if (!immersive) MainBottomNavigation(navController)
+        else if (immersive && com.music.spotui.ui.components.windowSize().sideNavigation) {
+            com.music.spotui.ui.immersive.shell.ImmersiveSideBar(navController)
+        }
+        // The page area; Immersive's floating mini player (and phone tab bar) sits at its bottom.
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                bottomBar = {
+                    if (!immersive) MainBottomNavigation(navController)
+                }
+            ) {
+                MyNavHost(navHostController = navController)
             }
-        ) {
-            MyNavHost(navHostController = navController)
+            if (immersive) com.music.spotui.ui.immersive.shell.ImmersiveBottomChrome(
+                navController,
+                miniPlayer = { m -> com.music.spotui.ui.immersive.player.ImmersiveMiniPlayer(m) },
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+            )
         }
       }
-        if (immersive) ImmersiveShell(navController)
+        if (immersive) com.music.spotui.ui.immersive.player.ImmersivePlayerOverlay(navController)
         // Over the pages and the bottom bar: pulling it down shows them, already in place.
         else com.music.spotui.ui.navigation.PlayerOverlay(navController)
         // "Not interested" and its Undo, over the pages and the players.
@@ -292,23 +303,6 @@ private fun GlassifyAmbientBackdrop(
                     ),
                 ),
         )
-    }
-}
-
-/**
- * The Immersive look's floating chrome: the mini player capsule over the tab bar (both hidden
- * on the full-screen routes; folded into one row while a page scrolls down), and its player over
- * everything.
- */
-@Composable
-private fun ImmersiveShell(navController: androidx.navigation.NavHostController) {
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-        com.music.spotui.ui.immersive.shell.ImmersiveBottomChrome(
-            navController,
-            miniPlayer = { m -> com.music.spotui.ui.immersive.player.ImmersiveMiniPlayer(m) },
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
-        )
-        com.music.spotui.ui.immersive.player.ImmersivePlayerOverlay(navController)
     }
 }
 

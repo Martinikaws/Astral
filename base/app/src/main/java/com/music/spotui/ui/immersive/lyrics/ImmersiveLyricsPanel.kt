@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -166,6 +167,7 @@ import com.music.spotui.ui.immersive.components.ImmersiveButton
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.glass
 import com.music.spotui.ui.components.shareLyricLines
+import com.music.spotui.ui.components.cappedLyricsWidth
 
 /**
  * The lyrics of the playing track, inside the player: big tight type, the playing line crisp
@@ -317,6 +319,8 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                         oledBlack = oledBlack,
                         reduceMotion = reduceMotion,
                     )
+                    // The backdrop spans the panel; the lines and their controls stay in a readable column.
+                    Box(Modifier.fillMaxHeight().cappedLyricsWidth()) {
                     androidx.compose.animation.Crossfade(
                         targetState = current.lyrics, animationSpec = tween(LYRICS_SWAP_MS), label = "lyricsSwap",
                         modifier = Modifier.fillMaxSize(),
@@ -370,6 +374,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                         onShare = { picked?.let { shareLyricLines(context, current.lyrics, it, title, artist); vm.stopSelecting() } },
                         modifier = Modifier.align(Alignment.BottomCenter).padding(contentPadding).padding(horizontal = Immersive.Gutter),
                     )
+                    }
                 }
             }
             }

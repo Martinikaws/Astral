@@ -278,14 +278,16 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
         }
     }
 
-    /** Immersive: the page on black, the floating tab bar and mini player over it. */
+    /** Immersive: the page on black, the tabs in the sidebar on large windows (the floating tab bar otherwise), the mini player over the page area. */
     @Composable
     private fun ImmersiveShell(route: String, capped: Boolean, page: @Composable (NavHostController) -> Unit) {
         val nav = rememberNavController()
         val large = windowSize().large
         val chrome = com.music.spotui.ui.immersive.shell.rememberImmersiveChromeState()
         CompositionLocalProvider(com.music.spotui.ui.immersive.shell.LocalImmersiveChrome provides chrome) {
-            Box(Modifier.fillMaxSize()) {
+          Row(Modifier.fillMaxSize()) {
+            if (windowSize().sideNavigation) com.music.spotui.ui.immersive.shell.ImmersiveSideBar(nav)
+            Box(Modifier.weight(1f)) {
                 NavHost(nav, startDestination = route) {
                     listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, "detail").forEach { r ->
                         composable(r) { CompositionLocalProvider(androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner provides rule.activity) {
@@ -302,6 +304,7 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
+          }
         }
     }
 
@@ -464,6 +467,21 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
         seedSearch()
         shoot("immersive-search", Look.IMMERSIVE) {
             ImmersiveShell(Routes.Search.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveSearchScreen(nav) }
+        }
+    }
+
+    /** The tablet sidebar (large windows) or the floating bar (phones), on the pages that show the tabs. */
+    @Test fun immersiveSideBarHome() {
+        com.music.spotui.data.api.Api.HomeCache.home = feed
+        shoot("immersive-sidebar-home", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveHomeScreen(nav) }
+        }
+    }
+
+    @Test fun immersiveSideBarLibrary() {
+        com.music.spotui.data.api.Api.HomeCache.libraryRoot = entries
+        shoot("immersive-sidebar-library", Look.IMMERSIVE) {
+            ImmersiveShell(Routes.Library.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(nav) }
         }
     }
 

@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -177,6 +178,7 @@ import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.StarryNightBackdrop
 import com.music.spotui.ui.components.rememberFrameClock
 import com.music.spotui.ui.components.shareLyricLines
+import com.music.spotui.ui.components.cappedLyricsWidth
 import com.music.spotui.ui.components.titleMarquee
 import com.music.spotui.ui.theme.StarryAccent
 import com.music.spotui.ui.viewmodel.LyricsViewModel
@@ -1248,7 +1250,7 @@ fun LyricsScreen(
                     ) { value, _ -> scrollSince.floatValue = value }
                 }
                 val hPad = (24.dp - GLOW_ROOM).coerceAtLeast(0.dp)
-                BoxWithConstraints(Modifier.fillMaxSize()) {
+                BoxWithConstraints(Modifier.fillMaxHeight().cappedLyricsWidth()) {
                     val offsetPx = with(LocalDensity.current) { (maxHeight * 0.34f).roundToPx() }
                     AutoFollow(
                         listState = listState,

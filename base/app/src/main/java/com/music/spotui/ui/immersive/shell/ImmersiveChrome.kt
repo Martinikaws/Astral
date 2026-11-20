@@ -173,10 +173,20 @@ fun ImmersiveBottomChrome(
     // The keyboard is up (a search, a name to type): the bar and the mini player would sit on it or
     // over the results right above it, so they step aside until it goes.
     if (WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0) return
-    // Windows 840 dp and wider (tablets, DeX) and a phone on its side: the tab bar and the mini
-    // player side by side in one floating row, centred, each at its own capped width; there is
-    // room, so it never folds. Narrower large windows (a foldable, a portrait tablet) stack them
-    // as phones do: beside the tab bar the mini player was squeezed to 200-320 dp.
+    // Large windows: the tabs are in the sidebar (ImmersiveSideBar); only the mini player floats at
+    // the bottom of the page area, centred and capped.
+    if (com.music.spotui.ui.components.windowSize().sideNavigation) {
+        Box(
+            modifier.fillMaxWidth().windowInsetsPadding(ImmersiveBarInsets)
+                .padding(horizontal = MINI_MARGIN).padding(bottom = 2.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(Modifier.widthIn(max = LargeMiniPlayerWidth)) { miniPlayer(Modifier) }
+        }
+        return
+    }
+    // A phone on its side (every large window returned above): the tab bar and the mini player
+    // side by side in one floating row, centred, each at its own capped width; it never folds.
     if (com.music.spotui.ui.components.windowSize().chromeInOneRow) {
         androidx.compose.foundation.layout.BoxWithConstraints(
             modifier.fillMaxWidth().windowInsetsPadding(ImmersiveBarInsets)
@@ -184,7 +194,7 @@ fun ImmersiveBottomChrome(
             contentAlignment = Alignment.BottomCenter,
         ) {
             // The tab bar gives up width before the mini player drops under MIN_ROW_MINI_PLAYER
-            // (a phone on its side narrower than 840 dp).
+            // (a narrow phone on its side).
             val tabsMax = (maxWidth - CHROME_GAP - MIN_ROW_MINI_PLAYER).coerceIn(0.dp, ImmersiveBarMaxWidth)
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = Alignment.CenterVertically,

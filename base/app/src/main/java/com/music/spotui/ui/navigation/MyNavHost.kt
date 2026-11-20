@@ -469,26 +469,7 @@ private fun NavGraphBuilder.page(
         // (more columns). The inner box is always there, so a resize never rebuilds the page.
         val capped = com.music.spotui.ui.components.windowSize().large &&
             entry.destination.route?.substringBefore('/')?.substringBefore('?') !in FullWidthRoutes
-        val starryEnabled = com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState().value
-        val starryActive = starryEnabled &&
-            !app.myspoti.power.EnergySettings.oledBlack &&
-            com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
-        // A single light translucent veil while the stars are drawn, so transitions don't ghost while stars stay
-        // crisp. Only the Starry Night Look has the navy one; the stars extra on another Look is veiled in that
-        // Look's own page colour, so each Look keeps its colours.
-        val look = com.music.spotui.ui.look.LocalLook.current
-        val pageBg = if (starryActive) {
-            if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) androidx.compose.ui.graphics.Color(0xB80A1422)
-            else com.music.spotui.ui.immersive.lookTokens(look).page.copy(alpha = 0.72f)
-        }
-            // Glassify's page is transparent (the cover ambient shows through): a partial veil of its base keeps
-            // pages from ghosting through each other during transitions.
-            else if (immersive) com.music.spotui.ui.immersive.Immersive.Page.let {
-                if (it == androidx.compose.ui.graphics.Color.Transparent && look == com.music.spotui.data.preferences.Look.GLASSIFY)
-                    com.music.spotui.ui.theme.GlassifyBackground.copy(alpha = 0.55f)
-                else it
-            }
-            else AppBackground
+        val pageBg = pageBackgroundVeil(immersive)
         Box(Modifier.fillMaxSize()
             .then(if (fade == null) Modifier else Modifier.graphicsLayer { this.alpha = fade.value })
             .then(if (pageBg == androidx.compose.ui.graphics.Color.Transparent) Modifier else Modifier.background(pageBg))) {
@@ -503,10 +484,40 @@ private fun NavGraphBuilder.page(
     }
 }
 
-/** Pages that use a large window's whole width (grids, the tabs' own pages, the player). */
+/**
+ * The veil each page draws over the app's backdrop (stars, Glassify's ambient). Shared with the
+ * tablet sidebar's column so the area behind it matches the pages instead of showing the bare
+ * backdrop as a strip.
+ */
+@Composable
+fun pageBackgroundVeil(immersive: Boolean): androidx.compose.ui.graphics.Color {
+        val starryEnabled = com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState().value
+        val starryActive = starryEnabled &&
+            !app.myspoti.power.EnergySettings.oledBlack &&
+            com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.BACKGROUND) == null
+        // A single light translucent veil while the stars are drawn, so transitions don't ghost while stars stay
+        // crisp. Only the Starry Night Look has the navy one; the stars extra on another Look is veiled in that
+        // Look's own page colour, so each Look keeps its colours.
+        val look = com.music.spotui.ui.look.LocalLook.current
+        val pageBg: androidx.compose.ui.graphics.Color = if (starryActive) {
+            if (look == com.music.spotui.data.preferences.Look.STARRY_NIGHT) androidx.compose.ui.graphics.Color(0xB80A1422)
+            else com.music.spotui.ui.immersive.lookTokens(look).page.copy(alpha = 0.72f)
+        }
+            // Glassify's page is transparent (the cover ambient shows through): a partial veil of its base keeps
+            // pages from ghosting through each other during transitions.
+            else if (immersive) com.music.spotui.ui.immersive.Immersive.Page.let {
+                if (it == androidx.compose.ui.graphics.Color.Transparent && look == com.music.spotui.data.preferences.Look.GLASSIFY)
+                    com.music.spotui.ui.theme.GlassifyBackground.copy(alpha = 0.55f)
+                else it
+            }
+            else AppBackground
+    return pageBg
+}
+
+/** Pages that use a large window's whole width (grids, the tabs' own pages, the player). The queue is a list: capped like the detail pages. */
 private val FullWidthRoutes = setOf(
     Routes.Home.route, Routes.Search.route, Routes.Library.route, Routes.Modules.route,
-    Routes.Player.route, Routes.Queue.route,
+    Routes.Player.route,
     Routes.Category.route, Routes.NewReleases.route,
 )
 

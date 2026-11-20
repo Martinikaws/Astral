@@ -22,7 +22,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import com.music.spotui.ui.components.WindowSize
+import com.music.spotui.ui.components.windowSize
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -139,10 +146,13 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 else -> Box(Modifier.fillMaxSize().background(AppBackground))
             }
         }
-        Column(
-            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        // Large windows: the content is a centred column, and a wide landscape window puts the
+        // preview beside the picker (stacked, the preview was squeezed between the two).
+        val window = windowSize()
+        // A TV keeps its phone-style layout (D-pad navigation order).
+        val tablet = window.large && !com.music.spotui.ui.tv.Tv.isTv(androidx.compose.ui.platform.LocalContext.current)
+        val sideBySide = tablet && window.widthDp > window.heightDp
+        val title: @Composable () -> Unit = {
             Text(
                 stringResource(if (offer != null) R.string.look_offer_title else R.string.setup_look_title),
                 style = text,
@@ -150,8 +160,9 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 fontWeight = if (immersive) FontWeight.SemiBold else FontWeight.Bold,
             )
             Text(stringResource(R.string.setup_look_subtitle), style = text, color = subtle, fontSize = 14.sp)
-            LookSegments(look, family, choose)
-            Box(Modifier.fillMaxWidth().weight(1f)) {
+        }
+        val preview: @Composable (Modifier) -> Unit = { previewModifier ->
+            Box(previewModifier) {
                 val description = stringResource(R.string.setup_look_preview, look.label)
                 if (reduceMotion) {
                     LookStills(look, subtle, Modifier.fillMaxSize().semantics { contentDescription = description })
@@ -187,6 +198,8 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                     }
                 })
             }
+        }
+        val caption: @Composable () -> Unit = {
             Text(
                 "${look.label} — ${look.detail}",
                 style = text,
@@ -203,6 +216,8 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 style = text, color = dim.copy(alpha = 0.6f), fontSize = 11.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+        val actions: @Composable () -> Unit = {
             Button(
                 onClick = onNext,
                 shape = when (look) {
@@ -235,6 +250,35 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+        Box(
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            if (sideBySide) {
+                Row(Modifier.fillMaxHeight().widthIn(max = WindowSize.MaxPageWidth), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        title()
+                        LookSegments(look, family, choose, vertical = true, modifier = Modifier.weight(1f))
+                        actions()
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        preview(Modifier.fillMaxWidth().weight(1f))
+                        caption()
+                    }
+                }
+            } else {
+                Column(
+                    Modifier.fillMaxHeight().then(if (tablet) Modifier.widthIn(max = WindowSize.LookStepColumnWidth) else Modifier.fillMaxWidth()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    title()
+                    LookSegments(look, family, choose)
+                    preview(Modifier.fillMaxWidth().weight(1f))
+                    caption()
+                    actions()
+                }
             }
         }
     }
@@ -328,6 +372,8 @@ private fun LookSegments(
     look: Look,
     family: androidx.compose.ui.text.font.FontFamily,
     choose: (Look) -> Unit,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
 ) {
     val all = Look.entries
     val listState = rememberLazyListState()
@@ -335,12 +381,7 @@ private fun LookSegments(
         val idx = all.indexOf(look).coerceAtLeast(0)
         runCatching { listState.animateScrollToItem(idx) }
     }
-    LazyRow(
-        state = listState,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 2.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    val picker: LazyListScope.() -> Unit = {
         itemsIndexed(all) { _, option ->
             val selected = option == look
             val swatch = option.swatchColor()
@@ -376,7 +417,7 @@ private fun LookSegments(
             }
             Column(
                 Modifier
-                    .width(164.dp)
+                    .then(if (vertical) Modifier.fillMaxWidth() else Modifier.width(164.dp))
                     .clip(cardShape)
                     .background(fill, cardShape)
                     .border(if (selected) 1.5.dp else 1.dp, borderColor, cardShape)
@@ -408,6 +449,17 @@ private fun LookSegments(
                 )
             }
         }
+    }
+    if (vertical) {
+        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth(), content = picker)
+    } else {
+        LazyRow(
+            state = listState,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp),
+            modifier = modifier.fillMaxWidth(),
+            content = picker,
+        )
     }
 }
 

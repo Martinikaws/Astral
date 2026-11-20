@@ -56,13 +56,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import com.music.spotui.ui.components.rememberSoftBlurredBitmap
 import com.music.spotui.ui.components.spotifyImageUrl
+import com.music.spotui.ui.components.windowSize
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.components.ImmersiveCover
 import com.music.spotui.ui.immersive.components.ImmersiveSongTitle
@@ -74,6 +74,9 @@ import com.music.spotui.ui.look.rememberReduceMotion
 
 /** The sheets' top corners (BitChord's `SHEET_SHAPE`). */
 val ImmersiveSheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+
+/** The widest a sheet grows on a wide window: it stays centred, as on iPad. */
+val ImmersiveSheetMaxWidth = 640.dp
 
 /** The ground of a sheet that is not about one cover (BitChord's player drawer, without its blur). */
 private val FlatSheetColor = Color(0xFF121212)
@@ -125,7 +128,7 @@ fun rememberImmersiveSheetTint(imageUrl: String?): ImmersiveSheetTint {
  * with an [imageUrl] it wears that cover's colours (the cover blurred across the top, dissolving
  * into the tint, as BitChord's song sheet does), without one a flat dark ground.
  *
- * The rows scroll inside, capped at [maxHeightFraction] of the screen (or exactly that when
+ * The rows scroll inside, capped at [maxHeightFraction] of the window (or exactly that when
  * [expand] is set, for lists that bring their own scrolling), with the iOS rubber band.
  * [content] is a column; use [ImmersiveSheetRow] and friends for what goes in it.
  */
@@ -141,7 +144,7 @@ fun ImmersiveSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val tint = rememberImmersiveSheetTint(imageUrl)
-    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * maxHeightFraction
+    val maxHeight = windowSize().heightDp.dp * maxHeightFraction
     val coverModel = if (imageUrl.isNullOrBlank()) null else (spotifyImageUrl(imageUrl) ?: imageUrl)
     val blurredCover by rememberSoftBlurredBitmap(
         url = coverModel,
@@ -157,6 +160,7 @@ fun ImmersiveSheet(
         containerColor = Color.Transparent,
         tonalElevation = 0.dp,
         dragHandle = null,
+        sheetMaxWidth = ImmersiveSheetMaxWidth,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         CompositionLocalProvider(

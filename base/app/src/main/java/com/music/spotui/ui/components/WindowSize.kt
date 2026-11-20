@@ -87,10 +87,18 @@ data class WindowSize(val widthDp: Int, val heightDp: Int) {
     val navigationRail: Boolean get() = large || shortAndWide
 
     /**
-     * Immersive's tab bar and mini player side by side in one row: only where the row is wide
-     * enough for both (840 dp and wider) or the window too short for them stacked. Below that
-     * (a foldable, a portrait tablet) the mini player beside the 440 dp tab bar was squeezed to
-     * 200-320 dp, so they stack as on phones.
+     * Immersive's tabs in a sidebar beside the pages, the mini player floating over the page area:
+     * every large window (tablets in both orientations, unfolded foldables, DeX). A phone on its
+     * side keeps the one-row bar ([chromeInOneRow]).
+     */
+    val sideNavigation: Boolean get() = large
+
+    /**
+     * Tab bar and mini player side by side in one row. In Immersive only a phone on its side
+     * ([shortAndWide]) gets this, because every large window is checked for [sideNavigation]
+     * first (the tabs are in the sidebar, the mini player alone floats at the bottom). The
+     * [expanded] part still matters to other callers of this flag (e.g. the Modules page's bottom
+     * padding), which read it outside Immersive's chrome.
      */
     val chromeInOneRow: Boolean get() = expanded || shortAndWide
 
@@ -105,6 +113,20 @@ data class WindowSize(val widthDp: Int, val heightDp: Int) {
     companion object {
         /** The widest a detail page (album, playlist, artist, settings) grows, centred. */
         val MaxPageWidth = 1040.dp
+        /** The widest a lyrics column grows on a large window: lines spanning 1200 dp are hard to follow. */
+        val MaxLyricsWidth = 640.dp
+        /** The widest the Look step's single column grows on a large window. */
+        val LookStepColumnWidth = 640.dp
+        /** The widest the welcome screen's columns grow on a large window. */
+        val WelcomeColumnWidth = 480.dp
+        /** The widest a setup step grows on a large window. */
+        val SetupColumnWidth = 560.dp
+        /** A compact shelf card (a cover and its caption) on a large window; phones use 150 dp. */
+        val LargeShelfCardWidth = 176.dp
+        /** The classic home shelf's cover on a large window; phones use 150 dp. */
+        val LargeHomeCardSize = 184.dp
+        /** The widest a lead-shelf ("Made for you") card grows on a large window; phones up to 320 dp. */
+        val LargeHeroCardMaxWidth = 280.dp
         /** The widest the mini player grows on a large window. */
         val MaxMiniPlayerWidth = 720.dp
 
@@ -118,11 +140,16 @@ data class WindowSize(val widthDp: Int, val heightDp: Int) {
  * Caps a page's list at [WindowSize.MaxPageWidth], centred, on wider windows: rows (a library, a
  * search) drawn across 1800 dp are hard to read. Narrower windows keep their whole width.
  */
-fun Modifier.cappedPageWidth(): Modifier = this
+fun Modifier.cappedPageWidth(max: Dp = WindowSize.MaxPageWidth): Modifier = this
     .fillMaxWidth()
     .wrapContentWidth(Alignment.CenterHorizontally)
-    .widthIn(max = WindowSize.MaxPageWidth)
+    .widthIn(max = max)
     .fillMaxWidth()
+
+/** Lyrics lines on a large window: a centred column of [WindowSize.MaxLyricsWidth]; phones keep their whole width. */
+@Composable
+fun Modifier.cappedLyricsWidth(): Modifier =
+    if (windowSize().large) cappedPageWidth(WindowSize.MaxLyricsWidth) else fillMaxWidth()
 
 private val LocalWindowSize = staticCompositionLocalOf<WindowSize?> { null }
 

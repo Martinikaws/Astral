@@ -513,6 +513,8 @@ private fun HomeFeedSection(navController: NavController, section: HomeSection) 
 @Composable
 private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     val isArtist = item is HomeItem.Artist
+    // Large windows: bigger covers, so a shelf is not a thin strip of phone cards.
+    val cardSize = if (com.music.spotui.ui.components.windowSize().large) com.music.spotui.ui.components.WindowSize.LargeHomeCardSize else 150.dp
     val spotifusion = isSpotifusionLook()
     val cardShape = if (isArtist) CircleShape else if (spotifusion) SpotifusionCardShape else DefaultCardShape
     val dotColor = if (spotifusion) SpotifusionGreen else AppAccent
@@ -527,13 +529,13 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     Column(
         horizontalAlignment = if (isArtist) Alignment.CenterHorizontally else Alignment.Start,
         modifier = Modifier.pressable(0.96f, onPressHint = onPressHint, onClick = onClick)
-            .width(150.dp)
+            .width(cardSize)
             .padding(6.dp),
     ) {
         Box {
             GlideImage(
                 modifier = Modifier
-                    .size(150.dp)
+                    .size(cardSize)
                     .clip(cardShape),
                 contentScale = ContentScale.Crop,
                 model = item.imageUrl,

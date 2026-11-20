@@ -1,7 +1,7 @@
 package com.music.spotui.ui.immersive.sheets
 
 import android.content.Intent
-import android.content.res.Configuration
+import com.music.spotui.ui.components.windowSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -64,8 +63,8 @@ private sealed interface MeaningLoad {
  * that line quoted; null: the song as a whole ("About"). The text is read off the main thread and
  * keyed on [trackId].
  *
- * A note stops short of the top of a portrait screen, so the line being sung (which sits high on
- * the lyrics page) stays in sight above it; landscape has too little height to spare and takes more.
+ * A note stops short of the top of a portrait window, so the line being sung (which sits high on
+ * the lyrics page) stays in sight above it; a wide window has too little height to spare and takes more.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,12 +88,11 @@ fun ImmersiveMeaningSheet(
             MeaningLoad.Failed
         }
     }
-    val configuration = LocalConfiguration.current
-    val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val window = windowSize()
     val fraction = when {
-        landscape -> 0.9f
+        window.widthDp > window.heightDp -> 0.9f
         noteIndex == null -> 0.8f
-        configuration.smallestScreenWidthDp >= 600 -> 0.5f
+        window.large -> 0.5f
         else -> 0.62f
     }
     ImmersiveSheet(onDismiss = onDismiss, imageUrl = coverUrl, maxHeightFraction = fraction) {

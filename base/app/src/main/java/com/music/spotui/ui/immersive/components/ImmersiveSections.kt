@@ -53,9 +53,11 @@ import com.music.spotui.ui.immersive.Immersive
 /**
  * Width of a card in the compact carousels (home shelves, library shelves, an artist's releases).
  * Sized so a phone-width row shows two cards whole with the edge of a third showing: enough to say
- * the row scrolls without a card being half a card.
+ * the row scrolls without a card being half a card. A large window takes bigger cards, so a shelf
+ * is not a thin strip of phone cards.
  */
-val ImmersiveShelfCardWidth = 150.dp
+val ImmersiveShelfCardWidth: Dp
+    @Composable get() = if (com.music.spotui.ui.components.windowSize().large) com.music.spotui.ui.components.WindowSize.LargeShelfCardWidth else 150.dp
 
 /** Share of the row a lead-shelf card takes, so the next one peeks in past it. */
 private const val HERO_CARD_FRACTION = 0.70f
@@ -71,10 +73,13 @@ const val ImmersiveHeroCardRatio = 0.92f
  * shelf and for the skeleton standing in for it, which have to agree or the feed jumps when the
  * data lands. Give it the row's own width (`BoxWithConstraints.maxWidth`), not the window's.
  */
-fun immersiveHeroCardWidth(available: Dp): Dp = minOf(available * HERO_CARD_FRACTION, HERO_CARD_MAX_WIDTH)
+@Composable
+fun immersiveHeroCardWidth(available: Dp): Dp {
+    val max = if (com.music.spotui.ui.components.windowSize().large) com.music.spotui.ui.components.WindowSize.LargeHeroCardMaxWidth else HERO_CARD_MAX_WIDTH
+    return minOf(available * HERO_CARD_FRACTION, max)
+}
 
 private val DefaultShelfArrangement = Arrangement.spacedBy(14.dp)
-private val DefaultShelfCardModifier = Modifier.width(ImmersiveShelfCardWidth)
 private val SquareFillModifier = Modifier.fillMaxWidth().aspectRatio(1f)
 private val HeroCardScrim = Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)))
 private val HeroSubtitleColor = Color.White.copy(alpha = 0.72f)
@@ -192,7 +197,7 @@ fun ImmersiveShelfCard(
     subtitle: String?,
     imageUrl: String?,
     onClick: () -> Unit,
-    modifier: Modifier = DefaultShelfCardModifier,
+    modifier: Modifier = Modifier.width(ImmersiveShelfCardWidth),
     round: Boolean = false,
     playing: Boolean = false,
     onLongClick: (() -> Unit)? = null,

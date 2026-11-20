@@ -1,5 +1,6 @@
 package com.music.spotui.ui.immersive
 
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
@@ -71,6 +72,7 @@ enum class GroupStyle { CARD, INSET_LIST }
  * @param sliderTrack the inactive part of a slider.
  * @param accentFollowsCover true when the accent is the playing cover's colour (else a fixed colour).
  * @param titleWeight / [titleSpacing] the character of the titles.
+ * @param chromeRadius corner radius of the floating chrome: the mini player and the tablet sidebar.
  */
 @Immutable
 class LookTokens(
@@ -92,6 +94,7 @@ class LookTokens(
     val titleSpacing: TextUnit,
     val largeTitleSize: TextUnit,
     val gutter: Dp,
+    val chromeRadius: Dp = 28.dp,
 )
 
 private val ClassicTokens = LookTokens(
@@ -126,6 +129,7 @@ private val SpotifusionTokens = ClassicTokens.copy(
     cardRadius = 8.dp,
     groupRadius = 8.dp,
     buttonRadius = 500.dp,
+    chromeRadius = 8.dp,
     divider = Color.White.copy(alpha = 0.07f),
     switchTrackOff = Color(0xFF535353),
     sliderTrack = Color(0xFF535353),
@@ -159,6 +163,7 @@ private val LiquidTokens = ClassicTokens.copy(
     cardRadius = 20.dp,
     groupRadius = 20.dp,
     buttonRadius = 20.dp,
+    chromeRadius = 20.dp,
     divider = Color.White.copy(alpha = 0.12f),
     dividerThickness = 0.33.dp,
     switchTrackOff = Color(0xFF39393D),
@@ -174,6 +179,7 @@ private val StarryTokens = ClassicTokens.copy(
     surface = StarryCard,
     edge = EdgeStyle.HAIRLINE,
     edgeColor = StarryHairline,
+    chromeRadius = 22.dp,
     divider = StarryAccent.copy(alpha = 0.10f),
     switchTrackOff = Color(0xFF2A3A55),
     switchThumbOn = Color(0xFF152238),
@@ -201,9 +207,10 @@ private fun LookTokens.copy(
     titleSpacing: TextUnit = this.titleSpacing,
     largeTitleSize: TextUnit = this.largeTitleSize,
     gutter: Dp = this.gutter,
+    chromeRadius: Dp = this.chromeRadius,
 ) = LookTokens(
     page, surface, edge, edgeColor, groupStyle, cardRadius, groupRadius, buttonRadius, divider, dividerThickness,
-    switchTrackOff, switchThumbOn, sliderTrack, accentFollowsCover, titleWeight, titleSpacing, largeTitleSize, gutter,
+    switchTrackOff, switchThumbOn, sliderTrack, accentFollowsCover, titleWeight, titleSpacing, largeTitleSize, gutter, chromeRadius,
 )
 
 /** The tokens of [look]. */
@@ -308,14 +315,9 @@ object Immersive {
     val Group: Shape get() = RoundedCornerShape(Tokens.groupRadius)
     val Button: Shape get() = RoundedCornerShape(Tokens.buttonRadius)
     /** The floating mini player: a capsule, rounder or squarer with the Look. */
-    val MiniPlayerShape: Shape get() = RoundedCornerShape(
-        when (LookPref.look) {
-            Look.SPOTIFUSION -> 8.dp
-            Look.LIQUID_MUSIC -> 20.dp
-            Look.STARRY_NIGHT -> 22.dp
-            else -> 28.dp
-        },
-    )
+    val MiniPlayerShape: Shape get() = RoundedCornerShape(Tokens.chromeRadius)
+    /** The tablet sidebar's panel (and what a new Look restyles it with): same corners as the mini player. */
+    val SideBarShape: Shape get() = RoundedCornerShape(Tokens.chromeRadius)
     val GroupLayout: GroupStyle get() = Tokens.groupStyle
 
     // Type (Inter, or the phone's system font when chosen in the settings: AppFontPref).
@@ -362,8 +364,21 @@ object Immersive {
     // Spacing.
     val Gutter: Dp get() = Tokens.gutter
     val RowHeight = 60.dp
-    /** Room the floating tab bar and mini player take at the bottom of every page. */
-    val BottomChrome = 170.dp
+    /**
+     * Room the floating chrome takes at the bottom of every page: the tab bar under the mini player
+     * (phones), one row of both (a phone on its side) or the mini player alone (the tablet
+     * sidebar holds the tabs). Follows the window, so pages pad themselves by what is really there.
+     */
+    val BottomChrome: Dp
+        @Composable get() {
+            val w = com.music.spotui.ui.components.windowSize()
+            return when {
+                // The mini player (56 dp + 2 dp) over the bar inset (a taskbar or 3-button bar is 48 dp+).
+                w.sideNavigation -> 58.dp + com.music.spotui.ui.immersive.shell.ImmersiveBarInsets
+                    .asPaddingValues().calculateBottomPadding() + 12.dp
+                else -> 170.dp
+            }
+        }
 }
 
 /** The colours of a switch in the active Look: the accent track on, the Look's grey off. */

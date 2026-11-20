@@ -80,7 +80,7 @@ private val TAB_ICON_LABEL_GAP = 2.dp
 /** How wide the floating bars are ever allowed to get: on a tablet they stop growing and centre. */
 val ImmersiveBarMaxWidth = 440.dp
 
-private val TabLabel = TextStyle(
+internal val TabLabel = TextStyle(
     fontFamily = ImmersiveSans,
     fontSize = 10.sp,
     lineHeight = 12.sp,
@@ -148,6 +148,13 @@ private val GlassifyTabBorderBrush = Brush.linearGradient(
     end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
 )
 
+/** The fill behind the selected tab, in the bar and the tablet sidebar. */
+internal fun tabIndicatorColor(look: Look, accent: Color): Color = when (look) {
+    Look.LIQUID_MUSIC -> accent.copy(alpha = 0.22f)
+    Look.GLASSIFY -> Color.White.copy(alpha = 0.16f)
+    else -> Color.White.copy(alpha = 0.12f)
+}
+
 /** The tab bar itself (pill and Search circle), filling the width [modifier] leaves it. */
 @Composable
 internal fun TabBarContent(
@@ -191,11 +198,7 @@ internal fun TabBarContent(
             }
         }
     }
-    val indicatorColor = when (look) {
-        Look.LIQUID_MUSIC -> accent.copy(alpha = 0.22f)
-        Look.GLASSIFY -> Color.White.copy(alpha = 0.16f)
-        else -> Color.White.copy(alpha = 0.12f)
-    }
+    val indicatorColor = tabIndicatorColor(look, accent)
 
     Box(modifier = modifier, contentAlignment = Alignment.BottomCenter) {
         FloatingTabBar(
@@ -255,7 +258,7 @@ internal fun TabBarContent(
 }
 
 @Composable
-private fun tabLabel(item: Routes): String =
+internal fun tabLabel(item: Routes): String =
     if (item.labelRes != 0) stringResource(item.labelRes) else item.label
 
 @Composable

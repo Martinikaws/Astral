@@ -443,8 +443,17 @@ fun PlayerScreen(navController: NavController) {
         // and shuffle and repeat sat 730 dp apart. Phones are narrower than the cap.
         val contentWidth = if (twoPane) ((maxWidth - 72.dp) / 2).coerceIn(0.dp, 560.dp)
             else maxWidth.coerceAtMost(520.dp)
-        // Immersive: the artwork takes the whole height instead of leaving room for controls.
-        val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+        // Immersive: the artwork takes the whole height instead of leaving room for controls. A
+        // large window or a split screen uses the player's own box (not the device's screen); a
+        // phone keeps the configuration's height exactly as before.
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val multiWindow = remember(ctx, androidx.compose.ui.platform.LocalConfiguration.current) {
+            var c = ctx
+            while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+            (c as? android.app.Activity)?.isInMultiWindowMode == true
+        }
+        val screenHeight = if (com.music.spotui.ui.components.windowSize().large || multiWindow) pageHeight
+            else androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
         val topBar: @Composable () -> Unit = {
             // Immersive mode has no top bar: only the artwork and the compact strip remain.
             if (!immersive) {
