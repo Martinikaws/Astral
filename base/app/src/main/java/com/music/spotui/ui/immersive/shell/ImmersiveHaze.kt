@@ -91,7 +91,10 @@ internal fun Modifier.immersiveFrost(
     val page = LocalImmersiveFrostPage.current ?: LocalImmersiveBackdrop.current
     if (page != null && state === LocalImmersiveHaze.current) return this.immersivePageFrost(page, tint, blur)
     val fallbackBg = if (Immersive.Page == Color.Transparent) com.music.spotui.ui.immersive.lookTokens(com.music.spotui.data.preferences.LookPref.look).page.copy(alpha = 1f) else Immersive.Page
-    return hazeFrost(state, tint, blur, fallbackBg)
+    // Cupertino below Android 12: Haze cannot blur there, so the bar gets a near-opaque fill, not a veil.
+    val solid = com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.CUPERTINO &&
+        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
+    return hazeFrost(state, if (solid) Immersive.GlassFill else tint, blur, fallbackBg)
 }
 
 @OptIn(ExperimentalHazeApi::class)

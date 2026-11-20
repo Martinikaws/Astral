@@ -73,9 +73,21 @@ class LookAccentTest {
         assertFalse(SupportReminder.honoursChosenAccent(Look.GLASSIFY))
     }
 
-    @Test fun `hasLookDefaultAccent is true only for LiquidMusic and Starry Night`() {
+    @Test fun `Cupertino defaults to its red and honours a chosen accent`() {
+        assertTrue(SupportReminder.honoursChosenAccent(Look.CUPERTINO))
+        assertTrue(SupportReminder.hasLookDefaultAccent(Look.CUPERTINO))
+        assertTrue(SupportReminder.usesLookDefaultAccent(Look.CUPERTINO))
+        assertEquals(CupertinoAccent, lookAccentOrNull(Look.CUPERTINO))
+        SupportReminder.setAccent(app, Look.CUPERTINO, Accent.BLUE)
+        assertEquals(Accent.BLUE.color, lookAccentOrNull(Look.CUPERTINO))
+        SupportReminder.clearAccent(app)
+        assertEquals(CupertinoAccent, lookAccentOrNull(Look.CUPERTINO))
+    }
+
+    @Test fun `hasLookDefaultAccent is true only for LiquidMusic, Starry Night and Cupertino`() {
         assertTrue(SupportReminder.hasLookDefaultAccent(Look.LIQUID_MUSIC))
         assertTrue(SupportReminder.hasLookDefaultAccent(Look.STARRY_NIGHT))
+        assertTrue(SupportReminder.hasLookDefaultAccent(Look.CUPERTINO))
         assertFalse(SupportReminder.hasLookDefaultAccent(Look.CLASSIC))
         assertFalse(SupportReminder.hasLookDefaultAccent(Look.IMMERSIVE))
         assertFalse(SupportReminder.hasLookDefaultAccent(Look.SPOTIFUSION))

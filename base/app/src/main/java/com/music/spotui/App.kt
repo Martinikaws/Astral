@@ -99,7 +99,7 @@ fun App() {
     val immersive = com.music.spotui.ui.navigation.isImmersive()
     val haze = com.music.spotui.ui.immersive.shell.rememberImmersiveHazeState()
     // Liquid Glass & LiquidMusic Glass Mode:
-    // Both IMMERSIVE and LIQUID_MUSIC wire LayerBackdrop + Lens refraction (when liquidGlassRefraction == true
+    // IMMERSIVE, LIQUID_MUSIC and CUPERTINO wire LayerBackdrop + Lens refraction (when liquidGlassRefraction == true
     // for LIQUID_MUSIC, or LiquidGlassPref for IMMERSIVE), and fall back to frostPage Frosted Glass blur on Android 12+.
     // GLASSIFY uses frostPage frosted glass + a heavily blurred album-art ambient layer.
     val glassPage = com.music.spotui.ui.immersive.shell.rememberImmersiveBackdrop()
@@ -109,7 +109,7 @@ fun App() {
     val liquidAvailable = com.music.spotui.ui.immersive.shell.liquidGlassAvailability() ==
         com.music.spotui.ui.immersive.shell.LiquidGlassAvailability.AVAILABLE
     val liquidGlass = when (look) {
-        com.music.spotui.data.preferences.Look.LIQUID_MUSIC -> liquidRefraction && liquidAvailable
+        com.music.spotui.data.preferences.Look.LIQUID_MUSIC, com.music.spotui.data.preferences.Look.CUPERTINO -> liquidRefraction && liquidAvailable
         com.music.spotui.data.preferences.Look.IMMERSIVE -> baseLiquidGlass
         else -> false
     }
@@ -155,7 +155,9 @@ fun App() {
         // window grows or shrinks past the threshold (back stack and pages kept).
         if (rail && !immersive) com.music.spotui.ui.navigation.MainNavigationRail(navController)
         else if (immersive && com.music.spotui.ui.components.windowSize().sideNavigation) {
-            com.music.spotui.ui.immersive.shell.ImmersiveSideBar(navController)
+            // Cupertino: the wide iPad-style sidebar of rows; the others a narrow glass panel of tabs.
+            if (look == com.music.spotui.data.preferences.Look.CUPERTINO) com.music.spotui.ui.immersive.cupertino.CupertinoSideBar(navController)
+            else com.music.spotui.ui.immersive.shell.ImmersiveSideBar(navController)
         }
         // The page area; Immersive's floating mini player (and phone tab bar) sits at its bottom.
         androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {

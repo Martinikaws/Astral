@@ -441,6 +441,10 @@ fun ImmersivePlayer(
                 // Phones keep the box filling the height (the cap is then never reached).
                 val blockMax = if (window.large) minOf(playerWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH) +
                     ART_BOX_TOP_PAD + ART_TITLE_GAP + HEADER_HEIGHT + 16.dp else Dp.Infinity
+                // "Volume bar in the player" off: the cover stays put, and the credits and the controls
+                // move down into the room the bar left, so the bottom row still ends at the foot.
+                val showVolume = com.music.spotui.data.preferences.PlayerVolumePref.on
+                val hiddenVolumeGap = if (showVolume) 0.dp else HIDDEN_VOLUME_GAP
                 Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
                 // Everything that changes between the full player and the panels lives in this
                 // one weighted box, so the controls below it never move.
@@ -466,11 +470,11 @@ fun ImmersivePlayer(
                     // Full-bleed: the credits end at the foot of the cover (its height in this box's
                     // coordinates: minus the status bar and the handle), never lower than the old place
                     // right above the controls.
-                    val bleedTitleTop = (bleedHeight - statusBarTop - DISMISS_STRIP_HEIGHT - HEADER_HEIGHT)
-                        .coerceAtMost(ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP)
+                    val bleedTitleTop = (bleedHeight - statusBarTop - DISMISS_STRIP_HEIGHT - HEADER_HEIGHT + hiddenVolumeGap)
+                        .coerceAtMost(ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP + hiddenVolumeGap)
                         .coerceAtLeast(ART_BOX_TOP_PAD)
                     fun titleTop(): Dp = if (fullBleed) lerp(bleedTitleTop, ART_BOX_TOP_PAD, p())
-                    else ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP, 0.dp, p())
+                    else ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP + hiddenVolumeGap, 0.dp, p())
                     fun titleStart(): Dp = lerp(0.dp, THUMB_SIZE + 12.dp, p())
                     // The credits only crawl while they are the screen: over a list they would pull the eye.
                     val scrolls by remember { derivedStateOf { collapse.value < 0.01f } }
@@ -599,6 +603,10 @@ fun ImmersivePlayer(
                     }
                 }
 
+                // The room a hidden volume bar leaves goes above the controls (the credits come down with
+                // them); the cover keeps its place (#186). Outside the block, so Glassify's strip stays its size.
+                if (!showVolume) Spacer(Modifier.height(hiddenVolumeGap))
+
                 // ---- Bottom: scrubber, transport, volume, toggles ----
                 // One block, measured at its natural height and pinned to the foot of the player.
                 Column(
@@ -609,7 +617,6 @@ fun ImmersivePlayer(
                         .padding(horizontal = PLAYER_GUTTER)
                         .align(Alignment.CenterHorizontally),
                 ) {
-                    val showVolume = com.music.spotui.data.preferences.PlayerVolumePref.on
                     PlayerControlsBlock(
                         state = state, actions = actions, volume = volume, lyricsOpen = lyricsOpen, queueOpen = queueOpen,
                         showVolume = showVolume,
@@ -618,11 +625,6 @@ fun ImmersivePlayer(
                         onToggleQueue = { panel = if (queueOpen) Panel.NONE else Panel.QUEUE },
                         onOpenDevices = { showDevices = true },
                     )
-                    // A hidden volume bar keeps its room, under the controls: without it the block got
-                    // shorter and the cover, the credits, the scrubber and the transport dropped into
-                    // the space it left (#186). Only the bottom row moves up.
-                    // The same sum as PlayerControlsBlock's: the larger gap above the bar, the bar, the gap below.
-                    if (!showVolume) Spacer(Modifier.height(12.dp - 4.dp + VOLUME_ROW_HEIGHT + 6.dp))
                 }
                 }
             }
@@ -966,6 +968,9 @@ private fun LandscapePlayer(
 
 /** A window at least this wide shows the lyrics and the queue beside the cover and the controls. */
 private val SIDE_PANE_MIN_WIDTH = 1100.dp
+
+/** The room a hidden volume bar leaves: PlayerControlsBlock's larger gap above the bar, the bar, the gap below. */
+private val HIDDEN_VOLUME_GAP = 12.dp - 4.dp + VOLUME_ROW_HEIGHT + 6.dp
 
 /** The right-hand column needs about this much height to show the volume bar as well. */
 private val LANDSCAPE_VOLUME_MIN_HEIGHT = 400.dp

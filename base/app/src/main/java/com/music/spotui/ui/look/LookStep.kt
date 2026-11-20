@@ -70,6 +70,11 @@ import com.music.spotui.data.preferences.StarryNightPref
 import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppSans
+import com.music.spotui.ui.theme.CupertinoAccent
+import com.music.spotui.ui.theme.CupertinoBackground
+import com.music.spotui.ui.theme.CupertinoBorder
+import com.music.spotui.ui.theme.CupertinoGlass
+import com.music.spotui.ui.theme.CupertinoGroup
 import com.music.spotui.ui.theme.GlassifyBackground
 import com.music.spotui.ui.theme.GlassifyBorder
 import com.music.spotui.ui.theme.GlassifyGlassFill
@@ -87,7 +92,7 @@ import kotlin.math.abs
 class LookOffer(val onKeep: () -> Unit)
 
 /**
- * Onboarding / Settings Look chooser: all 5 unified Looks ([Look.entries]) over a live preview
+ * Onboarding / Settings Look chooser: all the unified Looks ([Look.entries]) over a live preview
  * that plays the demo song in the chosen look. Saved immediately when tapped or swiped.
  */
 @Composable
@@ -110,6 +115,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
     val buttonColor = when (look) {
         Look.SPOTIFUSION -> SpotifusionGreen
         Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.CUPERTINO -> CupertinoAccent
         Look.GLASSIFY -> StarryBlue
         Look.IMMERSIVE -> Color.White
         Look.STARRY_NIGHT -> StarryAccent
@@ -140,6 +146,11 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 activeLook == Look.LIQUID_MUSIC -> Box(
                     Modifier.fillMaxSize().background(LiquidMusicBackground).background(
                         Brush.radialGradient(colors = listOf(LiquidMusicAccent.copy(alpha = 0.26f), Color.Transparent)),
+                    ),
+                )
+                activeLook == Look.CUPERTINO -> Box(
+                    Modifier.fillMaxSize().background(CupertinoBackground).background(
+                        Brush.radialGradient(colors = listOf(CupertinoAccent.copy(alpha = 0.20f), Color.Transparent)),
                     ),
                 )
                 activeLook == Look.SPOTIFUSION -> Box(Modifier.fillMaxSize().background(SpotifusionBackground))
@@ -174,7 +185,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                     }
                 }
                 // Above the preview, so nothing in it reacts: a tap pauses or resumes, a swipe
-                // cycles through all 6 Looks.
+                // cycles through all the Looks.
                 Box(Modifier.matchParentSize().pointerInput(look) {
                     val swipe = 56.dp.toPx()
                     awaitEachGesture {
@@ -222,6 +233,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 onClick = onNext,
                 shape = when (look) {
                     Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+                    Look.CUPERTINO -> RoundedCornerShape(50)
                     Look.IMMERSIVE, Look.GLASSIFY -> RoundedCornerShape(14.dp)
                     else -> ButtonDefaults.shape
                 },
@@ -290,10 +302,11 @@ private fun Look.swatchColor(): Color = when (this) {
     Look.SPOTIFUSION -> SpotifusionGreen
     Look.GLASSIFY -> StarryBlue
     Look.LIQUID_MUSIC -> LiquidMusicAccent
+    Look.CUPERTINO -> CupertinoAccent
     Look.STARRY_NIGHT -> StarryAccent
 }
 
-/** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for all 6 Looks. */
+/** Preview inside [PhoneFrame], adapting [LookDemo] with visual cues for every Look. */
 @Composable
 private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
     Box(Modifier.fillMaxSize()) {
@@ -361,12 +374,30 @@ private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
                     Text("LIQUIDMUSIC", color = LiquidMusicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
+            Look.CUPERTINO -> {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .border(2.dp, CupertinoBorder, RoundedCornerShape(44.dp)),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(CupertinoGlass)
+                        .border(1.dp, CupertinoBorder, RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text("CUPERTINO", color = CupertinoAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             Look.CLASSIC, Look.IMMERSIVE -> Unit
         }
     }
 }
 
-/** Horizontally scrollable 6-Look card picker so every Look has room for its title and summary. */
+/** Horizontally scrollable Look card picker so every Look has room for its title and summary. */
 @Composable
 private fun LookSegments(
     look: Look,
@@ -387,6 +418,7 @@ private fun LookSegments(
             val swatch = option.swatchColor()
             val cardShape = when (option) {
                 Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
+                Look.CUPERTINO -> RoundedCornerShape(14.dp)
                 Look.GLASSIFY -> RoundedCornerShape(16.dp)
                 Look.IMMERSIVE -> RoundedCornerShape(14.dp)
                 else -> RoundedCornerShape(12.dp)
@@ -397,6 +429,7 @@ private fun LookSegments(
                     selected && option == Look.IMMERSIVE -> Color.White.copy(alpha = 0.92f)
                     selected && option == Look.GLASSIFY -> GlassifyGlassFill
                     selected && option == Look.LIQUID_MUSIC -> LiquidMusicSurface
+                    option == Look.CUPERTINO -> CupertinoGroup
                     selected -> AppAccent
                     option == Look.GLASSIFY -> GlassifyGlassFill
                     option == Look.LIQUID_MUSIC -> LiquidMusicSurface.copy(alpha = 0.65f)
@@ -411,6 +444,7 @@ private fun LookSegments(
             }
             val borderColor = when {
                 selected && option == Look.LIQUID_MUSIC -> LiquidMusicAccent
+                selected && option == Look.CUPERTINO -> CupertinoAccent
                 selected && option == Look.GLASSIFY -> GlassifyBorder
                 selected -> swatch
                 else -> Color.White.copy(alpha = 0.12f)

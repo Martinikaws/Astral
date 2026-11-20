@@ -92,9 +92,17 @@ import org.robolectric.annotation.GraphicsMode
 abstract class AdaptiveScreenshotTest(private val size: String) {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
+    // The prefs shot() changes (LookPref.set also syncs the theme mode, the stars and clears the page-style override), put back in dropHost.
+    private var savedLook = Look.CLASSIC
+    private var savedThemeMode = com.music.spotui.data.preferences.AstralThemeMode.STARRY_NIGHT
+    private var savedStarsExtra = false
+
     @Before fun setUp() {
         // The view models' defaults read Graph.api, which only needs the application.
         Graph::class.java.getDeclaredField("app").apply { isAccessible = true }.set(null, RuntimeEnvironment.getApplication())
+        savedLook = com.music.spotui.data.preferences.LookPref.look
+        savedThemeMode = com.music.spotui.data.preferences.AstralThemePref.themeMode.value
+        savedStarsExtra = com.music.spotui.data.preferences.StarryNightPref.extra.value
         val st = Graph.currentSongState
         fun set(name: String, v: Any) {
             @Suppress("UNCHECKED_CAST")
@@ -155,12 +163,14 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
     } as T
 
     private fun shoot(name: String, look: Look = Look.CLASSIC, content: @Composable () -> Unit) {
+        // The tokens read the stored look (not LocalLook); Cupertino's palette needs it set. Reset in dropHost.
+        if (look == Look.CUPERTINO) com.music.spotui.data.preferences.LookPref.set(rule.activity, look)
         rule.mainClock.autoAdvance = false
         rule.setContent {
             SpotuiTheme {
                 CompositionLocalProvider(LocalLook provides look) {
                     ProvideWindowSize {
-                        Box(Modifier.fillMaxSize().background(if (look == Look.IMMERSIVE) Color.Black else Color(0xFF121212))) { content() }
+                        Box(Modifier.fillMaxSize().background(if (look == Look.IMMERSIVE || look == Look.CUPERTINO) Color.Black else Color(0xFF121212))) { content() }
                     }
                 }
             }
@@ -286,7 +296,10 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
         val chrome = com.music.spotui.ui.immersive.shell.rememberImmersiveChromeState()
         CompositionLocalProvider(com.music.spotui.ui.immersive.shell.LocalImmersiveChrome provides chrome) {
           Row(Modifier.fillMaxSize()) {
-            if (windowSize().sideNavigation) com.music.spotui.ui.immersive.shell.ImmersiveSideBar(nav)
+            if (windowSize().sideNavigation) {
+                if (LocalLook.current == Look.CUPERTINO) com.music.spotui.ui.immersive.cupertino.CupertinoSideBar(nav)
+                else com.music.spotui.ui.immersive.shell.ImmersiveSideBar(nav)
+            }
             Box(Modifier.weight(1f)) {
                 NavHost(nav, startDestination = route) {
                     listOf(Routes.Home.route, Routes.Search.route, Routes.Library.route, "detail").forEach { r ->
@@ -403,6 +416,13 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
     }
 
     @After fun dropHost() {
+        // The look first: it overwrites the theme mode and the stars. The page-style override has no reader, so it ends cleared.
+        val ctx = RuntimeEnvironment.getApplication()
+        com.music.spotui.data.preferences.LookPref.set(ctx, savedLook)
+        com.music.spotui.data.preferences.AstralThemePref.setThemeMode(ctx, savedThemeMode)
+        com.music.spotui.data.preferences.StarryNightPref.setEnabled(ctx, savedStarsExtra)
+        com.music.spotui.ui.immersive.cupertino.CupertinoNav.libraryKind = com.music.spotui.data.local.LibraryChip.ALL
+        com.music.spotui.ui.immersive.cupertino.CupertinoNav.requestedKind = null
         app.myspoti.host.android.MyspotiRuntime::class.java.getDeclaredField("host").apply { isAccessible = true }
             .set(app.myspoti.host.android.MyspotiRuntime, null)
     }
@@ -488,6 +508,58 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
     @Test fun immersiveAlbum() {
         seedAlbum()
         shoot("immersive-album", Look.IMMERSIVE) {
+            ImmersiveShell("detail", capped = true) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(nav, "album", "al1") }
+        }
+    }
+
+    // ---- cupertino: the same pages under the Apple Music-style look ----
+
+    @Test fun cupertinoHome() {
+        com.music.spotui.data.api.Api.HomeCache.home = feed
+        shoot("cupertino-home", Look.CUPERTINO) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveHomeScreen(nav) }
+        }
+    }
+
+    @Test fun cupertinoLibrary() {
+        com.music.spotui.data.api.Api.HomeCache.libraryRoot = entries
+        shoot("cupertino-library", Look.CUPERTINO) {
+            ImmersiveShell(Routes.Library.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(nav) }
+        }
+    }
+
+    @Test fun cupertinoLibraryKind() {
+        com.music.spotui.data.api.Api.HomeCache.libraryRoot = entries
+        com.music.spotui.ui.immersive.cupertino.CupertinoNav.requestedKind = com.music.spotui.data.local.LibraryChip.PLAYLISTS
+        shoot("cupertino-library-kind", Look.CUPERTINO) {
+            ImmersiveShell(Routes.Library.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(nav) }
+        }
+    }
+
+    @Test fun cupertinoSearchBrowse() {
+        seed<SearchViewModel>()
+        shoot("cupertino-search-browse", Look.CUPERTINO) {
+            ImmersiveShell(Routes.Search.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveSearchScreen(nav) }
+        }
+    }
+
+    @Test fun cupertinoArtist() {
+        seedArtist()
+        shoot("cupertino-artist", Look.CUPERTINO) {
+            ImmersiveShell("detail", capped = true) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveArtistScreen(nav, "Tame Impala", "a1") }
+        }
+    }
+
+    @Test fun cupertinoSearch() {
+        seedSearch()
+        shoot("cupertino-search", Look.CUPERTINO) {
+            ImmersiveShell(Routes.Search.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveSearchScreen(nav) }
+        }
+    }
+
+    @Test fun cupertinoAlbum() {
+        seedAlbum()
+        shoot("cupertino-album", Look.CUPERTINO) {
             ImmersiveShell("detail", capped = true) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(nav, "album", "al1") }
         }
     }

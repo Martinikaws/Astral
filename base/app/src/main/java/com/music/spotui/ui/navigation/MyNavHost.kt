@@ -529,7 +529,7 @@ val LocalPageSettled = androidx.compose.runtime.staticCompositionLocalOf<android
     androidx.compose.runtime.mutableStateOf(true)
 }
 
-/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC]). */
+/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC], [Look.CUPERTINO]). */
 @Composable
 internal fun isImmersive(): Boolean =
     com.music.spotui.ui.look.LocalLook.current.isImmersive()

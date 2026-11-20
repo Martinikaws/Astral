@@ -666,7 +666,7 @@ internal fun Section(title: Int) {
 @Composable
 private fun Divider() = HorizontalDivider(color = tone(0xFF2A2A2A), modifier = Modifier.padding(top = 8.dp))
 
-/** Unified 6-Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night). */
+/** Unified Look selector (Astral Basic, Astral Interactive, Spotifusion 1:1, Glassify, LiquidMusic, Starry Night, Cupertino). */
 @Composable
 private fun LookRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -690,9 +690,9 @@ private fun LookRow() {
             }
         }
     }
-    if (current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC) {
+    if (current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC || current == com.music.spotui.data.preferences.Look.CUPERTINO) {
         OptionRow(
-            label = "LiquidMusic Glass Mode",
+            label = if (current == com.music.spotui.data.preferences.Look.CUPERTINO) androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.cupertino_glass_mode) else "LiquidMusic Glass Mode",
             detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
             checked = liquidRefraction,
             onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
@@ -807,7 +807,7 @@ private fun TransitionsLink(onOpen: () -> Unit) {
     }
 }
 
-/** Foreground ink color for selected accent-filled chips across all 6 Looks. */
+/** Foreground ink color for selected accent-filled chips across all Looks. */
 @Composable
 private fun accentChipInk(): Color =
     if (com.music.spotui.ui.theme.AppAccent.luminance() > 0.45f || com.music.spotui.ui.look.isSpotifusionLook()) Color.Black else Color.White

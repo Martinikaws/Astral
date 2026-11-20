@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
@@ -291,7 +292,7 @@ fun ImmersiveMoreButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Rounded.MoreVert,
+            if (com.music.spotui.ui.immersive.cupertino.isCupertino()) Icons.Rounded.MoreHoriz else Icons.Rounded.MoreVert,
             contentDescription = stringResource(R.string.immersive_shell_more),
             tint = tint,
             modifier = Modifier.size(iconSize),

@@ -239,7 +239,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                 } else {
                     Modifier.background(pageBg)
                 }
-                val fieldShape = Immersive.Button
+                val fieldShape = Immersive.Field
                 val fieldBorder = when (look) {
                     Look.GLASSIFY -> Modifier
                         .clip(fieldShape)
@@ -271,7 +271,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                                 onQueryChange = { vm.search(it) },
                                 onSubmit = { vm.search(text) },
                                 focusRequester = fieldFocus,
-                                placeholder = stringResource(R.string.search_header_field_hint),
+                                placeholder = stringResource(if (look == Look.CUPERTINO) R.string.cupertino_search_placeholder else R.string.search_header_field_hint),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .onFocusChanged { searchFocused = it.hasFocus },
@@ -282,8 +282,15 @@ fun ImmersiveSearchScreen(navController: NavController) {
                         ImmersiveVoiceSearchButton(onClick = { launchVoiceSearch(context) })
                     }
                     if (text.isNotBlank()) {
-                        ImmersiveChipRow {
-                            val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS }
+                        val filters = SearchFilter.entries.filter { it != SearchFilter.Podcasts || Features.PODCASTS }
+                        if (look == Look.CUPERTINO) {
+                            // Apple's scope bar: the same filters as one segmented control (no library search exists to scope).
+                            com.music.spotui.ui.immersive.cupertino.CupertinoSegmented(
+                                labels = filters.map { stringResource(it.label) },
+                                selected = filters.indexOf(filter),
+                                onSelect = { vm.filter = filters[it] },
+                            )
+                        } else ImmersiveChipRow {
                             filters.forEach { f ->
                                 val on = f == filter
                                 ImmersiveChip(stringResource(f.label), selected = on) {
@@ -316,7 +323,7 @@ fun ImmersiveSearchScreen(navController: NavController) {
                         },
                     )
                 } else {
-                    item(key = "search:browse-header") { SectionHeader(stringResource(R.string.browse_all)) }
+                    item(key = "search:browse-header") { SectionHeader(stringResource(if (look == Look.CUPERTINO) R.string.cupertino_browse_categories else R.string.browse_all)) }
                     items(tiles.chunked(browseCols), key = { row -> "browse:" + row.first().key }) { row ->
                         BrowseTileRow(row = row, columns = browseCols) { tile ->
                             // A genre opens a catalogue (a page of curated playlists), not a keyword search.

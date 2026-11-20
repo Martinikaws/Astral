@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
@@ -97,6 +99,10 @@ fun SectionHeader(
     modifier: Modifier = Modifier,
     subtitle: String = "",
 ) {
+    if (com.music.spotui.ui.immersive.cupertino.isCupertino()) {
+        com.music.spotui.ui.immersive.cupertino.CupertinoSectionHeader(title, onSeeAll, modifier, subtitle)
+        return
+    }
     Row(
         modifier = modifier
             .padding(horizontal = Immersive.Gutter, vertical = 10.dp)
@@ -204,10 +210,13 @@ fun ImmersiveShelfCard(
     /** Drawn over the cover (a "new episode" dot). */
     badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
     val titleColor = if (playing) Immersive.Accent else Immersive.Text
     val baseBody = Immersive.Body
-    val titleStyle = remember(baseBody, titleColor) {
-        baseBody.copy(fontWeight = FontWeight.Medium, color = titleColor)
+    val titleStyle = remember(baseBody, titleColor, cupertino) {
+        // Apple Music: 13sp titles under an 8dp cover.
+        if (cupertino) baseBody.copy(fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Normal, color = titleColor)
+        else baseBody.copy(fontWeight = FontWeight.Medium, color = titleColor)
     }
     Column(
         modifier = modifier.immersiveClickable(onClick = onClick, onLongClick = onLongClick),
@@ -217,24 +226,24 @@ fun ImmersiveShelfCard(
             ImmersiveCover(
                 imageUrl,
                 Modifier.fillMaxSize(),
-                if (round) CircleShape else Immersive.CoverMedium,
+                if (round) CircleShape else if (cupertino) RoundedCornerShape(8.dp) else Immersive.CoverMedium,
             )
             if (playing) ImmersivePlayingBars(Modifier.align(Alignment.Center))
             badge?.invoke(this)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(if (cupertino) 6.dp else 10.dp))
         Text(
             text = title,
             style = titleStyle,
             textAlign = if (round) TextAlign.Center else TextAlign.Start,
-            maxLines = 1,
+            maxLines = if (cupertino && !round) 2 else 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
         )
         if (!subtitle.isNullOrBlank()) {
             Text(
                 text = subtitle,
-                style = Immersive.Subhead,
+                style = if (cupertino) Immersive.Subhead.copy(fontSize = 13.sp, lineHeight = 17.sp) else Immersive.Subhead,
                 textAlign = if (round) TextAlign.Center else TextAlign.Start,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -22,7 +22,7 @@ fun ProvideLook(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalLook provides LookPref.look, content = content)
 }
 
-/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC]). */
+/** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC], [Look.CUPERTINO]). */
 @Composable
 fun isImmersive(): Boolean = LocalLook.current.isImmersive()
 

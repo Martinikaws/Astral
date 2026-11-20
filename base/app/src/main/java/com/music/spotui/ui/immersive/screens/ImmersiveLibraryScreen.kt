@@ -190,6 +190,21 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var searchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf(LibraryChip.ALL) }
+    // Cupertino: the sidebar's kind shortcuts land here, and the sidebar mirrors the page's kind.
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
+    if (cupertino) {
+        val asked = com.music.spotui.ui.immersive.cupertino.CupertinoNav.requestedKind
+        LaunchedEffect(asked) {
+            if (asked != null) {
+                kind = asked
+                com.music.spotui.ui.immersive.cupertino.CupertinoNav.requestedKind = null
+            }
+        }
+        LaunchedEffect(kind) { com.music.spotui.ui.immersive.cupertino.CupertinoNav.libraryKind = kind }
+    }
+    val gridMode = if (cupertino) kind == LibraryChip.ALL else gridView
+    // Back inside a kind page returns to the whole library instead of leaving the tab.
+    androidx.activity.compose.BackHandler(enabled = cupertino && kind != LibraryChip.ALL) { kind = LibraryChip.ALL }
     // The shows are only read once the Podcasts chip is chosen.
     LaunchedEffect(kind) { if (kind == LibraryChip.PODCASTS) vm.loadFollowedShows() }
 
@@ -219,8 +234,16 @@ fun ImmersiveLibraryScreen(navController: NavController) {
             it.name.contains(searchQuery, ignoreCase = true) || it.subtitle.contains(searchQuery, ignoreCase = true)
         } to artists.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
+    // Cupertino whole library is "Recently Added": newest first (what has no date, the app's own rows, last),
+    // with no pins and no custom order; the followed artists are one of its kinds, not part of this grid.
+    val recentlyAdded = cupertino && kind == LibraryChip.ALL
+    val gridEntries = remember(recentlyAdded, shownEntries) {
+        if (recentlyAdded) shownEntries.sortedByDescending { it.addedAt } else shownEntries
+    }
+    // While searching, the followed artists whose name matches join the covers, as in the other Looks.
+    val gridArtists = if (recentlyAdded && searchQuery.isBlank()) emptyList() else shownArtists
     // Only the whole library, unfiltered, can be put in a new order.
-    val reorderLevel = if (kind == LibraryChip.ALL && searchQuery.isBlank()) LibraryOrder.ROOT else null
+    val reorderLevel = if (kind == LibraryChip.ALL && searchQuery.isBlank() && !cupertino) LibraryOrder.ROOT else null
     // The Podcasts chip waits for the shows, and says when none is followed or they could not be read (#136).
     val podcasts = kind == LibraryChip.PODCASTS
     val showsLoading = podcasts && showsLoad is Response.Loading
@@ -230,7 +253,10 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     val chipError = if (showsFailed) stringResource(R.string.library_podcasts_error) else null
     val retry: () -> Unit = { if (showsFailed) vm.loadFollowedShows(); if (entries !is Response.Success) vm.load() }
 
-    val title = stringResource(R.string.navigationbar_musicappitems_yourlibrary_title)
+    val title = stringResource(if (cupertino) R.string.cupertino_library else R.string.navigationbar_musicappitems_yourlibrary_title)
+    // Inside a Cupertino kind page the bar small title is the kind name.
+    val kindName = LibraryChipLabels.firstOrNull { it.first == kind }?.second?.let { stringResource(it) }
+    val barTitle = if (cupertino && kind != LibraryChip.ALL && kindName != null) kindName else title
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     val header: @Composable () -> Unit = {
@@ -247,6 +273,7 @@ fun ImmersiveLibraryScreen(navController: NavController) {
             onQuery = { searchQuery = it },
             kind = kind,
             onKind = { kind = LibraryChips.toggle(kind, it) },
+            onDownloads = { navController.navigate(Routes.Downloads.route) },
         )
     }
     val avatar = (account as? Response.Success)?.data
@@ -261,17 +288,18 @@ fun ImmersiveLibraryScreen(navController: NavController) {
         onRefresh = { vm.refresh() },
         modifier = Modifier.fillMaxSize(),
       ) {
-        if (gridView && !loading && !showsLoading) {
+        if (gridMode && !loading && !showsLoading) {
             LibraryGrid(
                 gridState = gridState,
                 header = header,
-                entries = shownEntries,
-                artists = shownArtists,
+                entries = gridEntries,
+                artists = gridArtists,
                 loadFailed = entries !is Response.Success || showsFailed,
                 onRetry = retry,
                 navController = navController,
                 reorderLevel = reorderLevel,
-                pinned = pinned,
+                pinned = if (recentlyAdded) 0 else pinned,
+                onMenu = if (cupertino) ({ e: LibraryEntry -> itemMenu = e }) else null,
                 emptyText = chipEmpty,
                 errorText = chipError,
             )
@@ -293,8 +321,8 @@ fun ImmersiveLibraryScreen(navController: NavController) {
             )
         }
       }
-        val collapse = if (gridView && !loading) gridCollapse(gridState) else rememberTopBarCollapse(listState)
-        ImmersiveTopBar(title, collapse) {
+        val collapse = if (gridMode && !loading) gridCollapse(gridState) else rememberTopBarCollapse(listState)
+        ImmersiveTopBar(barTitle, collapse) {
             ImmersiveBarAction(
                 Icons.Rounded.Add,
                 stringResource(R.string.create_playlist_content_description),
@@ -325,9 +353,11 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     }
 
     // Re-tap on the Library tab: an animated scroll back to the top of the rows already loaded.
-    LaunchedEffect(gridView, loading) {
+    LaunchedEffect(gridMode, loading, cupertino, kind) {
         TabReselect.library.collect {
-            if (gridView && !loading) {
+            // Cupertino: a kind page goes back to the Library root first (the tab bar's re-tap), the scroll is for the root.
+            if (cupertino && kind != LibraryChip.ALL) kind = LibraryChip.ALL
+            else if (gridMode && !loading) {
                 if (gridState.firstVisibleItemIndex != 0 || gridState.firstVisibleItemScrollOffset != 0) gridState.animateScrollToItem(0)
             } else if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
                 listState.animateScrollToItem(0)
@@ -419,7 +449,12 @@ private fun LibraryHeader(
     onQuery: (String) -> Unit,
     kind: LibraryChip,
     onKind: (LibraryChip) -> Unit,
+    onDownloads: () -> Unit,
 ) {
+    if (com.music.spotui.ui.immersive.cupertino.isCupertino()) {
+        CupertinoLibraryHeader(title, searchActive, query, onQuery, kind, onKind, onDownloads, onSort)
+        return
+    }
     Column {
         // The title itself scrolls the list to its top.
         Box(
@@ -471,6 +506,60 @@ private fun LibraryHeader(
             LibraryChipLabels.forEach { (k, label) ->
                 ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }
             }
+        }
+    }
+}
+
+/**
+ * Cupertino: the Library as Apple Music draws it. On the whole library a list of kinds (each opens
+ * the filtered page) and "Recently Added" over the cover grid; inside a kind, a back row and the
+ * kind as the large title over its rows.
+ */
+@Composable
+private fun CupertinoLibraryHeader(
+    title: String,
+    searchActive: Boolean,
+    query: String,
+    onQuery: (String) -> Unit,
+    kind: LibraryChip,
+    onKind: (LibraryChip) -> Unit,
+    onDownloads: () -> Unit,
+    onSort: () -> Unit,
+) {
+    val whole = kind == LibraryChip.ALL
+    val kindTitle = LibraryChipLabels.firstOrNull { it.first == kind }?.second?.let { stringResource(it) } ?: title
+    Column {
+        if (!whole) com.music.spotui.ui.immersive.cupertino.CupertinoBackRow(title) { onKind(kind) }
+        Box(
+            Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = whole) {
+                TabReselect.emit(Routes.Library.route)
+            },
+        ) { ImmersiveLargeTitle(if (whole) title else kindTitle) }
+        if (!whole) com.music.spotui.ui.immersive.cupertino.CupertinoSortRow(stringResource(libraryOrderLabel(LibraryOrder.sort)), onSort)
+        AnimatedVisibility(
+            visible = searchActive,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            ImmersiveSearchField(
+                query = query,
+                onQueryChange = onQuery,
+                onSubmit = {},
+                placeholder = stringResource(R.string.library_search_text_hint),
+                modifier = Modifier.padding(horizontal = Immersive.Gutter).padding(top = 4.dp, bottom = 4.dp),
+            )
+        }
+        // While a query is typed the page is its results: no kinds list, no "Recently Added" heading.
+        if (whole && query.isBlank()) {
+            // The tablet sidebar already lists the kinds.
+            if (!com.music.spotui.ui.components.windowSize().sideNavigation) {
+                com.music.spotui.ui.immersive.cupertino.CupertinoLibraryKinds(onKind = onKind, onDownloads = onDownloads)
+            }
+            com.music.spotui.ui.immersive.cupertino.CupertinoSectionHeader(
+                stringResource(R.string.cupertino_recently_added),
+                onClick = null,
+                modifier = Modifier.padding(top = 18.dp),
+            )
         }
     }
 }
@@ -755,6 +844,10 @@ private fun LibraryEntryRow(entry: LibraryEntry, onMenu: () -> Unit, modifier: M
     }
 }
 
+/** Apple Music names the artist or owner under a cover, not the kind: "Playlist - Owner" becomes "Owner". */
+private fun cupertinoTileSubtitle(entry: LibraryEntry): String =
+    entry.artists.ifBlank { entry.subtitle.substringAfter(" • ", entry.subtitle) }
+
 /** The grid layout: square covers with the name and creator underneath, artists as circles. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -768,11 +861,13 @@ private fun LibraryGrid(
     navController: NavController,
     reorderLevel: String?,
     pinned: Int,
+    onMenu: ((LibraryEntry) -> Unit)? = null,
     emptyText: String? = null,
     errorText: String? = null,
 ) {
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
     // Same as the list view, in two dimensions: the tile follows the finger and takes the place
     // of the tile its centre is over.
     var rows by remember { mutableStateOf(entries.distinctBy { LibraryOrder.key(it) }) }
@@ -837,7 +932,7 @@ private fun LibraryGrid(
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Fixed(com.music.spotui.ui.components.windowSize().columns(3, 170.dp)),
+        columns = GridCells.Fixed(com.music.spotui.ui.components.windowSize().columns(if (cupertino) 2 else 3, 170.dp)),
         modifier = Modifier.fillMaxSize().immersiveHazeSource().immersiveChromeScroll(),
         contentPadding = PaddingValues(
             start = Immersive.Gutter, end = Immersive.Gutter,
@@ -894,7 +989,13 @@ private fun LibraryGrid(
                         if (dragged) { scaleX = 1.06f; scaleY = 1.06f }
                     }
                     .pressHint { prefetchLibraryEntry(entry) }
-                    .immersiveClickable(onClick = { openLibraryEntry(entry, navController) })
+                    .immersiveClickable(
+                        onClick = { openLibraryEntry(entry, navController) },
+                        // Where the tile cannot be dragged, a long press opens its menu (pin, remove...).
+                        onLongClick = if (!movable && onMenu != null && entry.uri.isNotBlank()) {
+                            { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onMenu(entry) }
+                        } else null,
+                    )
                     .then(
                         if (!movable) Modifier else Modifier.pointerInput(key) {
                             try {
@@ -925,8 +1026,9 @@ private fun LibraryGrid(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (entry.subtitle.isNotBlank()) {
-                    Text(text = entry.subtitle, style = Immersive.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val subtitle = if (cupertino) cupertinoTileSubtitle(entry) else entry.subtitle
+                if (subtitle.isNotBlank()) {
+                    Text(text = subtitle, style = Immersive.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

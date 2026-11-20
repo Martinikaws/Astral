@@ -22,7 +22,7 @@ enum class PageStyle {
         fun forLook(look: Look): PageStyle = when (look) {
             Look.CLASSIC -> ORPHEON_BASIC
             Look.SPOTIFUSION -> SPOTIFUSION
-            Look.IMMERSIVE, Look.GLASSIFY, Look.LIQUID_MUSIC, Look.STARRY_NIGHT -> ORPHEON_GLASS
+            Look.IMMERSIVE, Look.GLASSIFY, Look.LIQUID_MUSIC, Look.STARRY_NIGHT, Look.CUPERTINO -> ORPHEON_GLASS
         }
     }
 }

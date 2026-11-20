@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
+import app.myspoti.engine.R
 import com.music.spotui.data.preferences.AstralThemePref
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.data.preferences.ModulesPref
@@ -151,6 +152,8 @@ private val GlassifyTabBorderBrush = Brush.linearGradient(
 /** The fill behind the selected tab, in the bar and the tablet sidebar. */
 internal fun tabIndicatorColor(look: Look, accent: Color): Color = when (look) {
     Look.LIQUID_MUSIC -> accent.copy(alpha = 0.22f)
+    // Apple's selected tab: a soft grey capsule behind the red glyph.
+    Look.CUPERTINO -> Color.White.copy(alpha = 0.14f)
     Look.GLASSIFY -> Color.White.copy(alpha = 0.16f)
     else -> Color.White.copy(alpha = 0.12f)
 }
@@ -259,7 +262,8 @@ internal fun TabBarContent(
 
 @Composable
 internal fun tabLabel(item: Routes): String =
-    if (item.labelRes != 0) stringResource(item.labelRes) else item.label
+    if (item == Routes.Library && com.music.spotui.ui.immersive.cupertino.isCupertino()) stringResource(R.string.cupertino_library)
+    else if (item.labelRes != 0) stringResource(item.labelRes) else item.label
 
 @Composable
 private fun TabIcon(item: Routes, tint: Color) {

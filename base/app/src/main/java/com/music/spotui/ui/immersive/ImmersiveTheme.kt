@@ -32,6 +32,13 @@ import com.music.spotui.ui.look.ImmersiveDisplay
 import com.music.spotui.ui.look.ImmersiveSans
 import com.music.spotui.ui.theme.AstralLavender
 import com.music.spotui.ui.theme.AstralTrailLight
+import com.music.spotui.ui.theme.CupertinoBackground
+import com.music.spotui.ui.theme.CupertinoBorder
+import com.music.spotui.ui.theme.CupertinoElevated
+import com.music.spotui.ui.theme.CupertinoGlassSolid
+import com.music.spotui.ui.theme.CupertinoGroup
+import com.music.spotui.ui.theme.CupertinoSecondary
+import com.music.spotui.ui.theme.CupertinoTertiary
 import com.music.spotui.ui.theme.GlassifyBackground
 import com.music.spotui.ui.theme.GlassifyBorder
 import com.music.spotui.ui.theme.GlassifyGlassFill
@@ -174,6 +181,23 @@ private val LiquidTokens = ClassicTokens.copy(
     gutter = 16.dp,
 )
 
+/**
+ * Cupertino (Apple Music-style, dark): pure black, #1C1C1E groups with 10dp corners and 0.33dp hairlines,
+ * pill buttons, capsule chrome, 34sp bold titles.
+ */
+private val CupertinoTokens = LiquidTokens.copy(
+    page = CupertinoBackground,
+    surface = CupertinoGroup,
+    edgeColor = CupertinoBorder,
+    cardRadius = 10.dp,
+    groupRadius = 10.dp,
+    buttonRadius = 500.dp,
+    chromeRadius = 28.dp,
+    divider = Color.White.copy(alpha = 0.15f),
+    titleWeight = FontWeight.Bold,
+    titleSpacing = (-0.4).sp,
+)
+
 /** Starry Night: translucent navy cards with a faint gold hairline, light airy titles, warm gold. */
 private val StarryTokens = ClassicTokens.copy(
     surface = StarryCard,
@@ -221,6 +245,7 @@ fun lookTokens(look: Look): LookTokens = when (look) {
     Look.GLASSIFY -> GlassifyTokens
     Look.LIQUID_MUSIC -> LiquidTokens
     Look.STARRY_NIGHT -> StarryTokens
+    Look.CUPERTINO -> CupertinoTokens
 }
 
 /*
@@ -256,6 +281,7 @@ object Immersive {
     /** The wash at the top of a detail page (album, playlist), from the cover's [tint] into the page. */
     fun headerWash(tint: Color): Color = when (LookPref.look) {
         Look.LIQUID_MUSIC -> androidx.compose.ui.graphics.lerp(Color.Black, tint, 0.20f)
+        Look.CUPERTINO -> androidx.compose.ui.graphics.lerp(Color.Black, tint, 0.30f)
         Look.GLASSIFY -> tint.copy(alpha = 0.38f)
         Look.STARRY_NIGHT -> Color(0xFF1B2D4A)
         else -> androidx.compose.ui.graphics.lerp(tint, Color.Black, 0.3f)
@@ -272,8 +298,8 @@ object Immersive {
     val Separator: Color get() = Tokens.divider
     val SeparatorThickness: Dp get() = Tokens.dividerThickness
     val Text = Color.White
-    val TextSecondary = StarrySubtext
-    val TextTertiary = AstralLavender.copy(alpha = 0.50f)
+    val TextSecondary: Color get() = if (LookPref.look == Look.CUPERTINO) CupertinoSecondary else StarrySubtext
+    val TextTertiary: Color get() = if (LookPref.look == Look.CUPERTINO) CupertinoTertiary else AstralLavender.copy(alpha = 0.50f)
     /**
      * The Look's accent: Interactive and Glassify follow the cover (a chosen accent wins on Interactive),
      * Spotifusion is always #1DB954, LiquidMusic #FA2D48, Starry Night warm gold #FFF3C4.
@@ -285,6 +311,7 @@ object Immersive {
     val GlassFill: Color get() = when (LookPref.look) {
         Look.GLASSIFY -> GlassifyGlassFill
         Look.LIQUID_MUSIC -> LiquidMusicSurface
+        Look.CUPERTINO -> CupertinoGlassSolid
         Look.SPOTIFUSION -> SpotifusionCard
         Look.STARRY_NIGHT -> StarryCard
         Look.CLASSIC, Look.IMMERSIVE -> StarryCard
@@ -292,6 +319,7 @@ object Immersive {
     val GlassEdge: Color get() = when (LookPref.look) {
         Look.GLASSIFY -> GlassifyBorder
         Look.LIQUID_MUSIC -> LiquidMusicBorder
+        Look.CUPERTINO -> CupertinoBorder
         Look.SPOTIFUSION -> Color.White.copy(alpha = 0.10f)
         Look.STARRY_NIGHT -> StarryHairline
         Look.CLASSIC, Look.IMMERSIVE -> Color.White.copy(alpha = 0.14f)
@@ -300,6 +328,7 @@ object Immersive {
     val Elevated: Color get() = when (LookPref.look) {
         Look.SPOTIFUSION -> SpotifusionElevated
         Look.LIQUID_MUSIC -> Color(0xFF2C2C2E)
+        Look.CUPERTINO -> CupertinoElevated
         Look.GLASSIFY -> Color.White.copy(alpha = 0.14f)
         else -> Color(0xFF1E3250)
     }
@@ -314,6 +343,8 @@ object Immersive {
     /** The section card (or inset list) of a Settings-like page. */
     val Group: Shape get() = RoundedCornerShape(Tokens.groupRadius)
     val Button: Shape get() = RoundedCornerShape(Tokens.buttonRadius)
+    /** The search field: Cupertino's 10 dp rounded rectangle, the button shape otherwise. */
+    val Field: Shape get() = if (LookPref.look == Look.CUPERTINO) RoundedCornerShape(10.dp) else Button
     /** The floating mini player: a capsule, rounder or squarer with the Look. */
     val MiniPlayerShape: Shape get() = RoundedCornerShape(Tokens.chromeRadius)
     /** The tablet sidebar's panel (and what a new Look restyles it with): same corners as the mini player. */
@@ -338,10 +369,18 @@ object Immersive {
             fontWeight = if (t.titleWeight == FontWeight.Light) FontWeight.Normal else FontWeight.SemiBold,
             letterSpacing = t.titleSpacing / 2,
         )
-        val body = base.copy(fontSize = 16.sp, lineHeight = 21.sp)
+        // Cupertino reads as iOS text: 17 / 15 / 13 sp, the secondary text its system grey.
+        private val ios = look == Look.CUPERTINO
+        val body = base.copy(fontSize = if (ios) 17.sp else 16.sp, lineHeight = if (ios) 22.sp else 21.sp)
         val bodyStrong = body.copy(fontWeight = FontWeight.SemiBold)
-        val subhead = base.copy(fontSize = 14.sp, lineHeight = 19.sp, color = TextSecondary)
-        val caption = base.copy(fontSize = 12.sp, lineHeight = 16.sp, color = TextSecondary)
+        val subhead = base.copy(
+            fontSize = if (ios) 15.sp else 14.sp, lineHeight = if (ios) 20.sp else 19.sp,
+            color = if (ios) CupertinoSecondary else TextSecondary,
+        )
+        val caption = base.copy(
+            fontSize = if (ios) 13.sp else 12.sp, lineHeight = if (ios) 18.sp else 16.sp,
+            color = if (ios) CupertinoSecondary else TextSecondary,
+        )
         val lyric = shown.copy(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
     }
     // The styles of the font in use, made again only when the font or the Look changes. Reading the

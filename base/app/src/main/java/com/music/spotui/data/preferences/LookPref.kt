@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** The six unified app looks. [CLASSIC] is the default fallback. */
+/** The seven unified app looks. [CLASSIC] is the default fallback. */
 enum class Look(
     val key: String,
     val label: String,
@@ -46,10 +46,16 @@ enum class Look(
         key = "starry_night",
         label = "Starry Night",
         detail = "Deep navy sky with twinkling stars, shooting stars & warm starlight gold.",
+    ),
+    CUPERTINO(
+        key = "cupertino",
+        label = "Cupertino",
+        detail = "Apple Music-style: black, bold titles, red accent & glass tab bar.",
     );
 
-    /** True for floating interactive shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC], [STARRY_NIGHT]). */
-    fun isImmersive(): Boolean = this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC || this == STARRY_NIGHT
+    /** True for floating interactive shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC], [STARRY_NIGHT], [CUPERTINO]). */
+    fun isImmersive(): Boolean =
+        this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC || this == STARRY_NIGHT || this == CUPERTINO
 
     companion object {
         fun fromKey(key: String?): Look {
@@ -62,6 +68,7 @@ enum class Look(
                 "glassify" -> GLASSIFY
                 "liquid_music", "liquidmusic" -> LIQUID_MUSIC
                 "starry_night", "starrynight" -> STARRY_NIGHT
+                "cupertino", "apple_music_style" -> CUPERTINO
                 else -> entries.firstOrNull {
                     it.name.equals(norm, ignoreCase = true) || it.key.equals(norm, ignoreCase = true)
                 } ?: CLASSIC
@@ -160,7 +167,7 @@ internal object LookMigration {
         // enable state lives in StarryNightPref.
         val mode = when (newLook) {
             Look.GLASSIFY -> "GLASSIFY"
-            Look.LIQUID_MUSIC -> "LIQUID_MUSIC"
+            Look.LIQUID_MUSIC, Look.CUPERTINO -> "LIQUID_MUSIC"
             else -> "STARRY_NIGHT"
         }
         if (theme != null && theme != mode) e.putString(THEME_MODE, mode)

@@ -953,9 +953,9 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     chevron = true, onClick = { open(SettingsPage.Look) },
                 )
             }
-            if (look == com.music.spotui.data.preferences.Look.LIQUID_MUSIC) row {
+            if (look == com.music.spotui.data.preferences.Look.LIQUID_MUSIC || look == com.music.spotui.data.preferences.Look.CUPERTINO) row {
                 ImmersiveSwitchRow(
-                    "LiquidMusic Glass Mode",
+                    if (look == com.music.spotui.data.preferences.Look.CUPERTINO) androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.cupertino_glass_mode) else "LiquidMusic Glass Mode",
                     checked = liquidRefraction,
                     onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
                     detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
@@ -1172,11 +1172,11 @@ private fun LookPage(back: () -> Unit) {
                 }
             }
         }
-        if (current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC) {
+        if (current == com.music.spotui.data.preferences.Look.LIQUID_MUSIC || current == com.music.spotui.data.preferences.Look.CUPERTINO) {
             immersiveGroup("liquid-glass-mode") {
                 row {
                     ImmersiveSwitchRow(
-                        "LiquidMusic Glass Mode",
+                        if (current == com.music.spotui.data.preferences.Look.CUPERTINO) androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.cupertino_glass_mode) else "LiquidMusic Glass Mode",
                         checked = liquidRefraction,
                         onChecked = { com.music.spotui.data.preferences.AstralThemePref.setLiquidGlassRefraction(ctx, it) },
                         detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",

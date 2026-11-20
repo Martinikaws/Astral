@@ -54,7 +54,7 @@ internal data class CoverStyle(
 internal fun coverStyleFor(look: Look): CoverStyle? = when (look) {
     Look.SPOTIFUSION -> null
     Look.GLASSIFY -> CoverStyle(fadeStart = 0.40f, glassStrip = true, blackBackdrop = false)
-    Look.LIQUID_MUSIC -> CoverStyle(fadeStart = 0.55f, glassStrip = false, blackBackdrop = true)
+    Look.LIQUID_MUSIC, Look.CUPERTINO -> CoverStyle(fadeStart = 0.55f, glassStrip = false, blackBackdrop = true)
     else -> CoverStyle(fadeStart = 0.55f, glassStrip = false, blackBackdrop = false)
 }
 

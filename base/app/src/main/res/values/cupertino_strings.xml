@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cupertino_library">Library</string>
+    <string name="cupertino_recently_added">Recently Added</string>
+    <string name="cupertino_browse_categories">Browse Categories</string>
+    <string name="cupertino_search_placeholder">Artists, Songs, Albums and More</string>
+    <string name="cupertino_glass_mode">Cupertino Glass Mode</string>
+    <string name="cupertino_see_all">See all</string>
+    <string name="cupertino_top_picks">Top Picks for You</string>
+    <string name="cupertino_made_for_you">Made for You</string>
+    <string name="cupertino_top_songs">Top Songs</string>
+    <string name="cupertino_sort">Sort</string>
+    <string name="cupertino_footer_format">%1$s, %2$s</string>
+    <plurals name="cupertino_song_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+    <plurals name="cupertino_minute_count">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+</resources>

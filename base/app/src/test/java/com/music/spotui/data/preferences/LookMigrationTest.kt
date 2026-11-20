@@ -116,6 +116,15 @@ class LookMigrationTest {
         assertEquals(Look.GLASSIFY, Look.fromKey("Glassify"))
         assertEquals(Look.LIQUID_MUSIC, Look.fromKey("LIQUID_MUSIC"))
         assertEquals(Look.LIQUID_MUSIC, Look.fromKey("liquidmusic"))
+        assertEquals(Look.CUPERTINO, Look.fromKey("cupertino"))
+        assertEquals(Look.CUPERTINO, Look.fromKey("CUPERTINO"))
+        assertEquals(Look.CUPERTINO, Look.fromKey("apple_music_style"))
+    }
+
+    @Test fun `Cupertino is an immersive look with its own key`() {
+        assertTrue(Look.CUPERTINO.isImmersive())
+        assertEquals("cupertino", Look.CUPERTINO.key)
+        assertEquals(PageStyle.ORPHEON_GLASS, PageStyle.forLook(Look.CUPERTINO))
     }
 
     // ---- v1.0.3: Starry Night becomes a Look of its own ----

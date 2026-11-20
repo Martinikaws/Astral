@@ -90,6 +90,9 @@ import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import com.music.spotui.data.preferences.Look
 import com.music.spotui.ui.theme.AppSans
+import com.music.spotui.ui.theme.CupertinoAccent
+import com.music.spotui.ui.theme.CupertinoBorder
+import com.music.spotui.ui.theme.CupertinoGlass
 import com.music.spotui.ui.theme.GlassifyBackground
 import com.music.spotui.ui.theme.GlassifyBorder
 import com.music.spotui.ui.theme.GlassifyGlassFill
@@ -193,6 +196,7 @@ fun LookDemo(look: Look, clock: DemoClock, still: Boolean = false) {
         Look.GLASSIFY -> ImmersiveDemo(clock, still, Look.GLASSIFY)
         Look.LIQUID_MUSIC -> ImmersiveDemo(clock, still, Look.LIQUID_MUSIC)
         Look.STARRY_NIGHT -> ImmersiveDemo(clock, still, Look.STARRY_NIGHT)
+        Look.CUPERTINO -> ImmersiveDemo(clock, still, Look.CUPERTINO)
     }
 }
 
@@ -545,6 +549,9 @@ private fun Modifier.previewGlassPanel(look: Look, shape: Shape): Modifier = whe
     Look.LIQUID_MUSIC -> this
         .background(LiquidMusicSurface, shape)
         .border(1.dp, LiquidMusicBorder, shape)
+    Look.CUPERTINO -> this
+        .background(CupertinoGlass, shape)
+        .border(1.dp, CupertinoBorder, shape)
     else -> this
         .background(Glass.copy(alpha = 0.9f), shape)
         .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
@@ -562,6 +569,7 @@ private fun ImmersiveDemo(clock: DemoClock, still: Boolean, look: Look = Look.IM
     val header = CoverRect(24f, 52f, 48f)
     val coverRadius = when (look) {
         Look.LIQUID_MUSIC -> 20.dp
+        Look.CUPERTINO -> 10.dp
         Look.GLASSIFY -> 16.dp
         else -> 12.dp
     }
@@ -605,6 +613,7 @@ private fun ImmersiveHome(look: Look) {
     val text = TextStyle(fontFamily = ImmersiveSans, color = Color.White)
     val heroShape = RoundedCornerShape(
         when (look) {
+            Look.CUPERTINO -> 10.dp
             Look.LIQUID_MUSIC -> 20.dp
             Look.GLASSIFY -> 16.dp
             else -> 14.dp
@@ -612,6 +621,7 @@ private fun ImmersiveHome(look: Look) {
     )
     val shelfShape = RoundedCornerShape(
         when (look) {
+            Look.CUPERTINO -> 8.dp
             Look.LIQUID_MUSIC -> 20.dp
             Look.GLASSIFY -> 14.dp
             else -> 10.dp
@@ -620,6 +630,7 @@ private fun ImmersiveHome(look: Look) {
     val avatarColor = when (look) {
         Look.GLASSIFY -> StarryBlue
         Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.CUPERTINO -> Color(0xFF636366)
         else -> Color(0xFF7E57C2)
     }
     val cardBorder: (Shape) -> Modifier = { shape ->
@@ -643,7 +654,11 @@ private fun ImmersiveHome(look: Look) {
                 modifier = Modifier.weight(1f))
             Box(Modifier.size(34.dp).background(avatarColor, CircleShape).then(cardBorder(CircleShape)))
         }
-        Text(stringResource(R.string.look_demo_section), style = text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        // Cupertino: bold section header with a trailing chevron, as in Apple Music.
+        Text(
+            stringResource(R.string.look_demo_section) + if (look == Look.CUPERTINO) "  ›" else "",
+            style = text, fontSize = 20.sp, fontWeight = if (look == Look.CUPERTINO) FontWeight.Bold else FontWeight.SemiBold,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (i in 0 until 2) Box(
                 Modifier
@@ -652,7 +667,7 @@ private fun ImmersiveHome(look: Look) {
                     .then(cardBorder(heroShape)),
             ) {
                 DemoTile(i + 2, Modifier.fillMaxSize())
-                if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC) {
+                if (look == Look.GLASSIFY || look == Look.LIQUID_MUSIC || look == Look.CUPERTINO) {
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -680,6 +695,7 @@ private fun ImmersiveHome(look: Look) {
 private fun ImmersiveMini(playing: Boolean, look: Look, modifier: Modifier) {
     val shape: Shape = if (look == Look.LIQUID_MUSIC) RoundedCornerShape(20.dp) else CircleShape
     val playTint = if (look == Look.LIQUID_MUSIC) LiquidMusicAccent else Color.White
+    // (Cupertino keeps the white glyphs of the capsule, like Apple Music's mini player.)
     Row(
         modifier
             .fillMaxWidth()
@@ -707,7 +723,11 @@ private fun ImmersiveTabs(look: Look, modifier: Modifier) {
         Look.GLASSIFY -> StarryBlue.copy(alpha = 0.24f)
         else -> Color.White.copy(alpha = 0.14f)
     }
-    val activeTint = if (look == Look.LIQUID_MUSIC) LiquidMusicAccent else Color.White
+    val activeTint = when (look) {
+        Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.CUPERTINO -> CupertinoAccent
+        else -> Color.White
+    }
     Row(modifier.fillMaxWidth().height(62.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier
@@ -770,6 +790,7 @@ private fun ImmersivePlayer(clock: DemoClock, phases: DemoPhases, still: Boolean
     val faint = Color.White.copy(alpha = 0.55f)
     val lyricsGlow = when (look) {
         Look.LIQUID_MUSIC -> LiquidMusicAccent
+        Look.CUPERTINO -> CupertinoAccent
         Look.GLASSIFY -> StarryBlue
         else -> Color.White
     }

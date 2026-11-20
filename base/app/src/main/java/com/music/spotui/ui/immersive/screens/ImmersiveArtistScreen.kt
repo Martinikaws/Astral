@@ -187,7 +187,27 @@ private fun ArtistNameHeader(
     name: String,
     artHeight: Dp,
     extra: (@Composable () -> Unit)? = null,
+    /** Cupertino: the red play button at the foot of the photo, bottom-right. */
+    play: (@Composable () -> Unit)? = null,
 ) {
+    if (com.music.spotui.ui.immersive.cupertino.isCupertino()) {
+        // Apple Music: the name bottom-left over the faded photo, the play button bottom-right.
+        Box(Modifier.fillMaxWidth()) {
+            Spacer(Modifier.fillMaxWidth().height(artHeight))
+            Column(Modifier.align(Alignment.BottomStart).padding(start = Immersive.Gutter, end = if (play != null) 84.dp else Immersive.Gutter, bottom = 14.dp)) {
+                Text(
+                    text = name,
+                    style = Immersive.LargeTitle.copy(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 14.dp, bottom = 7.dp),
+                )
+                extra?.invoke()
+            }
+            if (play != null) Box(Modifier.align(Alignment.BottomEnd).padding(end = Immersive.Gutter, bottom = 10.dp)) { play() }
+        }
+        return
+    }
     Box(Modifier.fillMaxWidth()) {
         Spacer(Modifier.fillMaxWidth().height(artHeight + HeaderDrop - ArtistHeaderLift))
         Column(
@@ -274,6 +294,20 @@ private fun ArtistOverviewContent(
         artistViewModel.updateSongState(s.coverUri, s.title, s.singer, true, s.id, index)
     }
 
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
+    val togglePlay: () -> Unit = {
+        when {
+            isThisArtist && playingNow -> SongPlayer.pause()
+            isThisArtist -> SongPlayer.play()
+            else -> playTrackAt(0)
+        }
+    }
+    val toggleFollow: () -> Unit = {
+        val on = !(SongPlayer.library["spotify:artist:${overview.id}"] ?: following)
+        following = on
+        com.music.spotui.di.Haptics.toggle(on)
+        SongPlayer.setSaved("spotify:artist:${overview.id}", on)
+    }
     // The bar's small title takes over once the name has scrolled up under it.
     val barPx = with(LocalDensity.current) { immersiveTopBarHeight().toPx() }
     val fadePx = with(LocalDensity.current) { 40.dp.toPx() }
@@ -304,7 +338,13 @@ private fun ArtistOverviewContent(
             modifier = Modifier.fillMaxSize().immersiveHazeSource().immersiveChromeScroll(),
         ) {
             item(key = "header") {
-                ArtistNameHeader(name = displayName, artHeight = artHeight) {
+                ArtistNameHeader(
+                    name = displayName,
+                    artHeight = artHeight,
+                    play = if (cupertino && tracks.isNotEmpty()) ({
+                        com.music.spotui.ui.immersive.cupertino.CupertinoPlayButton(isThisArtist && playingNow, togglePlay)
+                    }) else null,
+                    extra = {
                     if (overview.verified) Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Verified, contentDescription = null, tint = Immersive.Accent, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -320,14 +360,16 @@ private fun ArtistOverviewContent(
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
-                }
+                    },
+                )
             }
 
             // "Your #3 artist of the past 4 weeks", from the account's Spotify top artists.
             if (onSpotify) item(key = "top-badge") { com.music.spotui.ui.screens.ArtistTopBadge(overview.id) }
 
-            // Shuffle, Play, Follow: a large Play flanked by two smaller circles.
-            item(key = "actions") {
+            // Shuffle, Play, Follow: a large Play flanked by two smaller circles (Cupertino: Play is on the
+            // photo, Shuffle and Follow in the bar).
+            if (!cupertino) item(key = "actions") {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Immersive.Gutter + 8.dp).padding(top = 14.dp, bottom = 22.dp),
                     horizontalArrangement = Arrangement.spacedBy(ActionGap, Alignment.CenterHorizontally),
@@ -393,7 +435,7 @@ private fun ArtistOverviewContent(
 
             // Popular tracks: they page sideways four at a time rather than bury the shelves.
             if (tracks.isNotEmpty()) item(key = "top-songs") {
-                SectionHeader(stringResource(R.string.artist_popular_tracks))
+                SectionHeader(stringResource(if (cupertino) R.string.cupertino_top_songs else R.string.artist_popular_tracks))
                 BoxWithConstraints {
                     val columnWidth = minOf(maxWidth * TRACK_COLUMN_FRACTION, TrackColumnMaxWidth)
                     val topSongsState = rememberLazyListState()
@@ -488,6 +530,18 @@ private fun ArtistOverviewContent(
             collapse = collapse,
             onBack = { navController.navigateUp() },
             actions = {
+                if (cupertino && tracks.isNotEmpty()) ImmersiveBarAction(
+                    icon = Icons.Rounded.Shuffle,
+                    contentDescription = stringResource(R.string.immersive_shell_shuffle),
+                    onClick = { Graph.currentSongState.startShuffled(tracks.map { it.song }) },
+                    tint = if (isThisArtist && Graph.currentSongState.shuffle.value) Immersive.Accent else Immersive.Text,
+                )
+                if (cupertino && onSpotify) ImmersiveBarAction(
+                    icon = if (isFollowing) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
+                    contentDescription = stringResource(if (isFollowing) R.string.immersive_detail_unfollow else R.string.immersive_detail_follow),
+                    onClick = toggleFollow,
+                    tint = if (isFollowing) Immersive.Accent else Immersive.Text,
+                )
                 if (onSpotify) ImmersiveBarAction(
                     icon = Icons.Rounded.MoreHoriz,
                     contentDescription = stringResource(R.string.content_description_context_menu),

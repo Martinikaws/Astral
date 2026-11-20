@@ -71,7 +71,7 @@ fun ImmersiveSearchField(
             .fillMaxWidth()
             // Fixed height prevents the row from growing when text is entered.
             .height(46.dp)
-            .background(Immersive.Raised, Immersive.Button)
+            .background(Immersive.Raised, Immersive.Field)
             // Asymmetric: the magnifier is a button and wants a real touch target, so it is given
             // the room by pulling the field's own start padding in.
             .padding(start = 8.dp, end = 12.dp),

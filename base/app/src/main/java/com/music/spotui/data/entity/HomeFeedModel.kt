@@ -37,6 +37,8 @@ object HomeSubChips {
 data class HomeSection(
     val title: String,
     val items: List<HomeItem>,
+    /** The shelf's own id (Spotify's section uri), blank when it has none. */
+    val uri: String = "",
 )
 
 /**

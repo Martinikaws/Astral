@@ -107,6 +107,7 @@ val AppBackground: Color get() {
             Look.SPOTIFUSION -> SpotifusionBackground
             Look.GLASSIFY -> GlassifyBackground
             Look.LIQUID_MUSIC -> LiquidMusicBackground
+            Look.CUPERTINO -> CupertinoBackground
         }
 }
 
@@ -119,6 +120,7 @@ val GridBackground: Color get() {
             Look.SPOTIFUSION -> SpotifusionCard
             Look.GLASSIFY -> GlassifySurface
             Look.LIQUID_MUSIC -> LiquidMusicGroup
+            Look.CUPERTINO -> CupertinoGroup
             Look.STARRY_NIGHT -> StarryCard
             Look.CLASSIC, Look.IMMERSIVE -> if (StarryNightPref.enabled.value) StarryCard else StarryCardOpaque
         }
@@ -138,7 +140,7 @@ val AppAccent: Color get() =
 /**
  * The accent each Look brings of its own (null for Astral Basic, which follows Material You / the chosen
  * accent): Interactive the cover colour (a chosen accent wins, else sky blue), Spotifusion a fixed green,
- * Glassify the cover colour (else the chosen accent, else cool blue), LiquidMusic red and
+ * Glassify the cover colour (else the chosen accent, else cool blue), LiquidMusic and Cupertino red and
  * Starry Night warm starlight gold (a chosen accent wins on both: nobody who picked one loses it).
  */
 internal fun lookAccentOrNull(look: Look): Color? {
@@ -149,6 +151,7 @@ internal fun lookAccentOrNull(look: Look): Color? {
         Look.IMMERSIVE -> chosen() ?: dynamicCoverAccent ?: StarryBlue
         Look.GLASSIFY -> dynamicCoverAccent ?: chosen() ?: StarryBlue
         Look.LIQUID_MUSIC -> chosen() ?: LiquidMusicAccent
+        Look.CUPERTINO -> chosen() ?: CupertinoAccent
         Look.STARRY_NIGHT -> chosen() ?: StarryAccent
     }
 }
@@ -174,6 +177,20 @@ val LiquidMusicSurface = Color(0x8C1C1C1E)
 val LiquidMusicGroup = Color(0xFF1C1C1E)
 val LiquidMusicBorder = Color.White.copy(alpha = 0.22f)
 val LiquidMusicAccent = Color(0xFFFA2D48)
+
+/** Cupertino (Apple Music-style, dark): pure black page, #1C1C1E grouped fill, #2C2C2E raised, Music red-pink accent. */
+val CupertinoBackground = Color(0xFF000000)
+val CupertinoGroup = Color(0xFF1C1C1E)
+val CupertinoElevated = Color(0xFF2C2C2E)
+/** The translucent fill of the floating glass (tab bar, mini player). */
+val CupertinoGlass = Color(0x991C1C1E)
+val CupertinoBorder = Color.White.copy(alpha = 0.15f)
+val CupertinoAccent = Color(0xFFFA2D48)
+val CupertinoSecondary = Color(0xFF8E8E93)
+/** The near-opaque glass for when nothing can be blurred behind it (below Android 12): the page must not show through. */
+val CupertinoGlassSolid = Color(0xE61C1C1E)
+/** iOS's tertiary grey: chevrons and other quiet glyphs. */
+val CupertinoTertiary = Color(0xFF636366)
 
 /** Spicetify StarryNight `[Base]` palette. */
 val StarrySkyTop = Color(0xFF000000)

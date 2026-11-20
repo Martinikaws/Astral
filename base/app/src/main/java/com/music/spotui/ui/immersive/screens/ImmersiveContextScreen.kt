@@ -34,7 +34,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -85,6 +87,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -128,6 +131,7 @@ import com.music.spotui.ui.immersive.components.SectionHeader
 import com.music.spotui.ui.immersive.components.immersiveClickable
 import com.music.spotui.ui.immersive.components.immersiveDetailSkeleton
 import com.music.spotui.ui.immersive.shell.ImmersiveBarAction
+import com.music.spotui.ui.immersive.shell.LocalBarControlSize
 import com.music.spotui.ui.immersive.shell.ImmersiveTopBar
 import com.music.spotui.ui.immersive.shell.immersiveHazeSource
 import com.music.spotui.ui.immersive.shell.immersiveChromeScroll
@@ -253,6 +257,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     val savedTracks by vm.savedUris
     val smart = SmartShuffle.on.value == p.uri
     val tapper = rememberTrackTapper()
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
 
     // The wash behind the header: the cover's second colour, the Classic page's own extraction.
     var tintTarget by remember { mutableStateOf(Palette.cachedSecond(p.coverUri) ?: Color(0xFF3A3A3A)) }
@@ -554,7 +559,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                             },
                             onMore = { menuSong = song },
                             trackNumber = if (numbered) index + 1 else null,
-                            showDuration = numbered,
+                            showDuration = numbered && !cupertino,
                             showAlbum = !numbered,
                             // As in the Classic list: the heart and the download of the song, from the same state
                             // (what Spotify last reported, the list's one batch check, the downloads kept on the phone).
@@ -611,6 +616,19 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
             }
             // "Recommended songs", as under an own playlist in the official apps (an empty one too).
             if (p.type == "playlist" && vm.editableContext.value && find.isBlank() && !p.isBlend) immersiveRecommended(vm, p, context, currentSongId)
+            // Cupertino: "N songs, X minutes" in grey under the last song.
+            if (cupertino && p.tracks.isNotEmpty() && find.isBlank()) item(key = "songs-footer") {
+                val minutes = (p.tracks.sumOf { it.durationMs.toLong() } / 60_000L).toInt()
+                val songsText = pluralStringResource(R.plurals.cupertino_song_count, p.tracks.size, p.tracks.size)
+                Text(
+                    text = if (minutes > 0) stringResource(
+                        R.string.cupertino_footer_format, songsText,
+                        pluralStringResource(R.plurals.cupertino_minute_count, minutes, minutes),
+                    ) else songsText,
+                    style = Immersive.Caption,
+                    modifier = Modifier.padding(horizontal = Immersive.Gutter, vertical = 14.dp),
+                )
+            }
             // An album: "More like this", albums close to its first song.
             // Under an album's songs: its release date, label and copyright lines.
             if (p.type == "album" && p.footer.isNotEmpty() && find.isBlank()) item(key = "album-footer") {
@@ -628,7 +646,11 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
         FastScrollbar(listState, Modifier.align(Alignment.CenterEnd))
 
         // Search, sort and the playlist's menu live in the bar, as the header is the sleeve's.
-        val hasActions = findable || p.type == "playlist"
+        val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri)
+        // Cupertino: the heart ("+" / check) and the download live in the bar, not under Play and Shuffle.
+        val barSave = cupertino && onSpotify && p.type != "liked"
+        val barDownload = cupertino && onSpotify && p.tracks.isNotEmpty()
+        val hasActions = findable || p.type == "playlist" || barSave || barDownload
         ImmersiveTopBar(
             title = p.name,
             listState = listState,
@@ -641,6 +663,16 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                         onClick = { finding = !finding },
                         tint = if (finding) Immersive.Accent else Immersive.Text,
                     )
+                    if (barSave) {
+                        val saved = SongPlayer.library[p.uri] ?: contextSaved
+                        ImmersiveBarAction(
+                            icon = if (saved) Icons.Rounded.Check else Icons.Rounded.Add,
+                            contentDescription = stringResource(if (saved) R.string.immersive_detail_unsave else R.string.immersive_detail_save),
+                            onClick = { vm.toggleContextSaved(p) },
+                            tint = if (saved) Immersive.Accent else Immersive.Text,
+                        )
+                    }
+                    if (barDownload) DownloadControl(p, { askRemoveDownloads = true }, bar = true)
                     if (findable) Box {
                         ImmersiveBarAction(
                             icon = Icons.Rounded.SwapVert,
@@ -715,6 +747,7 @@ private fun ContextHeader(
     val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
     val ringColor = if (pageBg == Color.Transparent) Color(0xFF0A1422) else pageBg
     val headerBrushCache = remember { VerticalWashBrushCache() }
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -741,7 +774,8 @@ private fun ContextHeader(
         Spacer(Modifier.height(20.dp))
         Text(
             text = p.name,
-            style = Immersive.LargeTitle.copy(fontSize = 28.sp, lineHeight = 34.sp),
+            style = if (cupertino) Immersive.LargeTitle.copy(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
+            else Immersive.LargeTitle.copy(fontSize = 28.sp, lineHeight = 34.sp),
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -850,34 +884,19 @@ private fun ContextHeader(
                     modifier = Modifier.weight(1f, fill = false).widthIn(max = 240.dp).fillMaxWidth(),
                 )
             }
-            Spacer(Modifier.height(14.dp))
             // An album of another provider is read only: Spotify can neither save nor download it.
             val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri)
-            if (onSpotify) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (p.type != "liked") ImmersiveCircleButton(
+            // Cupertino: the heart and the download are buttons of the top bar; only what has no place there stays.
+            val roundButtons = onSpotify && (!cupertino || SmartShuffle.canPlay(p.uri) || moving != null)
+            if (roundButtons) Spacer(Modifier.height(14.dp))
+            if (roundButtons) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (p.type != "liked" && !cupertino) ImmersiveCircleButton(
                     icon = if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     contentDescription = stringResource(if (saved) R.string.immersive_detail_unsave else R.string.immersive_detail_save),
                     onClick = onToggleSaved,
                     tint = if (saved) Immersive.Accent else Immersive.Text,
                 )
-                // The page's own songs, downloaded as a whole stay in step with the catalogue.
-                val ids = remember(p.tracks) {
-                    p.tracks.asSequence().map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct().toList()
-                }
-                // Songs with no matching recording count as settled: the list can still be removed.
-                val downloadSummary by remember(ids) { derivedStateOf { offlineDownloadSummary(ids) } }
-                val downloadedCount = downloadSummary.toInt()
-                val busy = (downloadSummary ushr 32) != 0L
-                val listKept = OfflineCollections.isDownloaded(p.uri)
-                LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
-                DownloadCircle(downloadedCount, ids.size, busy, listKept) {
-                    if (listKept) onAskRemoveDownloads()
-                    else DownloadAsk.start(context) { q ->
-                        com.music.spotui.di.Haptics.confirm()
-                        OfflineCollections.download(p, q)
-                        Toast.makeText(context, context.getString(R.string.download_notification_downloading), Toast.LENGTH_SHORT).show()
-                    }
-                }
+                if (!cupertino) DownloadControl(p, onAskRemoveDownloads, bar = false)
                 if (SmartShuffle.canPlay(p.uri)) ImmersiveCircleButton(
                     icon = Icons.Rounded.AutoAwesome,
                     contentDescription = stringResource(R.string.smart_shuffle_title),
@@ -892,6 +911,33 @@ private fun ContextHeader(
                     tint = if (moving) Immersive.Accent else Immersive.Text,
                 )
             }
+        }
+    }
+}
+
+/**
+ * The download button of the page's songs, with the state of its downloads: in the header as a round
+ * button, or ([bar]) as a button of the top bar, as the Cupertino Look has it.
+ */
+@Composable
+private fun DownloadControl(p: ContextPageModel, onAskRemoveDownloads: () -> Unit, bar: Boolean) {
+    val context = LocalContext.current
+    // The page own songs, downloaded as a whole stay in step with the catalogue.
+    val ids = remember(p.tracks) {
+        p.tracks.asSequence().map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct().toList()
+    }
+    // Songs with no matching recording count as settled: the list can still be removed.
+    val downloadSummary by remember(ids) { derivedStateOf { offlineDownloadSummary(ids) } }
+    val downloadedCount = downloadSummary.toInt()
+    val busy = (downloadSummary ushr 32) != 0L
+    val listKept = OfflineCollections.isDownloaded(p.uri)
+    LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
+    DownloadCircle(downloadedCount, ids.size, busy, listKept, bar) {
+        if (listKept) onAskRemoveDownloads()
+        else DownloadAsk.start(context) { q ->
+            com.music.spotui.di.Haptics.confirm()
+            OfflineCollections.download(p, q)
+            Toast.makeText(context, context.getString(R.string.download_notification_downloading), Toast.LENGTH_SHORT).show()
         }
     }
 }
@@ -915,14 +961,14 @@ private fun LikedSleeve(modifier: Modifier) {
  * states in a round 44 dp button.
  */
 @Composable
-private fun DownloadCircle(downloaded: Int, total: Int, busy: Boolean, kept: Boolean, onClick: () -> Unit) {
+private fun DownloadCircle(downloaded: Int, total: Int, busy: Boolean, kept: Boolean, bar: Boolean = false, onClick: () -> Unit) {
     val all = kept && !busy
     Box(
         modifier = Modifier
             .immersiveClickable(onClick = onClick)
-            .size(44.dp)
+            .size(if (bar) LocalBarControlSize.current else 44.dp)
             .clip(CircleShape)
-            .background(Immersive.Raised),
+            .then(if (bar) Modifier else Modifier.background(Immersive.Raised)),
         contentAlignment = Alignment.Center,
     ) {
         when {

@@ -122,7 +122,9 @@ fun ImmersiveHomeScreen(navController: NavController) {
     }
 
     val homeTitle = stringResource(R.string.navigationbar_musicappitems_home_title)
-    val title = feed?.greeting?.takeIf { it.isNotBlank() } ?: homeTitle
+    // Cupertino: "Home" as the large title, no greeting.
+    val cupertino = com.music.spotui.ui.immersive.cupertino.isCupertino()
+    val title = if (cupertino) homeTitle else feed?.greeting?.takeIf { it.isNotBlank() } ?: homeTitle
     var showProfile by remember { mutableStateOf(false) }
     if (showProfile) {
         ImmersiveProfileSheet(
@@ -175,10 +177,42 @@ fun ImmersiveHomeScreen(navController: NavController) {
             state = listState,
             // The greeting is the floating header's own title, so the feed starts right under it
             // (it used to be a large title under an empty bar row: the gap at the top of Home).
-            contentPadding = PaddingValues(top = immersiveHeaderContentPadding(), bottom = Immersive.BottomChrome),
+            contentPadding = PaddingValues(
+                top = if (cupertino) com.music.spotui.ui.immersive.shell.immersiveTopContentPadding() else immersiveHeaderContentPadding(),
+                bottom = Immersive.BottomChrome,
+            ),
             modifier = Modifier.fillMaxSize().immersiveHazeSource().immersiveChromeScroll(),
         ) {
-            item(key = "home:facets", contentType = "home:facets") {
+            if (cupertino) {
+                item(key = "home:title", contentType = "home:title") {
+                    com.music.spotui.ui.immersive.shell.ImmersiveLargeTitle(
+                        title = homeTitle,
+                        trailing = {
+                            com.music.spotui.ui.immersive.shell.ImmersiveBarAction(
+                                androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_friends_big),
+                                contentDescription = stringResource(R.string.friends_title),
+                                onClick = { navController.navigate(Routes.Friends.route) },
+                            )
+                            WhatsNewBell(LocalBarControlSize.current) { navController.navigate(Routes.WhatsNew.route) }
+                            Box(
+                                Modifier.size(44.dp).immersiveClickable(onClick = { showProfile = true }),
+                                contentAlignment = Alignment.Center,
+                            ) { ProfileDisc(onClick = null) }
+                        },
+                    )
+                }
+                // The facet filter (All / Music / Podcasts / Audiobooks) as a segmented control; a facet Spotify
+                // opened beside one (Music > Following) shows as its parent.
+                item(key = "home:facets", contentType = "home:facets") {
+                    val ids = listOfNotNull("", "music-chip", "podcasts-chip".takeIf { showPodcasts }, "audiobooks-chip".takeIf { showPodcasts })
+                    val parent = com.music.spotui.data.entity.HomeSubChips.parentOf(facet) ?: facet
+                    com.music.spotui.ui.immersive.cupertino.CupertinoSegmented(
+                        labels = ids.map { facetLabels[it].orEmpty() },
+                        selected = ids.indexOf(parent).coerceAtLeast(0),
+                        onSelect = { homeViewModel.selectFacet(ids[it]) },
+                    )
+                }
+            } else item(key = "home:facets", contentType = "home:facets") {
                 ImmersiveHomeFacets(
                     facet,
                     labels = facetLabels,
@@ -188,7 +222,8 @@ fun ImmersiveHomeScreen(navController: NavController) {
             }
             when {
                 feed != null && feed.sections.isNotEmpty() -> {
-                    shortcuts?.let { tiles ->
+                    // Cupertino has no shortcut grid: Top Picks leads.
+                    shortcuts?.takeIf { !cupertino }?.let { tiles ->
                         item(key = "home:shortcuts", contentType = "home:shortcuts") {
                             // The feed fades in over its placeholder (see immersiveFeedSkeleton).
                             Box(arrivingRow()) {
@@ -207,7 +242,10 @@ fun ImmersiveHomeScreen(navController: NavController) {
                         // The lead carousel gets the big cards, unless it is a row of artists.
                         val hero = index == 0 && section.items.none { it is HomeItem.Artist }
                         Box(arrivingRow()) {
-                            if (hero) HeroSection(navController, section, playingContext) else ShelfSection(navController, section, playingContext)
+                            if (hero && cupertino) {
+                                val itemKeys = remember(section.items) { homeItemKeys(section.items) }
+                                com.music.spotui.ui.immersive.cupertino.CupertinoTopPicks(navController, section, itemKeys, { it.cardSubtitle() }, { it.isPlayingIn(playingContext.value) })
+                            } else if (hero) HeroSection(navController, section, playingContext) else ShelfSection(navController, section, playingContext)
                         }
                     }
                     // Sections from extensions (home.sections), after Spotify's own.
@@ -226,7 +264,10 @@ fun ImmersiveHomeScreen(navController: NavController) {
             }
         }
         // The greeting, the bell and the profile disc on floating glass; the feed scrolls under it.
-        ImmersiveFloatingHeader(title, collapse = rememberTopBarCollapse(listState, 24.dp)) {
+        if (cupertino) {
+            // The large title is in the list; the bar only brings the small "Home" and the glass in on scroll.
+            com.music.spotui.ui.immersive.shell.ImmersiveTopBar(title, rememberTopBarCollapse(listState))
+        } else ImmersiveFloatingHeader(title, collapse = rememberTopBarCollapse(listState, 24.dp)) {
             // Friend activity, out of the tab bar: beside the profile, as Spotify has it.
             com.music.spotui.ui.immersive.shell.ImmersiveBarAction(
                 androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_friends_big),
@@ -302,7 +343,7 @@ private fun uniqueSectionKeys(sections: List<HomeSection>): List<String> {
  * Keys for the cards of a shelf: the uri they open, or their kind and name for those with none
  * (an episode). A repeat within one shelf gets a suffix, as a lazy list refuses two equal keys.
  */
-private fun homeItemKeys(items: List<HomeItem>): List<String> {
+internal fun homeItemKeys(items: List<HomeItem>): List<String> {
     val seen = HashMap<String, Int>()
     return items.map { item ->
         val base = item.contextUri().ifEmpty { "${item::class.simpleName}:${item.name}:${item.imageUrl}" }
@@ -313,7 +354,7 @@ private fun homeItemKeys(items: List<HomeItem>): List<String> {
 }
 
 @Composable
-private fun HomeItem.cardSubtitle(): String = when (this) {
+internal fun HomeItem.cardSubtitle(): String = when (this) {
     is HomeItem.Album -> subtitle
     is HomeItem.Playlist -> subtitle
     is HomeItem.Artist -> stringResource(R.string.artist_subtitle)
@@ -353,11 +394,18 @@ private fun HeroSection(navController: NavController, section: HomeSection, play
     }
 }
 
+/** The account's "Recently played" shelf, by the shelf's own id (its title is in the account's language). */
+private fun HomeSection.isRecentlyPlayed(): Boolean = uri.contains("recent", ignoreCase = true)
+
 /** A titled row of square cards (round for artists). */
 @Composable
 private fun ShelfSection(navController: NavController, section: HomeSection, playingContext: State<String>) {
     val keys = remember(section.items) { homeItemKeys(section.items) }
-    ImmersiveShelf(title = section.title) {
+    // Cupertino: "Recently Played" opens the account's recently played list.
+    val seeAll: (() -> Unit)? = if (com.music.spotui.ui.immersive.cupertino.isCupertino() && section.isRecentlyPlayed()) {
+        { navController.navigate(Routes.Recent.route) }
+    } else null
+    ImmersiveShelf(title = section.title, onSeeAll = seeAll) {
         items(
             count = section.items.size,
             key = { keys[it] },

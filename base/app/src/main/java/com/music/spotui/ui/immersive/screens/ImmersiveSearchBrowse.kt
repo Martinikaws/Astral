@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,11 +32,13 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.myspoti.engine.R
 import app.myspoti.host.android.MyspotiRuntime
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
@@ -85,8 +88,8 @@ internal fun BrowseTileRow(
                 tile = tile,
                 modifier = Modifier
                     .weight(1f)
-                    .aspectRatio(TileAspect)
-                    .clip(TileShape)
+                    .aspectRatio(if (com.music.spotui.ui.immersive.cupertino.isCupertino()) 1.6f else TileAspect)
+                    .clip(if (com.music.spotui.ui.immersive.cupertino.isCupertino()) CupertinoTileShape else TileShape)
                     .immersiveClickable(onClick = { onClick(tile) }),
             )
         }
@@ -102,6 +105,10 @@ internal fun BrowseTileRow(
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 internal fun BrowseTileCard(tile: BrowseTile, modifier: Modifier = Modifier) {
+    if (com.music.spotui.ui.immersive.cupertino.isCupertino()) {
+        CupertinoBrowseTile(tile, modifier)
+        return
+    }
     val tone = remember(tile.color) { moodTone(tile.color) }
     val artwork = spotifyImageUrl(tile.image)
     Box(modifier = modifier.background(tone.stripe)) {
@@ -141,6 +148,37 @@ internal fun BrowseTileCard(tile: BrowseTile, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Cupertino: a solid colour tile, the title bold at the bottom-left, the artwork tilted into the corner. */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun CupertinoBrowseTile(tile: BrowseTile, modifier: Modifier) {
+    val artwork = spotifyImageUrl(tile.image)
+    Box(modifier = modifier.background(tile.color)) {
+        if (artwork != null) {
+            GlideImage(
+                model = artwork,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 8.dp, bottom = 8.dp)
+                    .size(56.dp)
+                    .graphicsLayer { rotationZ = 22f; translationX = 14.dp.toPx(); translationY = 8.dp.toPx() }
+                    .clip(RoundedCornerShape(5.dp)),
+            )
+        }
+        Text(
+            text = tile.title,
+            style = Immersive.BodyStrong.copy(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp).fillMaxWidth(0.7f),
+        )
+    }
+}
+
+private val CupertinoTileShape = RoundedCornerShape(10.dp)
 
 private class MoodTone(val stripe: Color, val placeholder: Color, val duotone: ColorFilter)
 
