@@ -27,7 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.myspoti.host.android.MyspotiRuntime
-import com.music.spotui.R
+import app.myspoti.engine.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
