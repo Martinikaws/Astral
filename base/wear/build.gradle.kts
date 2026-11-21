@@ -11,14 +11,14 @@ android {
     namespace = "app.myspoti.wear"
     compileSdk = 37
 
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.7"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.7.1"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
         // As the phone's app (base/app): betas "app.astral.beta", releases "app.astral", debug builds ".dev".
         applicationId = if (beta) "app.astral.beta" else "app.astral"
         minSdk = 30
         targetSdk = 36
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 208
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 209
         versionName = version
     }
     // The phone's release key (CI env, else base/keystore/keystore.properties, as base/app): the Data

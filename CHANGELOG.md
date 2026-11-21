@@ -2,6 +2,14 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.7.1 — v1.0.7 patched (2026-11-21)
+
+### Fixed
+- **Squared Look**: Astral crashed as soon as it opened with the Squared Look chosen. Its pages now open, and if the glass ever has nothing to show through it falls back to a plain tint instead of crashing.
+- **Squared lyrics**: a line whose word timings didn't match its text could crash the player; such a line now shows without the per-word animation.
+
+---
+
 ## v1.0.7 — Squared Look, Audio Effects, Canvas Behind Lyrics, Immersive Android Auto (2026-11-21)
 
 ### New
