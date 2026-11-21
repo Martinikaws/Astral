@@ -49,7 +49,7 @@ private val REPO_URL get() = "https://github.com/" + app.myspoti.engine.BuildCon
 /** The licence files shipped in the APK's assets, known ones first in a fixed order. */
 private fun licenseFiles(context: Context): List<String> {
     val found = runCatching { context.assets.list(LICENSES_DIR)?.toList() }.getOrNull().orEmpty()
-    val order = listOf("LICENSE.txt", "THIRD_PARTY_NOTICES.md", "AGPL-3.0.txt", "LGPL-3.0.txt", "Apache-2.0.txt")
+    val order = listOf("LICENSE.txt", "THIRD_PARTY_NOTICES.md", "AGPL-3.0.txt", "GPL-3.0.txt", "LGPL-3.0.txt", "Apache-2.0.txt")
     return found.sortedWith(compareBy({ f -> order.indexOf(f).let { i -> if (i < 0) order.size else i } }, { it }))
 }
 
@@ -58,10 +58,14 @@ private fun licenseTitle(file: String): String = when (file) {
     "LICENSE.txt" -> stringResource(R.string.licenses_name_license)
     "THIRD_PARTY_NOTICES.md" -> stringResource(R.string.licenses_name_third_party)
     "AGPL-3.0.txt" -> stringResource(R.string.licenses_name_agpl)
+    "GPL-3.0.txt" -> stringResource(R.string.licenses_name_gpl)
     "LGPL-3.0.txt" -> stringResource(R.string.licenses_name_lgpl)
     "Apache-2.0.txt" -> stringResource(R.string.licenses_name_apache)
     "Inter-OFL.txt" -> stringResource(R.string.licenses_name_inter)
     "Manrope-OFL.txt" -> stringResource(R.string.licenses_name_manrope)
+    "InstrumentSerif-OFL.txt" -> stringResource(R.string.licenses_name_instrument_serif)
+    "MIT-LiquidGlass.txt" -> stringResource(R.string.licenses_name_liquid_glass)
+    "MIT-Phosphor.txt" -> stringResource(R.string.licenses_name_phosphor)
     else -> file
 }
 

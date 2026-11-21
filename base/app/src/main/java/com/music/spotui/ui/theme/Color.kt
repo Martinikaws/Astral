@@ -107,7 +107,7 @@ val AppBackground: Color get() {
             Look.SPOTIFUSION -> SpotifusionBackground
             Look.GLASSIFY -> GlassifyBackground
             Look.LIQUID_MUSIC -> LiquidMusicBackground
-            Look.CUPERTINO -> CupertinoBackground
+            Look.CUPERTINO, Look.SQUARED -> CupertinoBackground
         }
 }
 
@@ -120,7 +120,7 @@ val GridBackground: Color get() {
             Look.SPOTIFUSION -> SpotifusionCard
             Look.GLASSIFY -> GlassifySurface
             Look.LIQUID_MUSIC -> LiquidMusicGroup
-            Look.CUPERTINO -> CupertinoGroup
+            Look.CUPERTINO, Look.SQUARED -> CupertinoGroup
             Look.STARRY_NIGHT -> StarryCard
             Look.CLASSIC, Look.IMMERSIVE -> if (StarryNightPref.enabled.value) StarryCard else StarryCardOpaque
         }
@@ -152,6 +152,7 @@ internal fun lookAccentOrNull(look: Look): Color? {
         Look.GLASSIFY -> dynamicCoverAccent ?: chosen() ?: StarryBlue
         Look.LIQUID_MUSIC -> chosen() ?: LiquidMusicAccent
         Look.CUPERTINO -> chosen() ?: CupertinoAccent
+        Look.SQUARED -> chosen() ?: dynamicCoverAccent ?: SquaredAccent
         Look.STARRY_NIGHT -> chosen() ?: StarryAccent
     }
 }
@@ -224,3 +225,6 @@ fun tone(argb: Long): Color = Color(argb)
 
 /** The cover's colour as a page header: darkened toward black, so the title stays readable. */
 fun headerTint(tint: Color, amount: Float): Color = lerp(tint, Color.Black, amount)
+
+/** Squared (phase 1 of its own screens): the accent Square starts from before a cover colours it, a muted lilac. */
+val SquaredAccent = Color(0xFF7C5CE6)

@@ -164,13 +164,13 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
 
     private fun shoot(name: String, look: Look = Look.CLASSIC, content: @Composable () -> Unit) {
         // The tokens read the stored look (not LocalLook); Cupertino's palette needs it set. Reset in dropHost.
-        if (look == Look.CUPERTINO) com.music.spotui.data.preferences.LookPref.set(rule.activity, look)
+        if (look == Look.CUPERTINO || look == Look.SQUARED) com.music.spotui.data.preferences.LookPref.set(rule.activity, look)
         rule.mainClock.autoAdvance = false
         rule.setContent {
             SpotuiTheme {
                 CompositionLocalProvider(LocalLook provides look) {
                     ProvideWindowSize {
-                        Box(Modifier.fillMaxSize().background(if (look == Look.IMMERSIVE || look == Look.CUPERTINO) Color.Black else Color(0xFF121212))) { content() }
+                        Box(Modifier.fillMaxSize().background(if (look == Look.IMMERSIVE || look == Look.CUPERTINO || look == Look.SQUARED) Color.Black else Color(0xFF121212))) { content() }
                     }
                 }
             }
@@ -509,6 +509,15 @@ abstract class AdaptiveScreenshotTest(private val size: String) {
         seedAlbum()
         shoot("immersive-album", Look.IMMERSIVE) {
             ImmersiveShell("detail", capped = true) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(nav, "album", "al1") }
+        }
+    }
+
+    // ---- squared: Astral's pages under the Squared look's tokens (the shell itself needs a device) ----
+
+    @Test fun squaredHome() {
+        com.music.spotui.data.api.Api.HomeCache.home = feed
+        shoot("squared-home", Look.SQUARED) {
+            ImmersiveShell(Routes.Home.route, capped = false) { nav -> com.music.spotui.ui.immersive.screens.ImmersiveHomeScreen(nav) }
         }
     }
 

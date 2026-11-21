@@ -153,7 +153,7 @@ private val GlassifyTabBorderBrush = Brush.linearGradient(
 internal fun tabIndicatorColor(look: Look, accent: Color): Color = when (look) {
     Look.LIQUID_MUSIC -> accent.copy(alpha = 0.22f)
     // Apple's selected tab: a soft grey capsule behind the red glyph.
-    Look.CUPERTINO -> Color.White.copy(alpha = 0.14f)
+    Look.CUPERTINO, Look.SQUARED -> Color.White.copy(alpha = 0.14f)
     Look.GLASSIFY -> Color.White.copy(alpha = 0.16f)
     else -> Color.White.copy(alpha = 0.12f)
 }

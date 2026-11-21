@@ -9,8 +9,12 @@
     <string name="licenses_name_license" tools:ignore="MissingTranslation">Astral licence (GPL-3.0)</string>
     <string name="licenses_name_third_party" tools:ignore="MissingTranslation">Third-party notices</string>
     <string name="licenses_name_agpl" tools:ignore="MissingTranslation">GNU AGPL-3.0</string>
+    <string name="licenses_name_gpl" tools:ignore="MissingTranslation">GNU GPL-3.0 (Square)</string>
     <string name="licenses_name_lgpl" tools:ignore="MissingTranslation">GNU LGPL-3.0</string>
     <string name="licenses_name_apache" tools:ignore="MissingTranslation">Apache License 2.0</string>
     <string name="licenses_name_inter" tools:ignore="MissingTranslation">Inter font (SIL OFL)</string>
     <string name="licenses_name_manrope" tools:ignore="MissingTranslation">Manrope font (SIL OFL)</string>
+    <string name="licenses_name_instrument_serif" tools:ignore="MissingTranslation">Instrument Serif font (SIL OFL)</string>
+    <string name="licenses_name_liquid_glass" tools:ignore="MissingTranslation">liquid_glass_widgets / liquid_glass_renderer (MIT)</string>
+    <string name="licenses_name_phosphor" tools:ignore="MissingTranslation">Phosphor icons (MIT)</string>
 </resources>

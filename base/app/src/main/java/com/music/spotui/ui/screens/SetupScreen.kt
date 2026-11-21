@@ -504,7 +504,7 @@ private fun SetupButton(text: String, onClick: () -> Unit, modifier: Modifier = 
     val containerColor = when (look) {
         Look.SPOTIFUSION -> SpotifusionGreen
         Look.IMMERSIVE -> Color.White
-        Look.GLASSIFY, Look.LIQUID_MUSIC, Look.STARRY_NIGHT, Look.CUPERTINO -> Immersive.Accent
+        Look.GLASSIFY, Look.LIQUID_MUSIC, Look.STARRY_NIGHT, Look.CUPERTINO, Look.SQUARED -> Immersive.Accent
         Look.CLASSIC -> AppAccent
     }
     val contentColor = if (containerColor.luminance() > 0.45f) Color.Black else Color.White
@@ -512,7 +512,7 @@ private fun SetupButton(text: String, onClick: () -> Unit, modifier: Modifier = 
         onClick = onClick,
         shape = when (look) {
             Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
-            Look.IMMERSIVE, Look.GLASSIFY, Look.CUPERTINO -> Immersive.Button
+            Look.IMMERSIVE, Look.GLASSIFY, Look.CUPERTINO, Look.SQUARED -> Immersive.Button
             else -> ButtonDefaults.shape
         },
         colors = ButtonDefaults.buttonColors(containerColor = containerColor, contentColor = contentColor),
@@ -550,7 +550,7 @@ private fun Modifier.setupCard(): Modifier {
             .clip(Immersive.Card)
             .background(LiquidMusicSurface)
             .border(1.dp, LiquidMusicBorder, Immersive.Card)
-        Look.IMMERSIVE, Look.STARRY_NIGHT, Look.CUPERTINO -> this
+        Look.IMMERSIVE, Look.STARRY_NIGHT, Look.CUPERTINO, Look.SQUARED -> this
             .fillMaxWidth()
             .clip(Immersive.Card)
             .background(Immersive.Raised.copy(alpha = 0.92f))

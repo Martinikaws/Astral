@@ -292,6 +292,66 @@ https://github.com/google/material-design-icons, Copyright Google LLC. Apache Li
 
 # Part 3: added by Astral
 
+## The Squared look
+
+### Square — GPL-3.0
+https://github.com/Lelonio/Square (v2.10.4, commit `139441f`)
+
+Copyright (C) Lelonio. The Squared look is a port of Square's UI onto Astral's own session, data
+and playback. These files in `base/app/src/main/java/com/music/spotui/ui/immersive/squared/` are
+adapted from `app/src/main/java/dev/lelonio/square/` (Square's theme, glass, player and
+components), stay under the GPL-3.0 (the licence text, as Square ships it, is in `base/licenses/GPL-3.0.txt`,
+shown under Open-source licences), and say so, with a list of what was changed, in their header:
+
+- `Squared{Theme,Fonts,ArtworkColor,Artwork,Catalog}.kt`, from `ui/theme/*`, `ui/components/Artwork.kt`
+  and `data/AppleCatalog.kt` (the extra artwork catalogue behind the "Animated covers & artist artwork"
+  setting)
+- `SquaredShell.kt`, from `ui/SquareApp.kt` (the floating tab bar, the mini player, the expanding
+  player sheet)
+- `glass/**`, from `ui/glass/**` (verbatim except for the package name)
+- `player/**`, from `ui/player/**`, and `components/**`, from `ui/components/**` (the player, lyrics,
+  queue, covers and backdrops; Square's own playback, Spotify Connect, YouTube Music, video and DJ code
+  are not carried over, and Coil is replaced by Glide)
+- `res/layout/squared_*.xml` and the `squared_*` strings, from Square's layouts and strings
+
+`SquaredAdapters.kt` is Astral's own: it connects the ported screens to Astral's player. Square's
+name, wordmark, icons and sign-in, Spotify Connect, YouTube Music and native code are not included.
+
+### Backdrop and capsule (Kyant0) — Apache-2.0
+https://github.com/Kyant0/AndroidLiquidGlass (`backdrop`, `capsule`), Copyright 2025 Kyant0.
+
+The refraction, blur and highlight under Square's glass, vendored as source in
+`base/app/src/main/java/com/music/spotui/ui/immersive/squared/glass/backdrop/` as Square carries
+it (package renamed, Square's local changes kept). Every file keeps its Apache-2.0 header. Licence
+text in `base/licenses/Apache-2.0.txt`.
+
+### compose-floating-tab-bar — Apache-2.0
+https://github.com/elyesmansour/compose-floating-tab-bar, Copyright Elyes Mansour.
+
+The floating tab bar of the Squared look
+(`.../ui/immersive/squared/glass/floatingtabbar/`), with Square's local changes. Licence text in
+`base/licenses/Apache-2.0.txt`.
+
+### liquid_glass_widgets and liquid_glass_renderer — MIT
+https://github.com/sdegenaar/liquid_glass_widgets, Copyright (c) 2024-2026 Sebastian Degenaar for
+https://github.com/whynotmake-it/flutter_liquid_glass (`liquid_glass_renderer`), Copyright 2025 Tim Lehmann
+for whynotmake.it (the notice liquid_glass_widgets carries for the engine it derives from it).
+
+The glass springs, the morphing physics and the AGSL shaders of Square's glass
+(`glass/morph/`, `GlassInteraction.kt` and others), ported from these Dart/GLSL sources through
+Square. Licence text in `base/licenses/MIT-LiquidGlass.txt`.
+
+### Phosphor Icons — MIT
+https://phosphoricons.com, Copyright (c) 2023 Phosphor Icons (phosphor-icons/core). Gradle dependency
+`com.adamglin:phosphor-icon` 1.0.0 (unmodified), Copyright (c) 2024 Adamglin. The glyphs of the Squared look's bar and player.
+Licence text in `base/licenses/MIT-Phosphor.txt`.
+
+### Instrument Serif — SIL Open Font License 1.1
+https://github.com/Instrument/instrument-serif, Copyright 2022 The Instrument Serif Project Authors.
+
+The Squared look's display typeface (`base/app/src/main/res/font/instrument_serif.ttf`, as Square
+ships it) next to Inter (above). Licence text in `base/licenses/InstrumentSerif-OFL.txt`.
+
 ## Design references: no code or assets copied
 
 Astral's Starry Night backdrop, its Glassify and LiquidMusic looks, its Spicy Lyrics-style display, its
@@ -401,6 +461,7 @@ The Apache-2.0 text is also in `base/licenses/Apache-2.0.txt`.
 | Mozilla Rhino | Mozilla Foundation | MPL-2.0 |
 | Haze | Chris Banes | Apache-2.0 |
 | Reorderable | Calvin Liang | Apache-2.0 |
+| Phosphor Icons for Compose (`com.adamglin:phosphor-icon`) | Phosphor Icons / Adam Glin | MIT |
 | Google Play services (Cronet, Code Scanner, Wearable) | Google | Proprietary, Android Software Development Kit License; not open source |
 
 The Google Play services client libraries are closed-source binaries bundled in the APK under the Android

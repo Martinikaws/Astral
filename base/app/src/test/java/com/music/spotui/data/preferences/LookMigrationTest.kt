@@ -127,6 +127,20 @@ class LookMigrationTest {
         assertEquals(PageStyle.ORPHEON_GLASS, PageStyle.forLook(Look.CUPERTINO))
     }
 
+    @Test fun `Squared is an immersive look with its own key`() {
+        assertEquals(Look.SQUARED, Look.fromKey("squared"))
+        assertEquals(Look.SQUARED, Look.fromKey("SQUARED"))
+        assertTrue(Look.SQUARED.isImmersive())
+        assertEquals("squared", Look.SQUARED.key)
+        assertEquals("Squared", Look.SQUARED.label)
+        assertEquals(PageStyle.ORPHEON_GLASS, PageStyle.forLook(Look.SQUARED))
+    }
+
+    @Test fun `Squared's label and detail never name Apple or Liquid Glass`() {
+        val text = (Look.SQUARED.label + " " + Look.SQUARED.detail).lowercase()
+        assertTrue("apple" !in text && "liquid glass" !in text)
+    }
+
     // ---- v1.0.3: Starry Night becomes a Look of its own ----
 
     @Test fun `Interactive with the never-touched Starry Night default moves to the Starry Night look`() {

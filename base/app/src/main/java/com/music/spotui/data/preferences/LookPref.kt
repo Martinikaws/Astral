@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** The seven unified app looks. [CLASSIC] is the default fallback. */
+/** The eight unified app looks. [CLASSIC] is the default fallback. */
 enum class Look(
     val key: String,
     val label: String,
@@ -51,11 +51,16 @@ enum class Look(
         key = "cupertino",
         label = "Cupertino",
         detail = "Apple Music-style: black, bold titles, red accent & glass tab bar.",
+    ),
+    SQUARED(
+        key = "squared",
+        label = "Squared",
+        detail = "Edge-to-edge artwork, a floating glass tab bar and an expanding player with word-by-word lyrics.",
     );
 
-    /** True for floating interactive shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC], [STARRY_NIGHT], [CUPERTINO]). */
+    /** True for floating interactive shells ([IMMERSIVE], [GLASSIFY], [LIQUID_MUSIC], [STARRY_NIGHT], [CUPERTINO], [SQUARED]). */
     fun isImmersive(): Boolean =
-        this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC || this == STARRY_NIGHT || this == CUPERTINO
+        this == IMMERSIVE || this == GLASSIFY || this == LIQUID_MUSIC || this == STARRY_NIGHT || this == CUPERTINO || this == SQUARED
 
     companion object {
         fun fromKey(key: String?): Look {
@@ -69,6 +74,7 @@ enum class Look(
                 "liquid_music", "liquidmusic" -> LIQUID_MUSIC
                 "starry_night", "starrynight" -> STARRY_NIGHT
                 "cupertino", "apple_music_style" -> CUPERTINO
+                "squared" -> SQUARED
                 else -> entries.firstOrNull {
                     it.name.equals(norm, ignoreCase = true) || it.key.equals(norm, ignoreCase = true)
                 } ?: CLASSIC
@@ -167,7 +173,7 @@ internal object LookMigration {
         // enable state lives in StarryNightPref.
         val mode = when (newLook) {
             Look.GLASSIFY -> "GLASSIFY"
-            Look.LIQUID_MUSIC, Look.CUPERTINO -> "LIQUID_MUSIC"
+            Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> "LIQUID_MUSIC"
             else -> "STARRY_NIGHT"
         }
         if (theme != null && theme != mode) e.putString(THEME_MODE, mode)

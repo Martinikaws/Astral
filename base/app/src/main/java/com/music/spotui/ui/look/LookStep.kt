@@ -71,6 +71,7 @@ import com.music.spotui.ui.theme.AppAccent
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.AppSans
 import com.music.spotui.ui.theme.CupertinoAccent
+import com.music.spotui.ui.theme.SquaredAccent
 import com.music.spotui.ui.theme.CupertinoBackground
 import com.music.spotui.ui.theme.CupertinoBorder
 import com.music.spotui.ui.theme.CupertinoGlass
@@ -116,6 +117,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
         Look.SPOTIFUSION -> SpotifusionGreen
         Look.LIQUID_MUSIC -> LiquidMusicAccent
         Look.CUPERTINO -> CupertinoAccent
+        Look.SQUARED -> SquaredAccent
         Look.GLASSIFY -> StarryBlue
         Look.IMMERSIVE -> Color.White
         Look.STARRY_NIGHT -> StarryAccent
@@ -151,6 +153,11 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 activeLook == Look.CUPERTINO -> Box(
                     Modifier.fillMaxSize().background(CupertinoBackground).background(
                         Brush.radialGradient(colors = listOf(CupertinoAccent.copy(alpha = 0.20f), Color.Transparent)),
+                    ),
+                )
+                activeLook == Look.SQUARED -> Box(
+                    Modifier.fillMaxSize().background(CupertinoBackground).background(
+                        Brush.radialGradient(colors = listOf(SquaredAccent.copy(alpha = 0.20f), Color.Transparent)),
                     ),
                 )
                 activeLook == Look.SPOTIFUSION -> Box(Modifier.fillMaxSize().background(SpotifusionBackground))
@@ -233,7 +240,7 @@ fun LookStep(onNext: () -> Unit, offer: LookOffer? = null) {
                 onClick = onNext,
                 shape = when (look) {
                     Look.LIQUID_MUSIC -> RoundedCornerShape(20.dp)
-                    Look.CUPERTINO -> RoundedCornerShape(50)
+                    Look.CUPERTINO, Look.SQUARED -> RoundedCornerShape(50)
                     Look.IMMERSIVE, Look.GLASSIFY -> RoundedCornerShape(14.dp)
                     else -> ButtonDefaults.shape
                 },
@@ -303,6 +310,7 @@ private fun Look.swatchColor(): Color = when (this) {
     Look.GLASSIFY -> StarryBlue
     Look.LIQUID_MUSIC -> LiquidMusicAccent
     Look.CUPERTINO -> CupertinoAccent
+    Look.SQUARED -> SquaredAccent
     Look.STARRY_NIGHT -> StarryAccent
 }
 
@@ -390,6 +398,19 @@ private fun LookStepDemo(look: Look, clock: DemoClock, still: Boolean) {
                         .padding(horizontal = 14.dp, vertical = 5.dp),
                 ) {
                     Text("CUPERTINO", color = CupertinoAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Look.SQUARED -> {
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text("SQUARED", color = SquaredAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Look.CLASSIC, Look.IMMERSIVE -> Unit

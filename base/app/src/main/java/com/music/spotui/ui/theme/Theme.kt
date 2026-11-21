@@ -32,7 +32,7 @@ private fun astralColorScheme(
         Look.SPOTIFUSION -> SpotifusionCard
         Look.GLASSIFY -> GlassifySurface
         Look.LIQUID_MUSIC -> LiquidMusicGroup
-        Look.CUPERTINO -> CupertinoGroup
+        Look.CUPERTINO, Look.SQUARED -> CupertinoGroup
         Look.STARRY_NIGHT -> StarryCard
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) StarryCard else StarryCardOpaque
     }
@@ -40,21 +40,21 @@ private fun astralColorScheme(
         Look.SPOTIFUSION -> Color(0xFF181818)
         Look.GLASSIFY -> Color(0xBF181C26)
         Look.LIQUID_MUSIC -> Color(0xFF0C0C0E)
-        Look.CUPERTINO -> Color(0xFF0C0C0E)
+        Look.CUPERTINO, Look.SQUARED -> Color(0xFF0C0C0E)
         Look.STARRY_NIGHT -> Color(0xD9101C2E)
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) Color(0xD9101C2E) else Color(0xFF101C2E)
     }
     val elevatedSurface = when (look) {
         Look.SPOTIFUSION -> Color(0xFF282828)
         Look.GLASSIFY -> Color(0xD91E222D)
-        Look.LIQUID_MUSIC, Look.CUPERTINO -> Color(0xFF2C2C2E)
+        Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> Color(0xFF2C2C2E)
         Look.STARRY_NIGHT -> Color(0xEB182840)
         Look.CLASSIC, Look.IMMERSIVE -> if (starryOn) Color(0xEB182840) else Color(0xFF1E3250)
     }
     val borderOutline = when (look) {
         Look.SPOTIFUSION -> Color(0xFF3E3E3E)
         Look.GLASSIFY -> GlassifyBorder
-        Look.LIQUID_MUSIC, Look.CUPERTINO -> Color(0xFF38383A)
+        Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> Color(0xFF38383A)
         Look.STARRY_NIGHT -> StarryHairline.copy(alpha = 0.30f)
         Look.CLASSIC, Look.IMMERSIVE -> Color(0xFF3A5270)
     }
@@ -66,7 +66,7 @@ private fun astralColorScheme(
     }
     val secondary = when (look) {
         Look.SPOTIFUSION -> Color(0xFFB3B3B3)
-        Look.LIQUID_MUSIC, Look.CUPERTINO -> Color(0xFF8E8E93)
+        Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> Color(0xFF8E8E93)
         Look.STARRY_NIGHT -> Color(0xFFE6D9A8)
         else -> StarryBlue
     }
@@ -88,7 +88,7 @@ private fun astralColorScheme(
         surfaceVariant = cardSurface,
         onSurfaceVariant = when (look) {
             Look.SPOTIFUSION -> Color(0xFFB3B3B3)
-            Look.LIQUID_MUSIC, Look.CUPERTINO -> Color(0xFF98989F)
+            Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> Color(0xFF98989F)
             else -> AppMuted
         },
         surfaceTint = Color.Transparent,
@@ -105,7 +105,7 @@ private fun astralColorScheme(
         outline = borderOutline,
         outlineVariant = when (look) {
             Look.SPOTIFUSION -> Color(0xFF282828)
-            Look.LIQUID_MUSIC, Look.CUPERTINO -> Color(0xFF2C2C2E)
+            Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> Color(0xFF2C2C2E)
             Look.STARRY_NIGHT -> StarryHairline
             else -> Color(0xFF243752)
         },

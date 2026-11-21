@@ -245,7 +245,7 @@ fun lookTokens(look: Look): LookTokens = when (look) {
     Look.GLASSIFY -> GlassifyTokens
     Look.LIQUID_MUSIC -> LiquidTokens
     Look.STARRY_NIGHT -> StarryTokens
-    Look.CUPERTINO -> CupertinoTokens
+    Look.CUPERTINO, Look.SQUARED -> CupertinoTokens
 }
 
 /*
@@ -281,7 +281,7 @@ object Immersive {
     /** The wash at the top of a detail page (album, playlist), from the cover's [tint] into the page. */
     fun headerWash(tint: Color): Color = when (LookPref.look) {
         Look.LIQUID_MUSIC -> androidx.compose.ui.graphics.lerp(Color.Black, tint, 0.20f)
-        Look.CUPERTINO -> androidx.compose.ui.graphics.lerp(Color.Black, tint, 0.30f)
+        Look.CUPERTINO, Look.SQUARED -> androidx.compose.ui.graphics.lerp(Color.Black, tint, 0.30f)
         Look.GLASSIFY -> tint.copy(alpha = 0.38f)
         Look.STARRY_NIGHT -> Color(0xFF1B2D4A)
         else -> androidx.compose.ui.graphics.lerp(tint, Color.Black, 0.3f)
@@ -311,7 +311,7 @@ object Immersive {
     val GlassFill: Color get() = when (LookPref.look) {
         Look.GLASSIFY -> GlassifyGlassFill
         Look.LIQUID_MUSIC -> LiquidMusicSurface
-        Look.CUPERTINO -> CupertinoGlassSolid
+        Look.CUPERTINO, Look.SQUARED -> CupertinoGlassSolid
         Look.SPOTIFUSION -> SpotifusionCard
         Look.STARRY_NIGHT -> StarryCard
         Look.CLASSIC, Look.IMMERSIVE -> StarryCard
@@ -319,7 +319,7 @@ object Immersive {
     val GlassEdge: Color get() = when (LookPref.look) {
         Look.GLASSIFY -> GlassifyBorder
         Look.LIQUID_MUSIC -> LiquidMusicBorder
-        Look.CUPERTINO -> CupertinoBorder
+        Look.CUPERTINO, Look.SQUARED -> CupertinoBorder
         Look.SPOTIFUSION -> Color.White.copy(alpha = 0.10f)
         Look.STARRY_NIGHT -> StarryHairline
         Look.CLASSIC, Look.IMMERSIVE -> Color.White.copy(alpha = 0.14f)
@@ -328,7 +328,7 @@ object Immersive {
     val Elevated: Color get() = when (LookPref.look) {
         Look.SPOTIFUSION -> SpotifusionElevated
         Look.LIQUID_MUSIC -> Color(0xFF2C2C2E)
-        Look.CUPERTINO -> CupertinoElevated
+        Look.CUPERTINO, Look.SQUARED -> CupertinoElevated
         Look.GLASSIFY -> Color.White.copy(alpha = 0.14f)
         else -> Color(0xFF1E3250)
     }

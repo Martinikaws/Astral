@@ -961,6 +961,16 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     detail = if (liquidRefraction) "Liquid Glass (Refraction)" else "Frosted Glass",
                 )
             }
+            if (look == com.music.spotui.data.preferences.Look.SQUARED) row {
+                val squaredPrefs = com.music.spotui.ui.immersive.squared.SquaredPrefs.of(ctx)
+                val animatedCovers by squaredPrefs.animatedCovers.collectAsStateWithLifecycle()
+                ImmersiveSwitchRow(
+                    stringResource(R.string.squared_animated_covers),
+                    checked = animatedCovers,
+                    onChecked = { squaredPrefs.setAnimatedCovers(it) },
+                    detail = stringResource(R.string.squared_animated_covers_note),
+                )
+            }
             row {
                 ImmersiveGroupRow(
                     "SpicyThemes Preset",

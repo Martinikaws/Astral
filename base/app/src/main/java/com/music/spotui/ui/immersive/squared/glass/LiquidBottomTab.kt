@@ -1,0 +1,71 @@
+/*
+ * Adapted from Square (https://github.com/Lelonio/Square), GPL-3.0, Copyright (C) Lelonio,
+ * app/src/main/java/dev/lelonio/square/ui/glass/LiquidBottomTab.kt at 139441f.
+ * Modified for Astral, 2026-11.
+ *
+ * Changes: package renamed to com.music.spotui.ui.immersive.squared.glass (and R to Astral's);
+ * otherwise verbatim.
+ *
+ * Astral's and Square's changes are under the GNU General Public License, version 3
+ * (base/licenses/GPL-3.0.txt). The original work's own notice follows and stays in force for
+ * the code it covers.
+ */
+// Vendored from the Backdrop catalog app, Apache-2.0.
+//
+//   https://github.com/Kyant0/AndroidLiquidGlass
+//   commit b18eb0ff12c616546a68c72e7d0097f1ab286c87
+//
+// These are the library author's own example components rather than part of the
+// published artifact, so there is nothing to depend on — they have to be copied.
+// Kept as close to upstream as possible (package line and a few Material
+// swaps aside) so a later upstream fix can be diffed in; see LICENSE-backdrop.txt.
+
+package com.music.spotui.ui.immersive.squared.glass
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import com.music.spotui.ui.immersive.squared.glass.shapes.ContinuousCapsule
+
+internal val LocalLiquidBottomTabScale =
+    staticCompositionLocalOf { { 1f } }
+
+@Composable
+fun RowScope.LiquidBottomTab(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val scale = LocalLiquidBottomTabScale.current
+    Column(
+        modifier
+            .clip(ContinuousCapsule())
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                role = Role.Tab,
+                onClick = onClick
+            )
+            .fillMaxHeight()
+            .weight(1f)
+            .graphicsLayer {
+                val scale = scale()
+                scaleX = scale
+                scaleY = scale
+            },
+        verticalArrangement = Arrangement.spacedBy(2f.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        content = content
+    )
+}

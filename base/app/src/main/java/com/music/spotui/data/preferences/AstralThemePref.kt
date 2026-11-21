@@ -79,7 +79,7 @@ object AstralThemePref {
     fun syncFromLook(context: Context, look: Look) {
         val mapped = when (look) {
             Look.GLASSIFY -> AstralThemeMode.GLASSIFY
-            Look.LIQUID_MUSIC, Look.CUPERTINO -> AstralThemeMode.LIQUID_MUSIC
+            Look.LIQUID_MUSIC, Look.CUPERTINO, Look.SQUARED -> AstralThemeMode.LIQUID_MUSIC
             else -> AstralThemeMode.STARRY_NIGHT
         }
         setThemeMode(context, mapped)

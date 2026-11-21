@@ -109,7 +109,7 @@ fun App() {
     val liquidAvailable = com.music.spotui.ui.immersive.shell.liquidGlassAvailability() ==
         com.music.spotui.ui.immersive.shell.LiquidGlassAvailability.AVAILABLE
     val liquidGlass = when (look) {
-        com.music.spotui.data.preferences.Look.LIQUID_MUSIC, com.music.spotui.data.preferences.Look.CUPERTINO -> liquidRefraction && liquidAvailable
+        com.music.spotui.data.preferences.Look.LIQUID_MUSIC, com.music.spotui.data.preferences.Look.CUPERTINO, com.music.spotui.data.preferences.Look.SQUARED -> liquidRefraction && liquidAvailable
         com.music.spotui.data.preferences.Look.IMMERSIVE -> baseLiquidGlass
         else -> false
     }
@@ -154,12 +154,22 @@ fun App() {
         // Before the Scaffold, in a group of its own: the nav host keeps its place when the
         // window grows or shrinks past the threshold (back stack and pages kept).
         if (rail && !immersive) com.music.spotui.ui.navigation.MainNavigationRail(navController)
-        else if (immersive && com.music.spotui.ui.components.windowSize().sideNavigation) {
+        else if (immersive && look != com.music.spotui.data.preferences.Look.SQUARED && com.music.spotui.ui.components.windowSize().sideNavigation) {
             // Cupertino: the wide iPad-style sidebar of rows; the others a narrow glass panel of tabs.
             if (look == com.music.spotui.data.preferences.Look.CUPERTINO) com.music.spotui.ui.immersive.cupertino.CupertinoSideBar(navController)
             else com.music.spotui.ui.immersive.shell.ImmersiveSideBar(navController)
         }
         // The page area; Immersive's floating mini player (and phone tab bar) sits at its bottom.
+        // Squared draws its own shell (tab bar, mini player, player sheet) around the same pages.
+        val squared = look == com.music.spotui.data.preferences.Look.SQUARED
+        if (squared) com.music.spotui.ui.immersive.squared.SquaredShell(navController, Modifier.weight(1f)) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            ) {
+                MyNavHost(navHostController = navController)
+            }
+        } else
         androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -177,7 +187,8 @@ fun App() {
             )
         }
       }
-        if (immersive) com.music.spotui.ui.immersive.player.ImmersivePlayerOverlay(navController)
+        if (look == com.music.spotui.data.preferences.Look.SQUARED) Unit
+        else if (immersive) com.music.spotui.ui.immersive.player.ImmersivePlayerOverlay(navController)
         // Over the pages and the bottom bar: pulling it down shows them, already in place.
         else com.music.spotui.ui.navigation.PlayerOverlay(navController)
         // "Not interested" and its Undo, over the pages and the players.

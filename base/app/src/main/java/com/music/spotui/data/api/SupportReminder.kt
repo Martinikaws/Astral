@@ -76,7 +76,7 @@ object SupportReminder {
     fun honoursChosenAccent(look: Look): Boolean = look != Look.SPOTIFUSION && look != Look.GLASSIFY
 
     /** The Looks with an accent of their own (LiquidMusic and Cupertino red, Starry Night gold) that a chosen one only overrides. */
-    fun hasLookDefaultAccent(look: Look): Boolean = look == Look.LIQUID_MUSIC || look == Look.STARRY_NIGHT || look == Look.CUPERTINO
+    fun hasLookDefaultAccent(look: Look): Boolean = look == Look.LIQUID_MUSIC || look == Look.STARRY_NIGHT || look == Look.CUPERTINO || look == Look.SQUARED
 
     /** Whether the Look's own accent is showing, i.e. [setAccent] never picked one (or [clearAccent] dropped it). */
     fun usesLookDefaultAccent(look: Look): Boolean = hasLookDefaultAccent(look) && !immersiveAccentChosen
