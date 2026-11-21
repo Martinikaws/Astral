@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="flac_bundled_title">Built-in FLAC sources</string>
+    <string name="flac_source_open">Open</string>
+    <string name="flac_jamendo_description">Stream independent music in FLAC. Enter a Jamendo developer client ID. The API is free for noncommercial use.</string>
+    <string name="flac_jamendo_signup">Get a Jamendo client ID</string>
+    <string name="flac_jamendo_client">Jamendo client ID</string>
+    <string name="flac_navidrome_description">Stream FLAC from your own library using an HTTPS OpenSubsonic server. Use the account provided by your server administrator. The server software is free.</string>
+    <string name="flac_navidrome_setup">Set up a Navidrome server</string>
+    <string name="flac_server">Server HTTPS address</string>
+    <string name="flac_username">Server username</string>
+    <string name="flac_password">Server password</string>
+    <string name="flac_archive_description">Open a public live recording that offers FLAC. These recordings are free and require no account.</string>
+    <string name="flac_archive_browse">Browse Live Music Archive</string>
+    <string name="flac_archive_input">Recording link or identifier</string>
+    <string name="flac_archive_load">Load recording</string>
+    <string name="flac_bandcamp_description">Your Bandcamp account is free. Artists set the prices. Download the FLAC from your purchase page, extract the ZIP if needed, then choose the FLAC files to play in Astral.</string>
+    <string name="flac_bandcamp_signup">Open Bandcamp for Fans</string>
+    <string name="flac_bandcamp_import">Choose FLAC files</string>
+    <string name="flac_massive_description">Full-track streaming requires a commercial agreement with MassiveMusic and the licensors. This source requires a licensed Astral integration before it can play music.</string>
+    <string name="flac_massive_access">View MassiveMusic developer access</string>
+    <string name="flac_search_input">Search music</string>
+    <string name="flac_search">Search FLAC</string>
+    <string name="flac_source_error">Could not load the source. Check your settings and connection.</string>
+    <string name="flac_source_empty">No available FLAC tracks.</string>
+    <string name="flac_view_source">View on %1$s</string>
+</resources>

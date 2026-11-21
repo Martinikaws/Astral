@@ -187,6 +187,9 @@ fun MyNavHost(
         page("${Routes.ExtensionEntry.route}/{id}", arguments = listOf(navArgument("id") { defaultValue = "" })){ entry ->
             if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveExtensionEntryScreen(navHostController, entry.arguments?.getString("id").orEmpty()) else com.music.spotui.ui.screens.ExtensionEntryScreen(navHostController, entry.arguments?.getString("id").orEmpty())
         }
+        page("${com.music.spotui.ui.screens.FLAC_SOURCE_ROUTE}/{id}") { entry ->
+            com.music.spotui.ui.screens.BundledFlacSourceScreen(navHostController, entry.arguments?.getString("id").orEmpty())
+        }
         // An extension's own page (webview.page), sandboxed.
         page("extension-page/{id}", arguments = listOf(navArgument("id") { defaultValue = "" })){ entry ->
             com.music.spotui.ui.screens.ExtensionPageScreen(navHostController, entry.arguments?.getString("id").orEmpty())

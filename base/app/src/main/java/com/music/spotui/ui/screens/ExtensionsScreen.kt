@@ -143,6 +143,8 @@ fun ExtensionsScreen(navController: NavController) {
         }
         if (downloading) Text(stringResource(R.string.extensions_loading), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
 
+        if (tab != 2 && query.isBlank() && category == null) BundledFlacSources(navController)
+
         if (tab == 0) {
             if (registry.repositories.none { !ExtensionStore.isOfficial(it) } && !officialShown) EmptyState()
             var shown = 0
