@@ -15,6 +15,16 @@ object CanvasPref {
     private const val PREF = "settings_prefs"
     private const val KEY_BACKGROUND = "canvas_background"
     private const val KEY_BLUR = "canvas_blur"
+    private const val KEY_BEHIND_LYRICS = "canvas_behind_lyrics"
+
+    /** The Canvas as the full-screen background of the lyrics (replacing the Spicy mesh when the song has one; default on). */
+    var behindLyrics by mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY_BEHIND_LYRICS, true))
+        private set
+
+    fun setBehindLyrics(c: Context, value: Boolean) {
+        behindLyrics = value
+        prefs(c).edit().putBoolean(KEY_BEHIND_LYRICS, value).apply()
+    }
 
     var background by mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY_BACKGROUND, true))
         private set

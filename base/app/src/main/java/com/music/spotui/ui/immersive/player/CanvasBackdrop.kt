@@ -86,11 +86,16 @@ internal fun CanvasBackgroundVideo(
 ) {
     val context = LocalContext.current
     val exo = remember(url) { CanvasPlayer.get(context, url) }
+    // The shared player draws on one view at a time: when another view of the clip (the Classic
+    // lyrics over the player) is released, the one still on screen takes the picture back.
+    val seenEpoch = remember { intArrayOf(CanvasPlayer.surfaceEpoch) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val requested by rememberUpdatedState(playing)
     val currentUrl by rememberUpdatedState(url)
     val shown by rememberUpdatedState(onFirstFrame)
-    LaunchedEffect(exo, url, playing, lifecycle) {
+    // Keyed on the epoch too: another view's release pauses the shared player, and the one
+    // still on screen re-applies its own playing state.
+    LaunchedEffect(exo, url, playing, lifecycle, CanvasPlayer.surfaceEpoch) {
         exo.playWhenReady = playing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
     }
     DisposableEffect(exo, lifecycle) {
@@ -118,8 +123,15 @@ internal fun CanvasBackgroundVideo(
                 player = exo
             }
         },
+        onRelease = { CanvasPlayer.surfaceEpoch++ },
         update = { view ->
             if (view.player !== exo) view.player = exo
+            val epoch = CanvasPlayer.surfaceEpoch
+            if (seenEpoch[0] != epoch) {
+                seenEpoch[0] = epoch
+                view.player = null
+                view.player = exo
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) applyBlur(view, blurPercent)
         },
     )
@@ -148,7 +160,13 @@ internal fun CanvasMenuRows() {
         value = stringResource(if (on) R.string.canvas_on else R.string.canvas_off),
         tint = if (on) LocalImmersiveSheetTint.current.accent else null,
     ) { CanvasPref.setBackground(context, !on) }
-    if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    val behind = CanvasPref.behindLyrics
+    ImmersiveSheetRow(
+        Icons.Rounded.Videocam, stringResource(R.string.canvas_behind_lyrics),
+        value = stringResource(if (behind) R.string.canvas_on else R.string.canvas_off),
+        tint = if (behind) LocalImmersiveSheetTint.current.accent else null,
+    ) { CanvasPref.setBehindLyrics(context, !behind) }
+    if ((on || behind) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         CanvasBlurSlider(accent = LocalImmersiveSheetTint.current.accent)
     }
 }

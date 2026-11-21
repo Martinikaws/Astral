@@ -309,11 +309,19 @@ fun ImmersivePlayer(
     // The song's Canvas, the background of the whole player once its first frame is drawn (with the
     // "Canvas background" setting on). The cover fades out over it in CANVAS_OPEN_MS and comes back,
     // with the mesh, when the clip is gone. The lyrics and the queue keep the clip behind them, dimmer.
-    val canvasUrl = rememberImmersiveCanvas(state)
+    // "Canvas behind lyrics": with the lyrics open the clip is wanted even when the player's own
+    // Canvas background is off, and it replaces the Spicy mesh instead of being covered by it.
+    val lyricsCanvas = lyricsOpen && com.music.spotui.data.preferences.CanvasPref.behindLyrics
+    // The clip is still requested while it fades out after the lyrics close (Canvas background off),
+    // so it does not vanish in the frame they close.
+    var canvasLingering by remember { mutableStateOf(false) }
+    val canvasUrl = rememberImmersiveCanvas(state, lyricsCanvas || canvasLingering)
     var canvasShown by remember(canvasUrl) {
         mutableStateOf(canvasUrl != null && com.music.spotui.ui.components.CanvasPlayer.isReady(canvasUrl))
     }
-    val canvasOn = canvasUrl != null && canvasShown && !state.adPlaying
+    // Off the lyrics, with the player's Canvas background off, the clip fades out instead of being cut.
+    val canvasWanted = com.music.spotui.data.preferences.CanvasPref.background || lyricsCanvas
+    val canvasOn = canvasUrl != null && canvasShown && !state.adPlaying && canvasWanted
     // Opening on a clip already showing starts at the end; every later change animates from where it is.
     val canvasOpen = remember { androidx.compose.animation.core.Animatable(if (canvasOn) 1f else 0f) }
     // Opening the player: the heart of the song shown is checked again if its state is old.
@@ -321,7 +329,10 @@ fun ImmersivePlayer(
     LaunchedEffect(canvasOn) {
         val target = if (canvasOn) 1f else 0f
         val left = kotlin.math.abs(target - canvasOpen.value)
+        if (target > 0f) canvasLingering = true
         if (left > 0f) canvasOpen.animateTo(target, tween((CANVAS_OPEN_MS * left).toInt(), easing = FastOutSlowInEasing))
+        // Faded out: the clip is no longer requested (unless the setting still wants it).
+        canvasLingering = canvasOpen.value > 0f
     }
 
     // Back leaves the panel first; the sheet (outside) closes on the next one.
@@ -413,7 +424,21 @@ fun ImmersivePlayer(
             }
         }
         // The Spicy lyrics background, published by the lyrics panel: full screen, under all content.
-        com.music.spotui.spicy.SpicyBackdropSlotLayer(spicySlot, Modifier.fillMaxSize().graphicsLayer { alpha = minOf(collapse.value, spicyFade.value) })
+        // With "Canvas behind lyrics" and a clip showing it fades out over the clip (and is not drawn
+        // at all once the clip is fully in), so the mesh comes back when there is no Canvas.
+        val spicyOverCanvas = com.music.spotui.data.preferences.CanvasPref.behindLyrics && canvasUrl != null
+        val spicyHidden by remember(spicyOverCanvas) { derivedStateOf { spicyOverCanvas && canvasOpen.value >= 1f } }
+        if (!spicyHidden) {
+            com.music.spotui.spicy.SpicyBackdropSlotLayer(
+                spicySlot,
+                Modifier.fillMaxSize().graphicsLayer {
+                    // The mesh holds for the first third of the clip's fade in, so a black-backdrop cover
+                    // style is not dimmed before the clip is there.
+                    alpha = minOf(collapse.value, spicyFade.value) *
+                        (if (spicyOverCanvas) 1f - ((canvasOpen.value - 0.35f) / 0.65f).coerceIn(0f, 1f) else 1f)
+                },
+            )
+        }
         // An AutoMix mix: the content draws in with it and springs back after it, the backdrop stays.
         Box(Modifier.fillMaxSize().mixSqueeze(mixMotion)) {
         CompositionLocalProvider(LocalPlayerTint provides tint, com.music.spotui.spicy.LocalSpicyBackdropSlot provides spicySlot) {
@@ -467,11 +492,9 @@ fun ImmersivePlayer(
                     fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
                     fun artTop(): Dp = ART_BOX_TOP_PAD + lerp(groupTop, 0.dp, p())
                     fun artStart(): Dp = left + lerp((contentWidth - fullArt) / 2, 0.dp, p())
-                    // Full-bleed: the credits end at the foot of the cover (its height in this box's
-                    // coordinates: minus the status bar and the handle), never lower than the old place
-                    // right above the controls.
-                    val bleedTitleTop = (bleedHeight - statusBarTop - DISMISS_STRIP_HEIGHT - HEADER_HEIGHT + hiddenVolumeGap)
-                        .coerceAtMost(ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP + hiddenVolumeGap)
+                    // Full-bleed: the credits sit right above the scrubber, like the boxed Looks (at the
+                    // cover's foot they left a gap over the scrubber on tall phones).
+                    val bleedTitleTop = (ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP + hiddenVolumeGap)
                         .coerceAtLeast(ART_BOX_TOP_PAD)
                     fun titleTop(): Dp = if (fullBleed) lerp(bleedTitleTop, ART_BOX_TOP_PAD, p())
                     else ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP + hiddenVolumeGap, 0.dp, p())
@@ -659,8 +682,8 @@ private const val CANVAS_COVER_GROW = 0.12f
  * settings: Canvases off, data saver, Wi-Fi only, energy saving); null when there is none.
  */
 @Composable
-private fun rememberImmersiveCanvas(state: ImmersivePlayerState): String? {
-    val background = com.music.spotui.data.preferences.CanvasPref.background
+private fun rememberImmersiveCanvas(state: ImmersivePlayerState, lyricsCanvas: Boolean = false): String? {
+    val background = com.music.spotui.data.preferences.CanvasPref.background || lyricsCanvas
     val context = LocalContext.current
     val vm: com.music.spotui.ui.viewmodel.PlayerViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()

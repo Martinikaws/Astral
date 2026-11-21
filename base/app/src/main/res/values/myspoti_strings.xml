@@ -113,7 +113,6 @@
     <string name="support_scan">Scan with your phone</string>
     <string name="support_action">Support on Ko-fi</string>
     <string name="support_decline">No thanks</string>
-    <string name="support_row_detail">A small donation on Ko-fi or GitHub Sponsors helps keep the app going</string>
     <string name="supporter_perks_title">Supporter perks</string>
     <string name="supporter_perks_detail">Accent colour, app icon and a badge, to say thanks</string>
     <string name="supporter_perks_locked">Unlocked by supporting Astral. It\'s on your word: nothing is checked.</string>
@@ -361,6 +360,8 @@
     <string name="quality_streaming_cell_title">Mobile data streaming</string>
     <string name="canvas_wifi_only">Canvas on Wi-Fi only</string>
     <string name="canvas_wifi_only_detail">The looping videos play on Wi-Fi, never on mobile data</string>
+    <string name="canvas_behind_lyrics">Canvas behind lyrics</string>
+    <string name="canvas_behind_lyrics_detail">The Canvas video fills the screen behind the lyrics, with the mesh as a fallback</string>
     <string name="playlist_delete_confirm">Delete "%1$s"? It can be restored from your Spotify account for 90 days.</string>
     <string name="playlist_saved">Playlist updated</string>
     <string name="go_to_profile">Go to profile</string>

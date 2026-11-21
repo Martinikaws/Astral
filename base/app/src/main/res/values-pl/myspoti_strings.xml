@@ -110,7 +110,6 @@
     <string name="support_scan">Zeskanuj telefonem</string>
     <string name="support_action">Wesprzyj na Ko-fi</string>
     <string name="support_decline">Nie, dziękuję</string>
-    <string name="support_row_detail">Niewielka darowizna na Ko-fi lub GitHub Sponsors pomaga rozwijać aplikację</string>
     <string name="supporter_perks_title">Bonusy dla wspierających</string>
     <string name="supporter_perks_detail">Kolor akcentu, ikona aplikacji i odznaka, w ramach podziękowania</string>
     <string name="supporter_perks_locked">Odblokowywane przez wsparcie Astral. Na słowo honoru: nic nie jest sprawdzane.</string>
@@ -321,6 +320,8 @@
     <string name="quality_streaming_cell_title">Strumieniowanie przez dane komórkowe</string>
     <string name="canvas_wifi_only">Canvas tylko przez Wi-Fi</string>
     <string name="canvas_wifi_only_detail">Zapętlone wideo odtwarza się przez Wi-Fi, nigdy przez dane komórkowe</string>
+    <string name="canvas_behind_lyrics">Canvas za tekstem</string>
+    <string name="canvas_behind_lyrics_detail">Wideo Canvas wypełnia ekran za tekstem, a siatka kolorów służy jako zastępstwo</string>
     <string name="playlist_delete_confirm">Usunąć „%1$s”? Można ją przywrócić z konta Spotify w ciągu 90 dni.</string>
     <string name="playlist_saved">Playlista zaktualizowana</string>
     <string name="go_to_profile">Przejdź do profilu</string>

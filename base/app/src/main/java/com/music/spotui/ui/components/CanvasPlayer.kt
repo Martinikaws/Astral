@@ -9,6 +9,12 @@ import com.music.spotui.di.SongPlayer
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 object CanvasPlayer {
     private var exo: androidx.media3.exoplayer.ExoPlayer? = null
+
+    /** Raised when a view showing the clip is released, so a view still on screen re-attaches the shared player. */
+    private val epochState = androidx.compose.runtime.mutableIntStateOf(0)
+    var surfaceEpoch: Int
+        get() = epochState.intValue
+        set(value) { epochState.intValue = value }
     private var url: String? = null
     private var framed: String? = null
     private val firstFrame = mutableListOf<() -> Unit>()
