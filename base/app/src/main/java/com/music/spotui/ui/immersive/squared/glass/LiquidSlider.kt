@@ -65,7 +65,6 @@ import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.rememberBa
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.rememberCombinedBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.drawBackdrop
-import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.blur
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.lens
 import com.music.spotui.ui.immersive.squared.glass.backdrop.highlight.Highlight
 import com.music.spotui.ui.immersive.squared.glass.backdrop.shadow.InnerShadow
@@ -298,7 +297,6 @@ fun LiquidSlider(
                             // liquidGlassIndicator.
                             liquidGlassIndicator(progress)
                         } else {
-                        blur(8f.dp.toPx() * (1f - progress))
                         lens(
                             10f.dp.toPx() * progress,
                             14f.dp.toPx() * progress,

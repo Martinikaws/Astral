@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.music.spotui.ui.immersive.squared.glass.backdrop.drawBackdrop
-import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.blur
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.lens
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.vibrancy
 import com.music.spotui.ui.immersive.squared.glass.backdrop.highlight.Highlight
@@ -82,7 +81,6 @@ fun GlassWarmUp(backdrop: com.music.spotui.ui.immersive.squared.glass.backdrop.B
                 shape = { ContinuousCapsule() },
                 effects = {
                     vibrancy()
-                    blur(8f.dp.toPx())
                     lens(10f.dp.toPx(), 14f.dp.toPx(), chromaticAberration = true)
                 },
                 highlight = { Highlight.Default },

@@ -666,6 +666,7 @@
     <string name="equalizer_preamp">Предусилитель</string>
     <string name="equalizer_preamp_detail">Понижает или повышает всё сразу. Усиление, близкое к полной шкале, сдерживается лимитером, а не обрезается.</string>
     <string name="equalizer_reset">Сбросить на ровную</string>
+    <string name="equalizer_output_current">Эквалайзер для: %1$s</string>
     <string name="equalizer_db">%1$s дБ</string>
     <string name="equalizer_hz">%1$s Гц</string>
     <string name="equalizer_khz">%1$s кГц</string>

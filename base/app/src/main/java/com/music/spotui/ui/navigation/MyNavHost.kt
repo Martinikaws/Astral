@@ -165,7 +165,8 @@ fun MyNavHost(
 
         // Settings: sound quality, downloads, data, display, language.
         page(Routes.Settings.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveSettingsScreen(navHostController) else com.music.spotui.ui.screens.SettingsScreen(navHostController)
+            if (com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.SQUARED) com.music.spotui.ui.immersive.squared.settings.SquaredSettingsScreen(navHostController)
+            else if (isImmersive()) com.music.spotui.ui.immersive.pages.ImmersiveSettingsScreen(navHostController) else com.music.spotui.ui.screens.SettingsScreen(navHostController)
         }
 
         page(Routes.Spotiflac.route) {

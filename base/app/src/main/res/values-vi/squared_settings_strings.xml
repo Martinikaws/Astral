@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">Cài đặt</string>
+    <string name="squared_back">Quay lại</string>
+    <string name="squared_page_glass">Kính</string>
+    <string name="squared_tile_playback_note">Âm thanh, nghe nhạc, lời bài hát và ảnh bìa</string>
+    <string name="squared_tile_equalizer_note">Một đường cong cho mỗi đầu ra</string>
+    <string name="squared_tile_glass_note">Kính trông ra sao và tốn bao nhiêu</string>
+    <string name="squared_tile_downloads_note">Chất lượng, bộ nhớ và bộ đệm</string>
+    <string name="squared_tile_app_note">Ngôn ngữ, giao diện và năng lượng</string>
+    <string name="squared_tile_astral">Cài đặt Astral</string>
+    <string name="squared_tile_astral_note">Tài khoản, nguồn, AutoMix và mọi thứ còn lại</string>
+    <string name="squared_open_glass">Kính và màu sắc</string>
+    <string name="squared_lyrics_style">Cách vẽ lời bài hát</string>
+    <string name="squared_lyrics_style_animated">Hoạt ảnh</string>
+    <string name="squared_lyrics_style_classic">Cổ điển</string>
+    <string name="squared_group_sound">Âm thanh</string>
+    <string name="squared_group_sound_summary">Chất lượng, chuyển bài, tốc độ</string>
+    <string name="squared_group_listening">Nghe nhạc</string>
+    <string name="squared_group_listening_summary">Tự phát, phát ngẫu nhiên, chạy nền</string>
+    <string name="squared_group_lyrics">Lời bài hát</string>
+    <string name="squared_group_lyrics_summary">Kiểu, nguồn, từng từ một</string>
+    <string name="squared_group_covers">Ảnh bìa</string>
+    <string name="squared_group_covers_summary">Ảnh bìa động và Canvas</string>
+    <string name="squared_group_downloads">Tải xuống</string>
+    <string name="squared_group_downloads_summary">Chất lượng và lời bài hát khi ngoại tuyến</string>
+    <string name="squared_group_cleanup">Bộ nhớ</string>
+    <string name="squared_group_cleanup_summary">Bộ đệm và bài hát đã tải</string>
+    <string name="squared_group_language">Ngôn ngữ</string>
+    <string name="squared_group_language_summary">Ngôn ngữ của ứng dụng</string>
+    <string name="squared_group_appearance">Giao diện</string>
+    <string name="squared_group_appearance_summary">Thanh dưới và kính</string>
+    <string name="squared_group_system">Hệ thống</string>
+    <string name="squared_group_system_summary">Năng lượng, dữ liệu, phiên bản, giấy phép</string>
+    <string name="squared_glass_performance">Hiệu năng</string>
+    <string name="squared_glass_performance_note">Một lớp phim nhuộm màu, không lấy mẫu nền: nhẹ nhất</string>
+    <string name="squared_glass_balanced">Cân bằng</string>
+    <string name="squared_glass_balanced_note">Giao diện đúng như thiết kế</string>
+    <string name="squared_glass_quality">Chất lượng</string>
+    <string name="squared_glass_quality_note">Khúc xạ mạnh hơn và viền màu: tốn khung hình đầu tiên</string>
+    <string name="squared_glass_film_only">Điện thoại này hiển thị kính như một lớp phim nhuộm màu: các cài đặt thấu kính bên dưới không có tác dụng.</string>
+    <string name="squared_glass_group_material">Chất liệu</string>
+    <string name="squared_glass_group_colour">Màu sắc</string>
+    <string name="squared_glass_group_edges">Cạnh</string>
+    <string name="squared_glass_group_where">Nơi sử dụng</string>
+    <string name="squared_glass_refraction">Khúc xạ</string>
+    <string name="squared_glass_refraction_note">Bẻ cong những gì phía sau kính ở các cạnh</string>
+    <string name="squared_glass_vibrancy">Độ rực</string>
+    <string name="squared_glass_tint">Sắc thái</string>
+    <string name="squared_glass_tint_none">Không</string>
+    <string name="squared_glass_tint_clear">Xóa</string>
+    <string name="squared_glass_tint_strength">Cường độ</string>
+    <string name="squared_glass_film">Lớp phim</string>
+    <string name="squared_glass_indicator">Chỉ báo lựa chọn</string>
+    <string name="squared_glass_rim">Ánh sáng viền</string>
+    <string name="squared_glass_refraction_depth">Độ sâu khúc xạ</string>
+    <string name="squared_glass_refraction_amount">Mức khúc xạ</string>
+    <string name="squared_glass_dispersion">Viền màu</string>
+    <string name="squared_glass_depth">Hiệu ứng chiều sâu</string>
+    <string name="squared_glass_where_bar">Thanh dưới</string>
+    <string name="squared_glass_where_mini_player">Trình phát mini</string>
+    <string name="squared_glass_where_player">Trình phát</string>
+    <string name="squared_glass_bar_folds">Gập thanh khi cuộn</string>
+    <string name="squared_glass_bar_folds_note">Hoạt ảnh tốn kém nhất: hãy tắt nếu cuộn bị chậm</string>
+    <string name="squared_glass_reset">Đặt lại kính</string>
+    <string name="squared_eq_output_in_use">Đang dùng</string>
+    <string name="squared_eq_output_not_in_use">Chưa kết nối: đường cong của nó sẽ áp dụng khi kết nối</string>
+    <string name="squared_eq_outputs">Đầu ra</string>
+    <string name="squared_eq_kind_speaker">Loa điện thoại</string>
+    <string name="squared_eq_kind_wired">Tai nghe có dây</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">Âm thanh USB</string>
+    <string name="squared_eq_kind_other">Đầu ra khác</string>
+    <string name="squared_eq_save_preset">Lưu làm cài đặt sẵn</string>
+    <string name="squared_eq_preset_name">Tên</string>
+    <string name="squared_eq_save">Lưu</string>
+    <string name="squared_eq_delete_preset">Xóa cài đặt sẵn</string>
+</resources>

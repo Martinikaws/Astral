@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">설정</string>
+    <string name="squared_back">뒤로</string>
+    <string name="squared_page_glass">글래스</string>
+    <string name="squared_tile_playback_note">사운드, 재생, 가사, 커버</string>
+    <string name="squared_tile_equalizer_note">출력마다 하나의 곡선</string>
+    <string name="squared_tile_glass_note">글래스의 모양과 비용</string>
+    <string name="squared_tile_downloads_note">품질, 저장 공간, 캐시</string>
+    <string name="squared_tile_app_note">언어, 모양, 에너지</string>
+    <string name="squared_tile_astral">Astral 설정</string>
+    <string name="squared_tile_astral_note">계정, 소스, AutoMix 및 나머지 전부</string>
+    <string name="squared_open_glass">글래스와 색상</string>
+    <string name="squared_lyrics_style">가사 표시 방식</string>
+    <string name="squared_lyrics_style_animated">애니메이션</string>
+    <string name="squared_lyrics_style_classic">클래식</string>
+    <string name="squared_group_sound">사운드</string>
+    <string name="squared_group_sound_summary">음질, 전환, 속도</string>
+    <string name="squared_group_listening">재생</string>
+    <string name="squared_group_listening_summary">자동 재생, 셔플, 백그라운드</string>
+    <string name="squared_group_lyrics">가사</string>
+    <string name="squared_group_lyrics_summary">스타일, 소스, 단어별</string>
+    <string name="squared_group_covers">커버</string>
+    <string name="squared_group_covers_summary">움직이는 커버와 Canvas</string>
+    <string name="squared_group_downloads">다운로드</string>
+    <string name="squared_group_downloads_summary">오프라인 품질과 가사</string>
+    <string name="squared_group_cleanup">저장 공간</string>
+    <string name="squared_group_cleanup_summary">캐시와 다운로드한 곡</string>
+    <string name="squared_group_language">언어</string>
+    <string name="squared_group_language_summary">앱 언어</string>
+    <string name="squared_group_appearance">모양</string>
+    <string name="squared_group_appearance_summary">하단 바와 글래스</string>
+    <string name="squared_group_system">시스템</string>
+    <string name="squared_group_system_summary">에너지, 데이터, 버전, 라이선스</string>
+    <string name="squared_glass_performance">성능</string>
+    <string name="squared_glass_performance_note">색이 입혀진 필름만 사용: 가장 가벼움</string>
+    <string name="squared_glass_balanced">균형</string>
+    <string name="squared_glass_balanced_note">디자인된 그대로의 모습</string>
+    <string name="squared_glass_quality">품질</string>
+    <string name="squared_glass_quality_note">더 강한 굴절과 색 번짐: 가장 먼저 프레임을 소모함</string>
+    <string name="squared_glass_film_only">이 휴대전화는 글래스를 색이 입혀진 필름으로 표시합니다. 아래 렌즈 설정은 적용되지 않습니다.</string>
+    <string name="squared_glass_group_material">소재</string>
+    <string name="squared_glass_group_colour">색상</string>
+    <string name="squared_glass_group_edges">가장자리</string>
+    <string name="squared_glass_group_where">사용하는 곳</string>
+    <string name="squared_glass_refraction">굴절</string>
+    <string name="squared_glass_refraction_note">가장자리에서 글래스 뒤의 내용을 휘게 합니다</string>
+    <string name="squared_glass_vibrancy">선명도</string>
+    <string name="squared_glass_tint">틴트</string>
+    <string name="squared_glass_tint_none">없음</string>
+    <string name="squared_glass_tint_clear">지우기</string>
+    <string name="squared_glass_tint_strength">강도</string>
+    <string name="squared_glass_film">필름</string>
+    <string name="squared_glass_indicator">선택 표시</string>
+    <string name="squared_glass_rim">테두리 빛</string>
+    <string name="squared_glass_refraction_depth">굴절 깊이</string>
+    <string name="squared_glass_refraction_amount">굴절 양</string>
+    <string name="squared_glass_dispersion">색 번짐</string>
+    <string name="squared_glass_depth">깊이 효과</string>
+    <string name="squared_glass_where_bar">하단 바</string>
+    <string name="squared_glass_where_mini_player">미니 플레이어</string>
+    <string name="squared_glass_where_player">플레이어</string>
+    <string name="squared_glass_bar_folds">스크롤할 때 바 접기</string>
+    <string name="squared_glass_bar_folds_note">가장 부하가 큰 애니메이션: 스크롤이 느리면 끄세요</string>
+    <string name="squared_glass_reset">글래스 초기화</string>
+    <string name="squared_eq_output_in_use">현재 사용 중</string>
+    <string name="squared_eq_output_not_in_use">연결되지 않음: 연결되면 이 곡선이 적용됩니다</string>
+    <string name="squared_eq_outputs">출력</string>
+    <string name="squared_eq_kind_speaker">휴대전화 스피커</string>
+    <string name="squared_eq_kind_wired">유선 헤드폰</string>
+    <string name="squared_eq_kind_bluetooth">블루투스</string>
+    <string name="squared_eq_kind_usb">USB 오디오</string>
+    <string name="squared_eq_kind_other">기타 출력</string>
+    <string name="squared_eq_save_preset">프리셋으로 저장</string>
+    <string name="squared_eq_preset_name">이름</string>
+    <string name="squared_eq_save">저장</string>
+    <string name="squared_eq_delete_preset">프리셋 삭제</string>
+</resources>

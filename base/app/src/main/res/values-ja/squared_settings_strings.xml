@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">設定</string>
+    <string name="squared_back">戻る</string>
+    <string name="squared_page_glass">ガラス</string>
+    <string name="squared_tile_playback_note">サウンド、再生、歌詞、カバー</string>
+    <string name="squared_tile_equalizer_note">出力ごとのカーブ</string>
+    <string name="squared_tile_glass_note">ガラスの見た目と負荷</string>
+    <string name="squared_tile_downloads_note">画質、ストレージ、キャッシュ</string>
+    <string name="squared_tile_app_note">言語、外観、省電力</string>
+    <string name="squared_tile_astral">Astral の設定</string>
+    <string name="squared_tile_astral_note">アカウント、ソース、AutoMix、その他すべて</string>
+    <string name="squared_open_glass">ガラスと色</string>
+    <string name="squared_lyrics_style">歌詞の表示方法</string>
+    <string name="squared_lyrics_style_animated">アニメーション</string>
+    <string name="squared_lyrics_style_classic">クラシック</string>
+    <string name="squared_group_sound">サウンド</string>
+    <string name="squared_group_sound_summary">音質、トランジション、速度</string>
+    <string name="squared_group_listening">再生</string>
+    <string name="squared_group_listening_summary">自動再生、シャッフル、バックグラウンド</string>
+    <string name="squared_group_lyrics">歌詞</string>
+    <string name="squared_group_lyrics_summary">スタイル、ソース、単語ごと</string>
+    <string name="squared_group_covers">カバー</string>
+    <string name="squared_group_covers_summary">アニメーションカバーとCanvas</string>
+    <string name="squared_group_downloads">ダウンロード</string>
+    <string name="squared_group_downloads_summary">オフライン用の画質と歌詞</string>
+    <string name="squared_group_cleanup">ストレージ</string>
+    <string name="squared_group_cleanup_summary">キャッシュとダウンロード済みの曲</string>
+    <string name="squared_group_language">言語</string>
+    <string name="squared_group_language_summary">アプリの言語</string>
+    <string name="squared_group_appearance">外観</string>
+    <string name="squared_group_appearance_summary">下部バーとガラス</string>
+    <string name="squared_group_system">システム</string>
+    <string name="squared_group_system_summary">省電力、データ、バージョン、ライセンス</string>
+    <string name="squared_glass_performance">パフォーマンス</string>
+    <string name="squared_glass_performance_note">色付きのフィルムのみ。最も軽量</string>
+    <string name="squared_glass_balanced">バランス</string>
+    <string name="squared_glass_balanced_note">設計どおりの見た目</string>
+    <string name="squared_glass_quality">高品質</string>
+    <string name="squared_glass_quality_note">強い屈折と色のにじみ。最初にフレームを消費します</string>
+    <string name="squared_glass_film_only">この端末ではガラスは色付きフィルムとして表示されます。以下のレンズ設定は反映されません。</string>
+    <string name="squared_glass_group_material">素材</string>
+    <string name="squared_glass_group_colour">色</string>
+    <string name="squared_glass_group_edges">エッジ</string>
+    <string name="squared_glass_group_where">使用場所</string>
+    <string name="squared_glass_refraction">屈折</string>
+    <string name="squared_glass_refraction_note">ガラスの縁で背景を曲げます</string>
+    <string name="squared_glass_vibrancy">鮮やかさ</string>
+    <string name="squared_glass_tint">色合い</string>
+    <string name="squared_glass_tint_none">なし</string>
+    <string name="squared_glass_tint_clear">解除</string>
+    <string name="squared_glass_tint_strength">強さ</string>
+    <string name="squared_glass_film">フィルム</string>
+    <string name="squared_glass_indicator">選択インジケータ</string>
+    <string name="squared_glass_rim">縁のハイライト</string>
+    <string name="squared_glass_refraction_depth">屈折の深さ</string>
+    <string name="squared_glass_refraction_amount">屈折の量</string>
+    <string name="squared_glass_dispersion">色のにじみ</string>
+    <string name="squared_glass_depth">奥行き効果</string>
+    <string name="squared_glass_where_bar">下部バー</string>
+    <string name="squared_glass_where_mini_player">ミニプレーヤー</string>
+    <string name="squared_glass_where_player">プレーヤー</string>
+    <string name="squared_glass_bar_folds">スクロール中にバーを畳む</string>
+    <string name="squared_glass_bar_folds_note">最も負荷の高いアニメーション。スクロールが重いときはオフに</string>
+    <string name="squared_glass_reset">ガラスをリセット</string>
+    <string name="squared_eq_output_in_use">使用中</string>
+    <string name="squared_eq_output_not_in_use">未接続: 接続されると適用されます</string>
+    <string name="squared_eq_outputs">出力</string>
+    <string name="squared_eq_kind_speaker">本体スピーカー</string>
+    <string name="squared_eq_kind_wired">有線ヘッドホン</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">USBオーディオ</string>
+    <string name="squared_eq_kind_other">その他の出力</string>
+    <string name="squared_eq_save_preset">プリセットとして保存</string>
+    <string name="squared_eq_preset_name">名前</string>
+    <string name="squared_eq_save">保存</string>
+    <string name="squared_eq_delete_preset">プリセットを削除</string>
+</resources>

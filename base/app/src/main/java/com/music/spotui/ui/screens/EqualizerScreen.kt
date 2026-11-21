@@ -71,6 +71,10 @@ fun EqualizerScreen(navController: NavController) {
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text(stringResource(R.string.equalizer_scope), color = AppMuted, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            // The curve belongs to the output in use: say which, since another output has its own.
+            Text(stringResource(R.string.equalizer_output_current, com.music.spotui.ui.immersive.squared.settings.outputLabel(pref.routeKey)),
+                color = AppText, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
             OptionRow(
                 label = stringResource(R.string.equalizer_enable),
                 detail = stringResource(R.string.equalizer_enable_detail),

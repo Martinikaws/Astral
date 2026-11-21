@@ -4,7 +4,8 @@
  * Modified for Astral, 2026-11.
  *
  * Changes: package renamed to com.music.spotui.ui.immersive.squared.glass (and R to Astral's);
- * otherwise verbatim.
+ * the frost shader (SOURCE_ROWS) and the frost uniform are removed, as the glass is clear and
+ * nothing blurs what is behind it; otherwise verbatim.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -40,8 +41,9 @@
 // - The backdrop is two pictures, sharp and blurred, combined where the blur
 //   pass would have been clipped: upstream blurs the backdrop inside the
 //   union of the shapes' paths before this shader reads it.
-// - Not carried over: the frost passes and the platform-view modes, which the
-//   settings this app uses leave off (frost 0, fallback colour off).
+// - Not carried over: the frost passes (removed outright in this app: the glass
+//   is clear, with no cloud) and the platform-view modes, which the settings
+//   this app uses leave off (fallback colour off).
 
 package com.music.spotui.ui.immersive.squared.glass.morph
 
@@ -132,26 +134,6 @@ float4 textureBilinear(float2 uv, float2 size, float2 invSize) {
 
 """
 
-    /**
-     * Upstream's frost rows: what the frost pass leaves in the backdrop the
-     * render pass reads. [uRowsCloud] 1 keeps the cloud on the odd rows
-     * inside the shapes' outlines; 0 keeps the sharp backdrop everywhere
-     * else. The two are added together, which is upstream's frost pass
-     * clipped to the shapes and to alternate rows.
-     */
-    val SOURCE_ROWS: String by lazy {
-        SOURCE_SINGLE.substringBefore("half4 main(float2 fragCoord) {") + """
-uniform float uRowsCloud;
-
-half4 main(float2 fragCoord) {
-    float inside = clamp(0.5 - clipSDF(fragCoord), 0.0, 1.0);
-    float cloud = inside * mod(floor(fragCoord.y), 2.0);
-    float keep = uRowsCloud > 0.5 ? cloud : 1.0 - cloud;
-    return content.eval(fragCoord) * half(keep);
-}
-"""
-    }
-
     const val SOURCE = """
 uniform shader sharpBackdrop;
 uniform shader blurredBackdrop;
@@ -173,11 +155,6 @@ uniform float uTouchIntensity;
 uniform float3 uRimConfig;
 uniform float uLensModel;
 uniform float uBodyShade;
-// x: frostOpacity (0 = no frost), y: frostClamp, z: ghost blur sigma in
-// physical px, w: blurWeight. Under a frost the backdrop this pass reads
-// holds the frost's cloud on odd rows inside the shapes and the sharp
-// backdrop everywhere else: see frostAt() and liquidGlassMaterial().
-uniform float4 uFrost;
 
 uniform float uNumShapes;
 uniform float uDpr;
@@ -438,59 +415,6 @@ float3 texelAt(float2 p) {
     return c.a > 0.001 ? c.rgb / c.a : c.rgb;
 }
 
-// The frost at [p], with the cloud read at [q] (kept a few px inside the
-// shape, where the cloud rows are).
-//
-// Ghost: a Gaussian of uFrost.z px over the sharp (even) rows around p,
-// each texel weighted by its luminance (uFrost.w, blurWeight).
-// Cloud: the two odd rows either side of q, which hold the frost's blur.
-// The ghost is held within frostClamp of the cloud on one side, then the
-// cloud is laid over it at frostOpacity:
-//   frost = op * cloud + (1 - op) * max(ghost, cloud - clamp)   (clamp > 0)
-//   frost = op * cloud + (1 - op) * min(ghost, cloud - clamp)   (clamp < 0)
-float3 frostAt(float2 p, float2 q) {
-    float2 qb = floor(q);
-    float ya = qb.y - mod(qb.y + 1.0, 2.0);
-    float t = clamp((q.y - (ya + 0.5)) * 0.5, 0.0, 1.0);
-    float3 cloud = mix(texelAt(float2(qb.x, ya)), texelAt(float2(qb.x, ya + 2.0)), t);
-    if (uFrost.x >= 1.0) {
-        return cloud;
-    }
-
-    float sigma = max(uFrost.z, 0.3);
-    float2 base = floor(p);
-    float cy = base.y - mod(base.y, 2.0);
-    float inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    float slope = uFrost.w - 1.0;
-    float3 acc = float3(0.0);
-    float wsum = 0.0;
-    // LOCAL CHANGE: always the six taps. Upstream takes them only at its
-    // floor sigma and 45 above it; at the iOS 27 material's 1.6 px the 45
-    // cost a third of the frames a scroll dropped on this phone, for a ghost
-    // that is at most 15 % of what shows (frostOpacity) and held within the
-    // clamp of the cloud. Six taps at the real sigma blur it a little less.
-    for (int j = 0; j <= 1; j++) {
-        float y = cy + 2.0 * float(j);
-        float dy = y + 0.5 - p.y;
-        float wy = exp(-dy * dy * inv2s2);
-        for (int i = 3; i <= 5; i++) {
-            float x = base.x + float(i - 4);
-            float dx = x + 0.5 - p.x;
-            float3 c = texelAt(float2(x, y));
-            float w = wy * exp(-dx * dx * inv2s2) * (1.0 + slope * dot(c, LUMA_WEIGHTS));
-            acc += w * c;
-            wsum += w;
-        }
-    }
-    float3 ghost = acc / max(wsum, 1e-5);
-
-    float k = uFrost.y;
-    float3 held = k > 0.0 ? max(ghost, cloud - k)
-                : k < 0.0 ? min(ghost, cloud - k)
-                : ghost;
-    return mix(held, cloud, clamp(uFrost.x, 0.0, 1.0));
-}
-
 half4 main(float2 fragCoord) {
     float uRefractiveIndex = uOpticalProps.x;
     float uChromaticAberration = uOpticalProps.y;
@@ -640,11 +564,7 @@ half4 main(float2 fragCoord) {
     }
 
     float4 refractColor;
-    if (uFrost.x > 0.0 && hairline <= 0.0) {
-        // Frosted body: the frost below replaces the colour, and only
-        // whether a backdrop was captured here is kept.
-        refractColor = float4(0.0, 0.0, 0.0, backdropWithClip(screenUV * physTexSize, 1.0).a);
-    } else if (dot(normalXY, normalXY) < 1e-4) {
+    if (dot(normalXY, normalXY) < 1e-4) {
         refractColor = textureBilinear(screenUV, physTexSize, invTexSize);
     } else if (uChromaticAberration < 0.01) {
         float2 refractedUV = screenUV + displacement * invTexSize;
@@ -681,18 +601,6 @@ half4 main(float2 fragCoord) {
 
     if (refractColor.a > 0.001) {
         refractColor.rgb /= refractColor.a;
-    }
-
-    if (uFrost.x > 0.0) {
-        // The frosted, lensed body; the hairline keeps the sharp sample just
-        // outside the shape that it was given above.
-        float2 fp = fragCoord + lensDisplacement;
-        float2 inward = normalXY / max(length(normalXY), 1e-4)
-                      * max(0.0, 4.0 * dprScale - rimDist);
-        float2 fq = fragCoord - inward;
-        float3 frost = frostAt(fp, fq);
-        refractColor.rgb = mix(frost, refractColor.rgb, hairline);
-        refractColor.a = step(0.001, refractColor.a);
     }
 
     float4 bodyGlassColor = uGlassColor;

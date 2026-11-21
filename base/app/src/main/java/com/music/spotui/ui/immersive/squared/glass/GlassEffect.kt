@@ -4,7 +4,7 @@
  * Modified for Astral, 2026-11.
  *
  * Changes: package renamed to com.music.spotui.ui.immersive.squared.glass (and R to Astral's);
- * otherwise verbatim.
+ * the blur radius, the BLUR style, the frost and "iOS 27" switches and the resolution ramp that went with the blur are removed (the glass is clear, nothing blurs what is behind it), and a below-Android-13 phone gets the translucent tint; otherwise verbatim.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -50,8 +50,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.music.spotui.ui.immersive.squared.glass.backdrop.Backdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.drawBackdrop
-import com.music.spotui.ui.immersive.squared.glass.backdrop.isRenderEffectSupported
-import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.blur
+import com.music.spotui.ui.immersive.squared.glass.backdrop.isRuntimeShaderSupported
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.colorControls
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.lens
 import com.music.spotui.ui.immersive.squared.glass.backdrop.highlight.Highlight
@@ -67,32 +66,25 @@ import com.music.spotui.ui.immersive.squared.glass.backdrop.shadow.Shadow
 data class GlassEffectConfig(
     val globalEnabled: Boolean = true,
     val vibrancy: Float = 1.2f,
-    /** Blur in dp applied to glass pills. User requested 2dp for landscape fix. */
-    val blurRadius: Float = 2f,
     /** 0..1, mapped to 0..[LENS_MAX_DP] dp of lens refraction height. 0.4 = 40%. */
     val lensHeight: Float = 0.4f,
     /** 0..1, mapped to 0..[LENS_MAX_DP] dp of lens refraction amount. 0.6 = 60%. */
     val lensAmount: Float = 0.6f,
     /**
-     * The glass is liquid_glass_widgets' iOS 27 material, `ios27Light` or
-     * `ios27Dark` with the page, rather than the sliders below.
+     * The glass is the library's measured refraction material, in its light or
+     * dark variant with the page, rather than the sliders below. Clear glass
+     * either way: nothing in this app frosts or blurs what is behind it.
      */
-    val ios27: Boolean = true,
-    /**
-     * iOS 27's frost, its heavy cloud. Off, a plain blur stands in for it:
-     * the frost costs about as much again as the rest of the glass.
-     */
-    val frost: Boolean = true,
+    val refraction: Boolean = true,
     /**
      * The dark glass whatever the page: the player's, which sits on every
      * colour a record can have, and dark reads over all of them.
      */
     val darkGlass: Boolean = false,
     /**
-     * A sheet's material: the frost all cloud, without the copy of the page
-     * showing through it, under a denser tint, as a sheet's thick material is
-     * natively. Over a whole page the copy let its covers and titles be read
-     * through the sheet.
+     * A sheet's material: the same clear glass under a denser tint, so the
+     * covers and titles of the page under a sheet cannot be read through it
+     * now that nothing blurs them.
      */
     val sheet: Boolean = false,
     val chromaticAberration: Boolean = false,
@@ -139,11 +131,10 @@ data class GlassEffectConfig(
      *  phone bottom bar's glass setting instead of always mirroring it. */
     val sidePanelEnabled: Boolean = true,
     /** Side panel gets its own effect tuning (unlike the other components,
-     *  which all share [vibrancy]/[blurRadius]/[lensHeight]/[lensAmount]) —
+     *  which all share [vibrancy]/[lensHeight]/[lensAmount]) —
      *  defaults match those shared values so it looks identical until
      *  explicitly customized. */
     val sidePanelVibrancy: Float = 1.2f,
-    val sidePanelBlurRadius: Float = 2f,
     val sidePanelLensHeight: Float = 0.4f,
     val sidePanelLensAmount: Float = 0.6f,
     val sidePanelColor: Color = Color.Unspecified,
@@ -156,7 +147,6 @@ data class GlassEffectConfig(
      *  shared fields generically. */
     fun forSidePanel(): GlassEffectConfig = copy(
         vibrancy = sidePanelVibrancy,
-        blurRadius = sidePanelBlurRadius,
         lensHeight = sidePanelLensHeight,
         lensAmount = sidePanelLensAmount,
         surfaceTintColor = sidePanelColor,
@@ -190,20 +180,17 @@ data class GlassEffectConfig(
  * How a glass surface is rendered.
  *
  * The full liquid treatment costs a screen capture plus a RenderEffect chain per
- * surface. The cheaper styles exist both as a performance escape hatch and as a
- * look in their own right — and because with glass off entirely the chrome fell
+ * surface. The cheap style exists both as a performance escape hatch and as a
+ * look in its own right — and because with glass off entirely the chrome fell
  * back to an opaque fill, which reads as a black blob over content.
  */
 enum class GlassStyle {
-    /** Blur + saturation + lens refraction + specular rim. The default. */
+    /** Saturation + lens refraction + specular rim, over the clear page. The default. */
     LIQUID,
 
-    /** Blur and saturation only: no lens, no rim, no chromatic aberration.
-     *  Still captures the backdrop, so it is frosted, just not refractive. */
-    BLUR,
-
     /** No capture at all — a translucent tinted fill at the configured opacity.
-     *  Cheapest by a wide margin: nothing is sampled, nothing is blurred. */
+     *  Cheapest by a wide margin: nothing is sampled, nothing is blurred.
+     *  Also what a phone without runtime shaders (below Android 13) gets. */
     TRANSPARENT,
 }
 
@@ -211,14 +198,14 @@ enum class GlassStyle {
  * True when [Modifier.liquidGlass] should take its cheap translucent-tint path
  * (no backdrop capture, no RenderEffect) instead of the full liquid treatment:
  * either the user explicitly chose [GlassStyle.TRANSPARENT], or the platform
- * can't do the real blur at all ([renderEffectSupported] false, below Android
- * 12). The unsupported-platform case used to fall through to a hardcoded
+ * can't run the refraction shader at all ([runtimeShaderSupported] false,
+ * below Android 13): there the glass is a plain translucent tint, never a blur. The unsupported-platform case used to fall through to a hardcoded
  * opaque-black surface instead — the "solid black instead of any
  * transparency" bug reported on older/low-end devices. Pulled out as a plain
  * function so the fallback decision is unit-testable without a Composition.
  */
-fun shouldUseTranslucentGlassFallback(style: GlassStyle, renderEffectSupported: Boolean): Boolean =
-    style == GlassStyle.TRANSPARENT || !renderEffectSupported
+fun shouldUseTranslucentGlassFallback(style: GlassStyle, runtimeShaderSupported: Boolean): Boolean =
+    style == GlassStyle.TRANSPARENT || !runtimeShaderSupported
 
 enum class GlassComponent {
     PLAYER,
@@ -248,45 +235,6 @@ private const val LENS_MAX_SHARE = 0.45f
 /** Below this, in pixels, a surface is too small to be worth a lens. */
 private const val LENS_MIN_PANE_PX = 24f
 
-
-/**
- * The full screen player uses a much heavier blur than the glass pills, matching
- * Apple Music where the now playing background is a deep-blurred material while
- * only the small controls are clear liquid glass.
- */
-internal const val PLAYER_BLUR_MULTIPLIER = 4f
-
-/**
- * Lowest resolution fraction glass surfaces are rendered at (heavy blur hides it).
- *
- * Measured empirically: flattening this across all surfaces and pushing it to
- * 0.05 was tried and reverted. Two findings worth not re-deriving. First, the
- * scale is only safe in proportion to the blur — pixel-sized effect params are
- * pre-multiplied by it, so at 0.05 the default 2dp blur collapsed to ~0.3px on a
- * 3x screen and the 20x upscale had nothing smoothing it, which reads as
- * pixelation, not frost. Second, applying it at zero blur softens surfaces whose
- * whole look is clear content, for no gain: the surfaces where compression
- * actually pays (the full screen player, 12x the nav bar's area at 4x the blur)
- * already reach this floor through the ramp.
- *
- * Keep the ramp in [glassResolutionScale] rather than a flat value.
- */
-internal const val MIN_GLASS_RESOLUTION_SCALE = 0.30f
-
-/** Blur radius (dp) at or above which the minimum resolution scale is safe to use. */
-internal const val FULL_QUALITY_BLUR_DP = 8f
-
-/**
- * Resolution fraction at which a glass surface records and processes its backdrop.
- * Blur masks the upscaling, so the more blur, the lower the resolution can go: at
- * [FULL_QUALITY_BLUR_DP]+ dp of blur the surface renders at
- * [MIN_GLASS_RESOLUTION_SCALE]; with no blur it stays at full resolution so the
- * clear glass center remains crisp.
- */
-fun glassResolutionScale(blurRadiusDp: Float): Float {
-    val t = (blurRadiusDp / FULL_QUALITY_BLUR_DP).coerceIn(0f, 1f)
-    return 1f - t * (1f - MIN_GLASS_RESOLUTION_SCALE)
-}
 
 /**
  * The backdrop blur pipeline requires [android.graphics.RenderEffect] on a
@@ -423,7 +371,7 @@ val LocalAppleMusicUi = staticCompositionLocalOf { false }
  * Applies the configured vibrancy, blur and lens refraction effects, then draws the
  * surface tint (theme-adaptive unless the user picked a color). Effects whose
  * parameters make them a no-op are skipped entirely to keep the RenderEffect chain
- * as short as possible, and the backdrop is processed at [glassResolutionScale] of
+ * as short as possible, and the backdrop is processed at [backdropScale] of
  * the surface resolution. Returns the receiver unchanged on devices without
  * RenderEffect support.
  *
@@ -431,9 +379,6 @@ val LocalAppleMusicUi = staticCompositionLocalOf { false }
  * physical glass: lens refraction, the specular highlight rim and the drop shadow.
  * It should be false for large surfaces such as the full screen player, where the
  * rim renders as a stray band of light.
- *
- * [blurRadiusDp] overrides the configured blur; the full screen player passes a
- * heavier value ([PLAYER_BLUR_MULTIPLIER]x) than the clear glass pills.
  *
  * [shape] is restricted to [CornerBasedShape] because the backdrop lens effect throws
  * [UnsupportedOperationException] for any other shape type.
@@ -443,14 +388,11 @@ fun Modifier.liquidGlass(
     config: GlassEffectConfig,
     shape: CornerBasedShape = RoundedCornerShape(0.dp),
     applyEdgeEffects: Boolean = true,
-    blurRadiusDp: Float = config.blurRadius,
     // The nav bar and mini player want a dimmer specular rim than the default.
     highlightAlpha: Float = EdgeHighlightAlpha,
-    // Fraction of the surface resolution the backdrop is recorded at. Defaults to
-    // [glassResolutionScale] for the blur radius (cheap, and the blur masks the
-    // upscaling) — pass 1f for a crisp full-resolution backdrop, e.g. the small
-    // glass buttons whose whole look is clear content, not heavy frost.
-    backdropScale: Float = glassResolutionScale(blurRadiusDp),
+    // Fraction of the surface resolution the backdrop is recorded at. Clear glass
+    // has no blur to mask an upscaled capture, so the default is full resolution.
+    backdropScale: Float = 1f,
     // Forwarded to drawBackdrop: while this returns true the surface holds its
     // last capture instead of re-recording the screen. Used by the floating tab
     // bar for the frames of its inline/expanded/search transition, where the
@@ -503,8 +445,7 @@ fun Modifier.liquidGlass(
     // in the shader, at the layer's own resolution: recorded at a fraction
     // and stretched back up, the rim came out soft and doubled. It is drawn
     // at full resolution, as upstream draws it.
-    val upstreamCapable = LiquidGlassRenderer.enabled &&
-        config.style != GlassStyle.BLUR && applyEdgeEffects
+    val upstreamCapable = LiquidGlassRenderer.enabled && applyEdgeEffects
     val resolutionScale = if (upstreamCapable) 1f else backdropScale.coerceIn(0.05f, 1f)
     // A surface that names its own condition (the tab bar, mid-fold) still
     // obeys the app-wide one: either reason to hold the last capture is enough.
@@ -515,12 +456,11 @@ fun Modifier.liquidGlass(
     // Pixel-sized effect parameters operate on the backdrop layer at its recorded
     // resolution, so they are pre-multiplied by the resolution scale to keep the
     // same visual size.
-    val blurPx = with(density) { blurRadiusDp.dp.toPx() } * resolutionScale
     val saturation = glassSaturation(config.vibrancy)
     val lensHeightPx = with(density) { (config.lensHeight * LENS_MAX_DP).dp.toPx() } * resolutionScale
     val lensAmountPx = with(density) { (config.lensAmount * LENS_MAX_DP).dp.toPx() } * resolutionScale
-    // Apple's Liquid Glass is a bright, reflective material: even in dark mode it
-    // reads as a distinctly lighter "frosted" surface, not a near-black rectangle
+    // The glass is a bright, reflective material: even in dark mode it
+    // reads as a distinctly lighter surface, not a near-black rectangle
     // that blends into an OLED-black background. Honor an explicit user color,
     // otherwise use a proper adaptive glass gray rather than matching the theme
     // surface color 1:1 (which made the bar invisible over pure-black content).
@@ -559,20 +499,14 @@ fun Modifier.liquidGlass(
     // through the tint directly, which is the point — the alternative when glass is
     // off is an opaque fill, and that reads as a black blob sitting on the content.
     //
-    // Also taken when the platform can't do the real blur (below API 31):
-    // this used to fall through to a hardcoded opaque-black surface instead
-    // (reasoning: unblurred sharp content behind a translucent tint "reads as
-    // broken, not glass"), which is exactly the "solid black instead of any
-    // transparency" bug reported on older/low-end devices. This same
-    // translucent-tint path is already the app's own answer to "can't do a
-    // real blur, need something cheap that still respects the user's tint
-    // and opacity settings" — so route the unsupported case here too instead
-    // of a separate hardcoded fallback.
+    // Also taken when the platform can't run the refraction shader (below
+    // Android 13). There the glass is this plain translucent tint, which
+    // respects the user's tint and opacity settings and blurs nothing.
     // Also taken where glass is not allowed at all, on a phone Android calls
     // low on memory. That case used to return the modifier untouched, which
     // is no film and no rim: the tab bar and the mini player were text
     // floating over the page.
-    if (shouldUseTranslucentGlassFallback(config.style, isRenderEffectSupported()) ||
+    if (shouldUseTranslucentGlassFallback(config.style, isRuntimeShaderSupported()) ||
         !isGlassAllowed()
     ) {
         // The film and the rim, which is what a pane of this app's glass looks
@@ -643,11 +577,6 @@ fun Modifier.liquidGlass(
     // compare equal and skip the work entirely.
     val shapeBlock: () -> Shape = remember(shape) { { shape } }
 
-    // BLUR keeps the frosted capture but drops the refraction and the rim, which
-    // are the parts that read as "liquid". Cheaper too: the lens is the most
-    // expensive link in the effect chain.
-    val plainBlur = config.style == GlassStyle.BLUR
-
     // liquid_glass_widgets' material, where the phone can run it: its
     // refraction, tint, saturation and lit edge, in its own shader, from the
     // listener's settings (see toLiquidGlassSettings). The film the bar has
@@ -655,64 +584,36 @@ fun Modifier.liquidGlass(
     // it. Below Android 13 the chain below is the app's own, as before.
     val upstream = upstreamCapable
     val lightPage = !config.darkGlass && isLightGlassPage()
-    val upstreamSettings = if (config.ios27) {
-        ios27Settings(lightPage, config)
+    val upstreamSettings = if (config.refraction) {
+        refractionSettings(lightPage, config)
     } else {
         config.toLiquidGlassSettings().copy(
-            blur = blurRadiusDp,
             glassColor = surfaceTintColor.copy(alpha = config.surfaceOpacity.coerceIn(0f, 1f)),
         )
     }
-    // Upstream's blur is a sigma in logical pixels; Android's takes a radius.
-    // Under a frost a blur the shader can draw itself has no pass of its own.
-    val upstreamBlurPx = if (
-        upstreamSettings.effectiveFrost > 0f &&
-        upstreamSettings.effectiveBlur * density.density <=
-        com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings.FROST_GHOST_MAX_SIGMA
-    ) {
-        0f
-    } else {
-        com.music.spotui.ui.immersive.squared.glass.morph.blurRadiusForSigma(
-            with(density) { upstreamSettings.effectiveBlur.dp.toPx() },
-        ) * resolutionScale
-    }
 
     // Where the library's shader cannot run (a GPU driver that refuses to
-    // compile it, or below Android 13) the chain below is the app's own, and
-    // the iOS 27 switch changed nothing on it. There the material is
-    // approximated with what the chain has: the frost's blur, or the blur that
-    // stands in for it, the preset's saturation and its tint in place of the
-    // app's film.
-    val approx27 = !upstream && config.ios27 && !plainBlur
-    val chainSaturation = if (approx27) upstreamSettings.effectiveSaturation else saturation
-    val chainBlurPx = if (approx27) {
-        com.music.spotui.ui.immersive.squared.glass.morph.blurRadiusForSigma(
-            with(density) { maxOf(upstreamSettings.effectiveFrost, upstreamSettings.effectiveBlur).dp.toPx() },
-        ) * resolutionScale
-    } else {
-        blurPx
-    }
-    val chainTint = if (approx27) upstreamSettings.glassColor else surfaceTintColor.copy(alpha = config.surfaceOpacity)
+    // compile it) the chain below is the app's own: the preset's saturation
+    // and tint in place of the app's film, then the lens. No blur anywhere.
+    val approxPreset = !upstream && config.refraction
+    val chainSaturation = if (approxPreset) upstreamSettings.effectiveSaturation else saturation
+    val chainTint = if (approxPreset) upstreamSettings.glassColor else surfaceTintColor.copy(alpha = config.surfaceOpacity)
 
     val effectsBlock: BackdropEffectScope.() -> Unit = remember(
         chainSaturation,
-        chainBlurPx,
         applyEdgeEffects,
-        plainBlur,
         lensHeightPx,
         lensAmountPx,
         config.depthEffect,
         config.chromaticAberration,
         upstream,
         upstreamSettings,
-        upstreamBlurPx,
         touch,
         group,
         lightPage,
     ) {
         if (upstream) {
             {
-                if (upstreamBlurPx > 0f) blur(upstreamBlurPx)
                 if (group != null) {
                     val frame = group()
                     liquidGlassMaterial(
@@ -733,11 +634,7 @@ fun Modifier.liquidGlass(
             if (chainSaturation != 1f) {
                 colorControls(saturation = chainSaturation)
             }
-            if (chainBlurPx > 0f) {
-                blur(chainBlurPx)
-            }
-            if (!plainBlur &&
-                applyEdgeEffects &&
+            if (applyEdgeEffects &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 (lensHeightPx > 0f || lensAmountPx > 0f) &&
                 // A pane too small to hold a lens is drawn without one: the
@@ -791,9 +688,9 @@ fun Modifier.liquidGlass(
     // per-component tuning and the preference still mean something.
     val rimAlpha = (highlightAlpha * (config.highlightOpacity / EdgeHighlightAlpha)).coerceIn(0f, 1f)
 
-    val highlightBlock: (() -> Highlight?)? = remember(applyEdgeEffects, plainBlur, rimColor, rimAlpha, animatedHighlightAngle, upstream) {
+    val highlightBlock: (() -> Highlight?)? = remember(applyEdgeEffects, rimColor, rimAlpha, animatedHighlightAngle, upstream) {
         // Upstream's shader lights its own edge.
-        if (applyEdgeEffects && !plainBlur && !upstream) {
+        if (applyEdgeEffects && !upstream) {
             {
                 Highlight(
                     width = EdgeHighlightWidth,
@@ -808,14 +705,14 @@ fun Modifier.liquidGlass(
         }
     }
 
-    val shadowBlock: (() -> Shadow?)? = remember(applyEdgeEffects, upstream, lightPage, group, config.ios27, upstreamSettings) {
+    val shadowBlock: (() -> Shadow?)? = remember(applyEdgeEffects, upstream, lightPage, group, config.refraction, upstreamSettings) {
         when {
             !applyEdgeEffects -> null
             // A group's shader draws the shadow round its own shapes.
             upstream && group != null -> null
             // The material's own shadow (upstream's effectiveShadow, its
-            // first layer): ios27Light's long faint one, none on ios27Dark.
-            upstream && config.ios27 -> if (lightPage) {
+            // first layer): the light variant's long faint one, none on the dark.
+            upstream && config.refraction -> if (lightPage) {
                 upstreamSettings.effectiveShadow.firstOrNull()?.let { layer ->
                     {
                         Shadow(
@@ -925,20 +822,14 @@ private const val TINT_RIM_SATURATION = 0.85f
  * Through upstream's own translation of designer parameters
  * (`LiquidGlassSettings.figma`): the bend, as a percentage, sets the
  * refractive index at `1 + bend × 0.2`; the edge depth is the bevel's
- * thickness; colour splitting is a dispersion; the frost is the blur's sigma;
- * the rim light is the light's intensity. Saturation is this app's vibrancy,
- * the film is the one the bar wears, and the depth switch is upstream's edge
- * absorption at the strength of its iOS 27 material. The optics — how these
- * bend, tint and light the glass — are upstream's, in its shader.
- *
- * [blurScale] thickens the frost for the surfaces that need more than a pill,
- * and [minBlur] is the least they may have, in logical pixels.
+ * thickness; colour splitting is a dispersion; the rim light is the light's
+ * intensity. Saturation is this app's vibrancy, the film is the one the bar
+ * wears, and the depth switch is upstream's edge absorption at the strength of
+ * its measured material. The optics — how these bend, tint and light the glass
+ * — are upstream's, in its shader. There is no blur: the glass is clear.
  */
 @Composable
-fun GlassEffectConfig.toLiquidGlassSettings(
-    blurScale: Float = 1f,
-    minBlur: Float = 0f,
-): com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings {
+fun GlassEffectConfig.toLiquidGlassSettings(): com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings {
     val light = com.music.spotui.ui.immersive.squared.LocalLightTheme.current
     val film = tinted(
         when {
@@ -948,13 +839,13 @@ fun GlassEffectConfig.toLiquidGlassSettings(
         },
         this,
     ).copy(alpha = surfaceOpacity.coerceIn(0f, 1f))
-    val liquid = style != GlassStyle.BLUR
+    val liquid = true
     return com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings(
         refractiveIndex = if (liquid) 1f + lensAmount.coerceIn(0f, 1f) * 0.2f else 1f,
         thickness = if (liquid) (lensHeight * LENS_MAX_DP).coerceAtLeast(1f) else 1f,
         chromaticAberration = if (liquid && chromaticAberration) 4f * DISPERSION_SHARE else 0f,
         lightIntensity = if (liquid) highlightOpacity.coerceIn(0f, 1f) else 0f,
-        blur = (blurRadius * blurScale).coerceAtLeast(minBlur),
+        blur = 0f,
         ambientStrength = 0.1f,
         saturation = glassSaturation(vibrancy),
         glassColor = film,
@@ -970,25 +861,23 @@ private const val DISPERSION_SHARE = 0.10f
 data class GlassTouch(val position: androidx.compose.ui.geometry.Offset, val intensity: Float)
 
 /**
- * liquid_glass_widgets' iOS 27 material for the page, `ios27Light` or
- * `ios27Dark`, with the listener's sliders laid over it: each moves its term
- * of the material by how far it sits from its own default, so at the
- * defaults this is the preset exactly. Without the frost, a blur of a
- * quarter of its sigma stands in for it.
+ * liquid_glass_widgets' measured material for the page, its light or dark
+ * variant, with the listener's sliders laid over it: each moves its term of
+ * the material by how far it sits from its own default, so at the defaults
+ * this is the preset exactly. Clear glass: the preset has no blur,
+ * so the page shows through as it is, refracted at the edge.
  */
-fun ios27Settings(light: Boolean, config: GlassEffectConfig): com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings {
+fun refractionSettings(light: Boolean, config: GlassEffectConfig): com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings {
     val base = if (light) {
-        com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings.Ios27Light
+        com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings.RefractionLight
     } else {
-        com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings.Ios27Dark
+        com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassSettings.RefractionDark
     }
     val d = GlassEffectConfig()
     fun ratio(value: Float, default: Float) = if (default > 0f) (value / default).coerceAtLeast(0f) else 1f
-    val frost = base.frost * ratio(config.blurRadius, d.blurRadius)
     val film = base.glassColor.alpha * ratio(config.surfaceOpacity, d.surfaceOpacity)
     val tuned = base.copy(
         saturation = 1f + (base.saturation - 1f) * ratio(config.vibrancy, d.vibrancy),
-        frost = frost,
         thickness = (base.thickness * ratio(config.lensHeight, d.lensHeight)).coerceAtLeast(1f),
         refractiveIndex = 1f + (base.refractiveIndex - 1f) * ratio(config.lensAmount, d.lensAmount),
         glassColor = tinted(base.glassColor, config).copy(alpha = film.coerceIn(0f, 1f)),
@@ -996,17 +885,19 @@ fun ios27Settings(light: Boolean, config: GlassEffectConfig): com.music.spotui.u
         chromaticAberration = if (config.chromaticAberration) 4f * DISPERSION_SHARE else 0f,
         edgeAbsorption = base.edgeAbsorption * (if (config.depthEffect) 2f else 1f),
     )
-    val material = if (config.sheet) {
+    // A sheet's tint is denser: with no frost over the page behind it, text
+    // on a sheet has only the film to read against.
+    return if (config.sheet) {
         tuned.copy(
-            frostOpacity = 1f,
-            glassColor = (if (light) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)).copy(alpha = 0.55f),
+            glassColor = (if (light) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)).copy(alpha = SHEET_FILM_ALPHA),
         )
     } else {
         tuned
     }
-    if (config.frost) return material
-    return material.copy(frost = 0f, blur = maxOf(material.blur, frost * 0.25f))
 }
+
+/** How dense a sheet's film is; see [refractionSettings]. */
+private const val SHEET_FILM_ALPHA = 0.82f
 
 /**
  * Whether the glass here sits on a light page. A page with ink of its own

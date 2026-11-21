@@ -651,6 +651,7 @@
     <string name="equalizer_preamp">前置放大</string>
     <string name="equalizer_preamp_detail">整体调低或调高。接近满量程的增益会被限幅器压住，而不是削波。</string>
     <string name="equalizer_reset">重置为平直</string>
+    <string name="equalizer_output_current">均衡器适用于：%1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

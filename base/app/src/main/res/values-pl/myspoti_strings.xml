@@ -666,6 +666,7 @@
     <string name="equalizer_preamp">Przedwzmacniacz</string>
     <string name="equalizer_preamp_detail">Obniża lub podnosi całość. Wzmocnienie bliskie pełnej skali jest powstrzymywane przez limiter zamiast być obcinane.</string>
     <string name="equalizer_reset">Przywróć płaską charakterystykę</string>
+    <string name="equalizer_output_current">Korektor dla: %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

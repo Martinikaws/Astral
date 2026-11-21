@@ -58,6 +58,11 @@ fun ImmersiveEqualizerScreen(navController: NavController) {
     ImmersivePage(title = stringResource(R.string.equalizer_title), onBack = { navController.popBackStack() }) {
         immersiveBlock("scope") {
             Text(stringResource(R.string.equalizer_scope), style = Immersive.Caption, textAlign = TextAlign.Start)
+            // The curve belongs to the output in use: say which, since another output has its own.
+            Text(
+                stringResource(R.string.equalizer_output_current, com.music.spotui.ui.immersive.squared.settings.outputLabel(pref.routeKey)),
+                style = Immersive.Caption, textAlign = TextAlign.Start, modifier = Modifier.padding(top = 8.dp),
+            )
         }
         immersiveGroup("eq", footerRes = R.string.equalizer_enable_detail) {
             row { ImmersiveSwitchRow(stringResource(R.string.equalizer_enable), checked = pref.enabled, onChecked = { pref.setEnabled(ctx, it) }) }

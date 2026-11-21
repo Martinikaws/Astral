@@ -653,7 +653,7 @@ fun PlayerScreen(
     val coverAccent by com.music.spotui.ui.immersive.squared.rememberArtworkColor(state.artworkUrl)
     val coverTone = com.music.spotui.ui.immersive.squared.pageColorFor(coverAccent)
 
-    // The glass keeps its frost under a panel too. It used to give way as
+    // The glass keeps its tint under a panel too. It used to give way as
     // the room behind blurred, and the transport, the title and the tab bar
     // turned from the cover's tinted glass to a pale grey one at every
     // change of view; the same glass on every view is the one the cover has.
@@ -1090,7 +1090,7 @@ fun PlayerScreen(
                         // The ground, as the title pill reads it: over the
                         // lyrics the clip is blurred on screen and not in its
                         // own layer, and a pane refracting that layer showed
-                        // the moving cover sharp through frosted glass.
+                        // the moving cover sharp through the glass.
                         backdrop = groundBackdrop,
                         onClick = { panel = PlayerPanel.NONE },
                         modifier = Modifier
@@ -2577,7 +2577,7 @@ private fun RoundGlassButton(
         contentHeight = size,
         contentPadding = 0.dp,
         // Matched to the bottom bar and the mini player. At the upstream 2dp
-        // these were the one place in the app where the glass barely frosted
+        // these were the one place in the app where the glass barely bent
         // what was behind it.
     ) {
         content()

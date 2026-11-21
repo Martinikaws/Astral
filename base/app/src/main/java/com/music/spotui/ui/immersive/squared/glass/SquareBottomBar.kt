@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import com.music.spotui.ui.immersive.squared.glass.backdrop.drawBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.vibrancy
-import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.blur
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.lens
 import com.music.spotui.ui.immersive.squared.glass.backdrop.highlight.Highlight
 import com.music.spotui.ui.immersive.squared.glass.backdrop.shadow.Shadow

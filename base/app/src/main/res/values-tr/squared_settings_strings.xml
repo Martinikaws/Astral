@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">Ayarlar</string>
+    <string name="squared_back">Geri</string>
+    <string name="squared_page_glass">Cam</string>
+    <string name="squared_tile_playback_note">Ses, dinleme, şarkı sözleri ve kapaklar</string>
+    <string name="squared_tile_equalizer_note">Her çıkış için bir eğri</string>
+    <string name="squared_tile_glass_note">Camın görünümü ve maliyeti</string>
+    <string name="squared_tile_downloads_note">Kalite, depolama ve önbellek</string>
+    <string name="squared_tile_app_note">Dil, görünüm ve enerji</string>
+    <string name="squared_tile_astral">Astral ayarları</string>
+    <string name="squared_tile_astral_note">Hesaplar, kaynaklar, AutoMix ve diğer her şey</string>
+    <string name="squared_open_glass">Cam ve renkler</string>
+    <string name="squared_lyrics_style">Sözlerin gösterimi</string>
+    <string name="squared_lyrics_style_animated">Animasyonlu</string>
+    <string name="squared_lyrics_style_classic">Klasik</string>
+    <string name="squared_group_sound">Ses</string>
+    <string name="squared_group_sound_summary">Kalite, geçişler, hız</string>
+    <string name="squared_group_listening">Dinleme</string>
+    <string name="squared_group_listening_summary">Otomatik oynatma, karışık, arka plan</string>
+    <string name="squared_group_lyrics">Sözler</string>
+    <string name="squared_group_lyrics_summary">Stil, kaynaklar, kelime kelime</string>
+    <string name="squared_group_covers">Kapaklar</string>
+    <string name="squared_group_covers_summary">Animasyonlu kapaklar ve Canvas</string>
+    <string name="squared_group_downloads">İndirilenler</string>
+    <string name="squared_group_downloads_summary">Çevrimdışı kalite ve sözler</string>
+    <string name="squared_group_cleanup">Depolama</string>
+    <string name="squared_group_cleanup_summary">Önbellek ve indirilen şarkılar</string>
+    <string name="squared_group_language">Dil</string>
+    <string name="squared_group_language_summary">Uygulamanın dili</string>
+    <string name="squared_group_appearance">Görünüm</string>
+    <string name="squared_group_appearance_summary">Alt çubuk ve cam</string>
+    <string name="squared_group_system">Sistem</string>
+    <string name="squared_group_system_summary">Enerji, veri, sürüm, lisanslar</string>
+    <string name="squared_glass_performance">Performans</string>
+    <string name="squared_glass_performance_note">Renkli bir film, örnekleme yok: en hafifi</string>
+    <string name="squared_glass_balanced">Dengeli</string>
+    <string name="squared_glass_balanced_note">Tasarlandığı gibi görünüm</string>
+    <string name="squared_glass_quality">Kalite</string>
+    <string name="squared_glass_quality_note">Daha güçlü kırılma ve renk kenarları: ilk kare kaybettiren</string>
+    <string name="squared_glass_film_only">Bu telefon camı renkli bir film olarak gösterir: aşağıdaki mercek ayarlarının etkisi yoktur.</string>
+    <string name="squared_glass_group_material">Malzeme</string>
+    <string name="squared_glass_group_colour">Renk</string>
+    <string name="squared_glass_group_edges">Kenarlar</string>
+    <string name="squared_glass_group_where">Nerede kullanılır</string>
+    <string name="squared_glass_refraction">Kırılma</string>
+    <string name="squared_glass_refraction_note">Camın kenarlarında arkasındakini büker</string>
+    <string name="squared_glass_vibrancy">Canlılık</string>
+    <string name="squared_glass_tint">Ton</string>
+    <string name="squared_glass_tint_none">Yok</string>
+    <string name="squared_glass_tint_clear">Temizle</string>
+    <string name="squared_glass_tint_strength">Yoğunluk</string>
+    <string name="squared_glass_film">Film</string>
+    <string name="squared_glass_indicator">Seçim göstergesi</string>
+    <string name="squared_glass_rim">Kenar ışığı</string>
+    <string name="squared_glass_refraction_depth">Kırılma derinliği</string>
+    <string name="squared_glass_refraction_amount">Kırılma miktarı</string>
+    <string name="squared_glass_dispersion">Renk kenarları</string>
+    <string name="squared_glass_depth">Derinlik efekti</string>
+    <string name="squared_glass_where_bar">Alt çubuk</string>
+    <string name="squared_glass_where_mini_player">Mini oynatıcı</string>
+    <string name="squared_glass_where_player">Oynatıcı</string>
+    <string name="squared_glass_bar_folds">Kaydırırken çubuğu katla</string>
+    <string name="squared_glass_bar_folds_note">En pahalı animasyon: kaydırma yavaşsa kapatın</string>
+    <string name="squared_glass_reset">Camı sıfırla</string>
+    <string name="squared_eq_output_in_use">Şu an kullanımda</string>
+    <string name="squared_eq_output_not_in_use">Bağlı değil: bağlandığında eğrisi uygulanır</string>
+    <string name="squared_eq_outputs">Çıkışlar</string>
+    <string name="squared_eq_kind_speaker">Telefon hoparlörü</string>
+    <string name="squared_eq_kind_wired">Kablolu kulaklık</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">USB ses</string>
+    <string name="squared_eq_kind_other">Diğer çıkış</string>
+    <string name="squared_eq_save_preset">Ön ayar olarak kaydet</string>
+    <string name="squared_eq_preset_name">Ad</string>
+    <string name="squared_eq_save">Kaydet</string>
+    <string name="squared_eq_delete_preset">Ön ayarı sil</string>
+</resources>

@@ -3,7 +3,8 @@
  * app/src/main/java/dev/lelonio/square/ui/player/GlassSurface.kt at 139441f.
  * Modified for Astral, 2026-11.
  *
- * Changes: package renamed (and its imports); otherwise verbatim.
+ * Changes: package renamed (and its imports); the frost and blur layers are removed (the glass is
+ * clear, nothing blurs what is behind it); otherwise verbatim.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -82,17 +83,6 @@ fun GlassSurface(
     shape: Shape,
     modifier: Modifier = Modifier,
     /**
-     * How thick this pane is, as a multiple of the app's own frost.
-     *
-     * The one thing a caller still decides, and it is a ratio rather than a
-     * number of dp on purpose: a panel covering half the screen has to hide what
-     * is under it in a way a pill the size of a word does not, but both have to
-     * answer the setting. Fixed dp here is what made the player's surfaces stop
-     * listening to it — a hardcoded 8 next to a bar on 2 is a different
-     * material, whatever the slider says.
-     */
-    blurScale: Float = 1f,
-    /**
      * The film, for the surfaces that do not get real glass.
      *
      * Where they do, the film comes from the shared recipe with everything else
@@ -100,14 +90,6 @@ fun GlassSurface(
      * refraction cannot follow, or a moving player falls back to.
      */
     surfaceColor: Color = Color.Unspecified,
-    /**
-     * The least this pane blurs, whatever the setting says.
-     *
-     * For the panes whose job is to stand in front of the page: a menu over a
-     * list, with the frost turned down to nothing, showed the list sharp
-     * through its own rows and could not be read (#132).
-     */
-    minBlurDp: Float = 0f,
     content: @Composable () -> Unit,
 ) {
     // The same material the bottom bar is made of, so one app has one glass.
@@ -120,13 +102,13 @@ fun GlassSurface(
     // only one recipe now — [Modifier.liquidGlass], the bar's own — and the
     // parameters below are what a pane is still allowed to choose.
     //
-    // Only how thick it is, in other words. How far it blurs is a real
-    // difference between a small pill and a panel covering half the screen; what
-    // the material *is* is not.
-    val config = com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current
+    // Nothing blurs: the glass is clear everywhere. A pane that stands in front
+    // of the page (a menu over a list) is kept readable by its film instead,
+    // which is never thinner than the material's own default.
+    val shared = com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current
+    val config = shared.copy(surfaceOpacity = maxOf(shared.surfaceOpacity, PaneFilmFloor))
     // The refraction is part of that recipe now, and it is the reason this takes
     // a shape it can bend light along. Anything else keeps the film below.
-    val blurDp = (config.blurRadius * blurScale).coerceAtLeast(minBlurDp)
     val cornerShape = shape as? CornerBasedShape
     if (cornerShape == null) {
         Box(
@@ -147,7 +129,6 @@ fun GlassSurface(
         modifier.liquidGlass(
             config = config,
             shape = cornerShape,
-            blurRadiusDp = blurDp,
             frozen = { moving },
             // The bar's rim, not the library's default: the app's chrome is one
             // material and the edge light is most of what says so.
@@ -169,6 +150,9 @@ fun GlassSurface(
  * material even once the rest of the recipe was shared.
  */
 internal const val BarHighlightAlpha = 0.3f
+
+/** The thinnest film a pane may wear, as the shared surface opacity. */
+private const val PaneFilmFloor = 0.5f
 
 /** What a pane looks like with the refraction switched off. */
 private val FallbackFilm = Color.White.copy(alpha = 0.12f)

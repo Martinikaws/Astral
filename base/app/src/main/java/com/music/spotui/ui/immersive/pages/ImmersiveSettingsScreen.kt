@@ -105,7 +105,7 @@ private val DownloadChoices = listOf(
  * spring and back leaves it; with "reduce motion" they cross-fade.
  */
 @Composable
-fun ImmersiveSettingsScreen(navController: NavController) {
+fun ImmersiveSettingsScreen(navController: NavController, onBack: () -> Unit = { navController.popBackStack() }) {
     // The pages pushed so far, so back pops one before it leaves Settings.
     // Saved by name, so a recreation (a language change, say) keeps the page the user is on.
     val stack = rememberSaveable(
@@ -120,7 +120,7 @@ fun ImmersiveSettingsScreen(navController: NavController) {
     val pop: () -> Unit = { pushing = false; stack.removeAt(stack.lastIndex) }
     BackHandler(enabled = stack.isNotEmpty(), onBack = pop)
     val open: (SettingsPage) -> Unit = { pushing = true; stack += it }
-    val back: () -> Unit = { if (stack.isNotEmpty()) pop() else navController.popBackStack() }
+    val back: () -> Unit = { if (stack.isNotEmpty()) pop() else onBack() }
     AnimatedContent(
         targetState = page,
         transitionSpec = {

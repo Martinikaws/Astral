@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">Impostazioni</string>
+    <string name="squared_back">Indietro</string>
+    <string name="squared_page_glass">Vetro</string>
+    <string name="squared_tile_playback_note">Suono, ascolto, testi e copertine</string>
+    <string name="squared_tile_equalizer_note">Una curva per ogni uscita</string>
+    <string name="squared_tile_glass_note">Come appare il vetro e quanto costa</string>
+    <string name="squared_tile_downloads_note">Qualità, spazio e cache</string>
+    <string name="squared_tile_app_note">Lingua, aspetto ed energia</string>
+    <string name="squared_tile_astral">Impostazioni di Astral</string>
+    <string name="squared_tile_astral_note">Account, sorgenti, AutoMix e tutto il resto</string>
+    <string name="squared_open_glass">Vetro e colori</string>
+    <string name="squared_lyrics_style">Come sono disegnati i testi</string>
+    <string name="squared_lyrics_style_animated">Animati</string>
+    <string name="squared_lyrics_style_classic">Classici</string>
+    <string name="squared_group_sound">Suono</string>
+    <string name="squared_group_sound_summary">Qualità, transizioni, velocità</string>
+    <string name="squared_group_listening">Ascolto</string>
+    <string name="squared_group_listening_summary">Autoplay, casuale, sfondo</string>
+    <string name="squared_group_lyrics">Testi</string>
+    <string name="squared_group_lyrics_summary">Stile, fonti, parola per parola</string>
+    <string name="squared_group_covers">Copertine</string>
+    <string name="squared_group_covers_summary">Copertine animate e Canvas</string>
+    <string name="squared_group_downloads">Download</string>
+    <string name="squared_group_downloads_summary">Qualità e testi offline</string>
+    <string name="squared_group_cleanup">Spazio</string>
+    <string name="squared_group_cleanup_summary">Cache e brani scaricati</string>
+    <string name="squared_group_language">Lingua</string>
+    <string name="squared_group_language_summary">La lingua dell\'app</string>
+    <string name="squared_group_appearance">Aspetto</string>
+    <string name="squared_group_appearance_summary">La barra in basso e il vetro</string>
+    <string name="squared_group_system">Sistema</string>
+    <string name="squared_group_system_summary">Energia, dati, versione, licenze</string>
+    <string name="squared_glass_performance">Prestazioni</string>
+    <string name="squared_glass_performance_note">Una pellicola colorata senza campionamento: la più leggera</string>
+    <string name="squared_glass_balanced">Bilanciato</string>
+    <string name="squared_glass_balanced_note">L\'aspetto come progettato</string>
+    <string name="squared_glass_quality">Qualità</string>
+    <string name="squared_glass_quality_note">Rifrazione più forte e frange di colore: la prima a costare fotogrammi</string>
+    <string name="squared_glass_film_only">Questo telefono mostra il vetro come una pellicola colorata: le impostazioni della lente qui sotto non hanno effetto.</string>
+    <string name="squared_glass_group_material">Materiale</string>
+    <string name="squared_glass_group_colour">Colore</string>
+    <string name="squared_glass_group_edges">Bordi</string>
+    <string name="squared_glass_group_where">Dove viene usato</string>
+    <string name="squared_glass_refraction">Rifrazione</string>
+    <string name="squared_glass_refraction_note">Piega ciò che sta dietro il vetro ai bordi</string>
+    <string name="squared_glass_vibrancy">Vivacità</string>
+    <string name="squared_glass_tint">Tinta</string>
+    <string name="squared_glass_tint_none">Nessuna</string>
+    <string name="squared_glass_tint_clear">Rimuovi</string>
+    <string name="squared_glass_tint_strength">Intensità</string>
+    <string name="squared_glass_film">Pellicola</string>
+    <string name="squared_glass_indicator">Indicatore di selezione</string>
+    <string name="squared_glass_rim">Luce di bordo</string>
+    <string name="squared_glass_refraction_depth">Profondità di rifrazione</string>
+    <string name="squared_glass_refraction_amount">Intensità di rifrazione</string>
+    <string name="squared_glass_dispersion">Frange di colore</string>
+    <string name="squared_glass_depth">Effetto profondità</string>
+    <string name="squared_glass_where_bar">Barra in basso</string>
+    <string name="squared_glass_where_mini_player">Mini player</string>
+    <string name="squared_glass_where_player">Player</string>
+    <string name="squared_glass_bar_folds">Riduci la barra durante lo scorrimento</string>
+    <string name="squared_glass_bar_folds_note">L\'animazione più costosa: disattivala se lo scorrimento è lento</string>
+    <string name="squared_glass_reset">Ripristina il vetro</string>
+    <string name="squared_eq_output_in_use">In uso adesso</string>
+    <string name="squared_eq_output_not_in_use">Non collegata: la sua curva vale quando lo è</string>
+    <string name="squared_eq_outputs">Uscite</string>
+    <string name="squared_eq_kind_speaker">Altoparlante del telefono</string>
+    <string name="squared_eq_kind_wired">Cuffie cablate</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">Audio USB</string>
+    <string name="squared_eq_kind_other">Altra uscita</string>
+    <string name="squared_eq_save_preset">Salva come preset</string>
+    <string name="squared_eq_preset_name">Nome</string>
+    <string name="squared_eq_save">Salva</string>
+    <string name="squared_eq_delete_preset">Elimina preset</string>
+</resources>

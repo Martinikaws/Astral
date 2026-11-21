@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">设置</string>
+    <string name="squared_back">返回</string>
+    <string name="squared_page_glass">玻璃</string>
+    <string name="squared_tile_playback_note">声音、聆听、歌词和封面</string>
+    <string name="squared_tile_equalizer_note">每个输出一条曲线</string>
+    <string name="squared_tile_glass_note">玻璃的外观及其代价</string>
+    <string name="squared_tile_downloads_note">音质、存储和缓存</string>
+    <string name="squared_tile_app_note">语言、外观和能耗</string>
+    <string name="squared_tile_astral">Astral 设置</string>
+    <string name="squared_tile_astral_note">账户、来源、AutoMix 及其他所有内容</string>
+    <string name="squared_open_glass">玻璃和颜色</string>
+    <string name="squared_lyrics_style">歌词的绘制方式</string>
+    <string name="squared_lyrics_style_animated">动画</string>
+    <string name="squared_lyrics_style_classic">经典</string>
+    <string name="squared_group_sound">声音</string>
+    <string name="squared_group_sound_summary">音质、过渡、速度</string>
+    <string name="squared_group_listening">聆听</string>
+    <string name="squared_group_listening_summary">自动播放、随机、后台</string>
+    <string name="squared_group_lyrics">歌词</string>
+    <string name="squared_group_lyrics_summary">样式、来源、逐字显示</string>
+    <string name="squared_group_covers">封面</string>
+    <string name="squared_group_covers_summary">动态封面和 Canvas</string>
+    <string name="squared_group_downloads">下载</string>
+    <string name="squared_group_downloads_summary">离线音质和歌词</string>
+    <string name="squared_group_cleanup">存储</string>
+    <string name="squared_group_cleanup_summary">缓存和已下载的歌曲</string>
+    <string name="squared_group_language">语言</string>
+    <string name="squared_group_language_summary">应用的语言</string>
+    <string name="squared_group_appearance">外观</string>
+    <string name="squared_group_appearance_summary">底部栏和玻璃</string>
+    <string name="squared_group_system">系统</string>
+    <string name="squared_group_system_summary">能耗、数据、版本、许可</string>
+    <string name="squared_glass_performance">性能</string>
+    <string name="squared_glass_performance_note">仅有色调薄膜，不采样背景：最轻量</string>
+    <string name="squared_glass_balanced">均衡</string>
+    <string name="squared_glass_balanced_note">按原设计呈现的外观</string>
+    <string name="squared_glass_quality">画质</string>
+    <string name="squared_glass_quality_note">更强的折射和色彩边缘：最先影响帧率</string>
+    <string name="squared_glass_film_only">此手机将玻璃显示为色调薄膜：下方的镜头设置不起作用。</string>
+    <string name="squared_glass_group_material">材质</string>
+    <string name="squared_glass_group_colour">颜色</string>
+    <string name="squared_glass_group_edges">边缘</string>
+    <string name="squared_glass_group_where">使用位置</string>
+    <string name="squared_glass_refraction">折射</string>
+    <string name="squared_glass_refraction_note">在边缘处弯折玻璃后方的内容</string>
+    <string name="squared_glass_vibrancy">鲜艳度</string>
+    <string name="squared_glass_tint">色调</string>
+    <string name="squared_glass_tint_none">无</string>
+    <string name="squared_glass_tint_clear">清除</string>
+    <string name="squared_glass_tint_strength">强度</string>
+    <string name="squared_glass_film">薄膜</string>
+    <string name="squared_glass_indicator">选择指示器</string>
+    <string name="squared_glass_rim">边缘光</string>
+    <string name="squared_glass_refraction_depth">折射深度</string>
+    <string name="squared_glass_refraction_amount">折射强度</string>
+    <string name="squared_glass_dispersion">色彩边缘</string>
+    <string name="squared_glass_depth">深度效果</string>
+    <string name="squared_glass_where_bar">底部栏</string>
+    <string name="squared_glass_where_mini_player">迷你播放器</string>
+    <string name="squared_glass_where_player">播放器</string>
+    <string name="squared_glass_bar_folds">滚动时折叠底部栏</string>
+    <string name="squared_glass_bar_folds_note">最耗资源的动画：如果滚动感觉卡顿，请将其关闭</string>
+    <string name="squared_glass_reset">重置玻璃</string>
+    <string name="squared_eq_output_in_use">当前使用中</string>
+    <string name="squared_eq_output_not_in_use">未连接：连接后将应用其曲线</string>
+    <string name="squared_eq_outputs">输出</string>
+    <string name="squared_eq_kind_speaker">手机扬声器</string>
+    <string name="squared_eq_kind_wired">有线耳机</string>
+    <string name="squared_eq_kind_bluetooth">蓝牙</string>
+    <string name="squared_eq_kind_usb">USB 音频</string>
+    <string name="squared_eq_kind_other">其他输出</string>
+    <string name="squared_eq_save_preset">另存为预设</string>
+    <string name="squared_eq_preset_name">名称</string>
+    <string name="squared_eq_save">保存</string>
+    <string name="squared_eq_delete_preset">删除预设</string>
+</resources>

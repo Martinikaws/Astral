@@ -629,6 +629,7 @@
     <string name="equalizer_preamp">Pré-amplificador</string>
     <string name="equalizer_preamp_detail">Reduz ou aumenta tudo. Um aumento próximo da escala máxima é contido por um limitador em vez de cortado.</string>
     <string name="equalizer_reset">Restaurar para plano</string>
+    <string name="equalizer_output_current">Equalizador para: %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

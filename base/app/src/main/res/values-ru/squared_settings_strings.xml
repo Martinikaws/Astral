@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">Настройки</string>
+    <string name="squared_back">Назад</string>
+    <string name="squared_page_glass">Стекло</string>
+    <string name="squared_tile_playback_note">Звук, прослушивание, тексты и обложки</string>
+    <string name="squared_tile_equalizer_note">Своя кривая для каждого выхода</string>
+    <string name="squared_tile_glass_note">Вид стекла и его стоимость</string>
+    <string name="squared_tile_downloads_note">Качество, память и кэш</string>
+    <string name="squared_tile_app_note">Язык, внешний вид и энергия</string>
+    <string name="squared_tile_astral">Настройки Astral</string>
+    <string name="squared_tile_astral_note">Аккаунты, источники, AutoMix и всё остальное</string>
+    <string name="squared_open_glass">Стекло и цвета</string>
+    <string name="squared_lyrics_style">Как отображаются тексты</string>
+    <string name="squared_lyrics_style_animated">Анимированные</string>
+    <string name="squared_lyrics_style_classic">Классические</string>
+    <string name="squared_group_sound">Звук</string>
+    <string name="squared_group_sound_summary">Качество, переходы, скорость</string>
+    <string name="squared_group_listening">Прослушивание</string>
+    <string name="squared_group_listening_summary">Автовоспроизведение, перемешивание, фон</string>
+    <string name="squared_group_lyrics">Тексты</string>
+    <string name="squared_group_lyrics_summary">Стиль, источники, по словам</string>
+    <string name="squared_group_covers">Обложки</string>
+    <string name="squared_group_covers_summary">Анимированные обложки и Canvas</string>
+    <string name="squared_group_downloads">Загрузки</string>
+    <string name="squared_group_downloads_summary">Качество и тексты офлайн</string>
+    <string name="squared_group_cleanup">Память</string>
+    <string name="squared_group_cleanup_summary">Кэш и загруженные песни</string>
+    <string name="squared_group_language">Язык</string>
+    <string name="squared_group_language_summary">Язык приложения</string>
+    <string name="squared_group_appearance">Внешний вид</string>
+    <string name="squared_group_appearance_summary">Нижняя панель и стекло</string>
+    <string name="squared_group_system">Система</string>
+    <string name="squared_group_system_summary">Энергия, данные, версия, лицензии</string>
+    <string name="squared_glass_performance">Производительность</string>
+    <string name="squared_glass_performance_note">Тонированная плёнка без захвата фона: самый лёгкий</string>
+    <string name="squared_glass_balanced">Сбалансированный</string>
+    <string name="squared_glass_balanced_note">Внешний вид по замыслу</string>
+    <string name="squared_glass_quality">Качество</string>
+    <string name="squared_glass_quality_note">Сильнее преломление и цветная кайма: первой теряет кадры</string>
+    <string name="squared_glass_film_only">Этот телефон показывает стекло как тонированную плёнку: настройки линзы ниже не действуют.</string>
+    <string name="squared_glass_group_material">Материал</string>
+    <string name="squared_glass_group_colour">Цвет</string>
+    <string name="squared_glass_group_edges">Края</string>
+    <string name="squared_glass_group_where">Где используется</string>
+    <string name="squared_glass_refraction">Преломление</string>
+    <string name="squared_glass_refraction_note">Искривляет то, что за стеклом, у его краёв</string>
+    <string name="squared_glass_vibrancy">Насыщенность</string>
+    <string name="squared_glass_tint">Оттенок</string>
+    <string name="squared_glass_tint_none">Нет</string>
+    <string name="squared_glass_tint_clear">Сбросить</string>
+    <string name="squared_glass_tint_strength">Сила</string>
+    <string name="squared_glass_film">Плёнка</string>
+    <string name="squared_glass_indicator">Индикатор выбора</string>
+    <string name="squared_glass_rim">Подсветка края</string>
+    <string name="squared_glass_refraction_depth">Глубина преломления</string>
+    <string name="squared_glass_refraction_amount">Сила преломления</string>
+    <string name="squared_glass_dispersion">Цветная кайма</string>
+    <string name="squared_glass_depth">Эффект глубины</string>
+    <string name="squared_glass_where_bar">Нижняя панель</string>
+    <string name="squared_glass_where_mini_player">Мини-плеер</string>
+    <string name="squared_glass_where_player">Плеер</string>
+    <string name="squared_glass_bar_folds">Сворачивать панель при прокрутке</string>
+    <string name="squared_glass_bar_folds_note">Самая затратная анимация: отключите, если прокрутка тормозит</string>
+    <string name="squared_glass_reset">Сбросить стекло</string>
+    <string name="squared_eq_output_in_use">Используется сейчас</string>
+    <string name="squared_eq_output_not_in_use">Не подключено: кривая применится при подключении</string>
+    <string name="squared_eq_outputs">Выходы</string>
+    <string name="squared_eq_kind_speaker">Динамик телефона</string>
+    <string name="squared_eq_kind_wired">Проводные наушники</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">USB-аудио</string>
+    <string name="squared_eq_kind_other">Другой выход</string>
+    <string name="squared_eq_save_preset">Сохранить как пресет</string>
+    <string name="squared_eq_preset_name">Название</string>
+    <string name="squared_eq_save">Сохранить</string>
+    <string name="squared_eq_delete_preset">Удалить пресет</string>
+</resources>

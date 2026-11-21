@@ -49,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +85,9 @@ import com.music.spotui.ui.components.LyricsSourceSheet
 import com.music.spotui.ui.immersive.shell.LocalImmersiveChrome
 import com.music.spotui.ui.immersive.shell.rememberTabNavigation
 import com.music.spotui.ui.immersive.squared.components.AmbientArtworkBackground
+import com.music.spotui.ui.immersive.squared.glass.GlassComponent
 import com.music.spotui.ui.immersive.squared.glass.GlassEffectConfig
+import com.music.spotui.ui.immersive.squared.glass.GlassStyle
 import com.music.spotui.ui.immersive.squared.glass.GlassWarmUp
 import com.music.spotui.ui.immersive.squared.glass.LiquidBottomTab
 import com.music.spotui.ui.immersive.squared.glass.LiquidBottomTabs
@@ -101,6 +104,7 @@ import com.music.spotui.ui.immersive.squared.glass.floatingtabbar.rememberFloati
 import com.music.spotui.ui.immersive.squared.glass.liquidGlass
 import com.music.spotui.ui.immersive.squared.player.FloatingMiniPlayer
 import com.music.spotui.ui.immersive.squared.player.GlassFilm
+import com.music.spotui.ui.immersive.squared.settings.SquaredGlassStore
 import com.music.spotui.ui.immersive.squared.player.LocalGlassEnabled
 import com.music.spotui.ui.immersive.squared.player.LocalPlayerFilm
 import com.music.spotui.ui.immersive.squared.player.MiniPlayerHeight
@@ -167,7 +171,11 @@ fun SquaredShell(
     // The bar folds with the chrome state the pages already scroll.
     val chrome = LocalImmersiveChrome.current
     val barScroll = rememberFloatingTabBarScrollConnection()
-    LaunchedEffect(chrome?.minimized) { if (chrome?.minimized == true) barScroll.inline() else barScroll.expand() }
+    // "Bar folds" in the Squared settings: off keeps the bar whole however the page scrolls.
+    val glassStore = remember(context) { SquaredGlassStore.of(context) }
+    val barFolds by glassStore.barFolds.collectAsState()
+    val glassConfig by glassStore.config.collectAsState()
+    LaunchedEffect(chrome?.minimized, barFolds) { if (chrome?.minimized == true && barFolds) barScroll.inline() else barScroll.expand() }
     LaunchedEffect(barScroll.isInline) { if (!barScroll.isInline) chrome?.expand() }
 
     var showDevices by remember { mutableStateOf(false) }
@@ -202,15 +210,24 @@ fun SquaredShell(
 
         SquaredTheme(seed = ambientAccent, darkTheme = true) {
             CompositionLocalProvider(LocalAppBackdrop provides pageBackdrop) {
-                val defaults = GlassEffectConfig()
-                val chromeConfig = defaults.copy(
-                    lensHeight = 0.60f,
-                    lensAmount = 0.69f,
-                    surfaceTintColor = Color.White,
-                    surfaceOpacity = 0.15f,
-                )
+                // The glass the listener chose in the Squared settings (the page's profile and
+                // sliders, laid over the material this shell was designed against).
+                val chromeConfig = glassConfig
+                val puckWash = PuckWash.copy(alpha = chromeConfig.puckOpacity.coerceIn(0f, 1f))
+                // "Where the glass is" switches: a surface turned off keeps its film, not the lens.
+                fun GlassEffectConfig.where(component: GlassComponent) =
+                    if (isEnabledFor(component)) this else copy(style = GlassStyle.TRANSPARENT)
                 val barShape = RoundedCornerShape(percent = 50)
-                val glass = Modifier.liquidGlass(config = chromeConfig, shape = barShape, highlightAlpha = 0.3f)
+                val miniGlass = Modifier.liquidGlass(
+                    config = chromeConfig.where(GlassComponent.MINI_PLAYER),
+                    shape = barShape,
+                    highlightAlpha = 0.3f,
+                )
+                val glass = Modifier.liquidGlass(
+                    config = chromeConfig.where(GlassComponent.NAV_BAR),
+                    shape = barShape,
+                    highlightAlpha = 0.3f,
+                )
                 val playerTravelPx = with(density) {
                     (LocalConfiguration.current.screenHeightDp.dp - MiniPlayerHeight).toPx()
                 }
@@ -234,7 +251,7 @@ fun SquaredShell(
                                         remoteLabel = null,
                                         modifier = accessoryModifier
                                             .fillMaxWidth()
-                                            .then(glass)
+                                            .then(miniGlass)
                                             .draggable(
                                                 state = rememberDraggableState { delta ->
                                                     scope.launch {
@@ -297,8 +314,8 @@ fun SquaredShell(
                                 colors = FloatingTabBarDefaults.colors(
                                     backgroundColor = GlassFilm,
                                     accessoryBackgroundColor = GlassFilm,
-                                    selectedTabBackgroundColor = PuckWash,
-                                    selectedStandaloneTabBackgroundColor = PuckWash,
+                                    selectedTabBackgroundColor = puckWash,
+                                    selectedStandaloneTabBackgroundColor = puckWash,
                                 ),
                                 sizes = FloatingTabBarDefaults.sizes(
                                     tabBarContentPadding = PaddingValues(vertical = 6.dp, horizontal = 2.dp),
@@ -315,7 +332,7 @@ fun SquaredShell(
                                             tabsCount = tabRoutes.size,
                                             accentColor = tabAccent,
                                             containerColor = GlassFilm,
-                                            indicatorColor = PuckWash,
+                                            indicatorColor = puckWash,
                                             height = BarHeight,
                                             lensDepth = 20.dp,
                                             modifier = tabsModifier,
@@ -386,7 +403,7 @@ fun SquaredShell(
                                 LocalInkOverride provides PlayerInk,
                                 LocalContentColor provides PlayerInk,
                                 LocalPlayerFilm provides playerFilm.copy(alpha = 0.5f),
-                                LocalGlassEffectConfig provides chromeConfig.copy(darkGlass = true, surfaceTintColor = playerFilm),
+                                LocalGlassEffectConfig provides chromeConfig.where(GlassComponent.PLAYER).copy(darkGlass = true, surfaceTintColor = playerFilm),
                             ) {
                                 PlayerScreen(
                                     state = playback,

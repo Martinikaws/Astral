@@ -161,7 +161,7 @@ private val GroupHeadroom = 24.dp
  * another as they come within [blend] of each other.
  *
  * Where upstream's material cannot run (before Android 13, a GPU that
- * rejects the shader, the plain-blur or translucent styles) this is a plain
+ * rejects the shader, the translucent style) this is a plain
  * Box and every member draws its own glass, as it would outside a group.
  */
 @Composable
@@ -170,7 +170,6 @@ fun GlassBlendGroup(
     modifier: Modifier = Modifier,
     /** Upstream's default: 20 logical pixels. */
     blend: Dp = 20.dp,
-    blurScale: Float = 1f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val config = LocalGlassEffectConfig.current
@@ -203,7 +202,6 @@ fun GlassBlendGroup(
                 .liquidGlass(
                     config = config,
                     shape = RoundedCornerShape(0.dp),
-                    blurRadiusDp = (config.blurRadius * blurScale).coerceAtLeast(0f),
                     highlightAlpha = com.music.spotui.ui.immersive.squared.player.BarHighlightAlpha,
                     ownBackdrop = backdrop,
                     group = frame,

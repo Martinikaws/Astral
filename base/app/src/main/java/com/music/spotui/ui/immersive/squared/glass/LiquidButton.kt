@@ -107,12 +107,6 @@ fun LiquidButton(
     // are parameters now, with the upstream values as defaults.
     contentHeight: Dp = 48f.dp,
     contentPadding: Dp = 16f.dp,
-    // LOCAL CHANGE: how thick this button is, as a multiple of the app's own
-    // frost rather than a number of dp. Upstream pins it at 2dp and this app
-    // pinned various call sites at 8, which is how the player's controls ended
-    // up ignoring the frost setting entirely: a button on a fixed 8 beside a bar
-    // on a configurable 2 is a different material no matter where the slider is.
-    blurScale: Float = 1f,
     /**
      * Draws the material without sampling anything behind it.
      *
@@ -235,7 +229,6 @@ fun LiquidButton(
                     Modifier.liquidGlass(
                         config = config,
                         shape = shape,
-                        blurRadiusDp = (config.blurRadius * blurScale).coerceAtLeast(0f),
                         // LOCAL CHANGE: buttons sample the screen at a fraction of their
                         // own resolution: five filter chips at the top of the home page
                         // alone measured 8ms a frame at full size. Upstream's material

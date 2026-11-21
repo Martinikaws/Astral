@@ -664,6 +664,7 @@
     <string name="equalizer_preamp">Preamp</string>
     <string name="equalizer_preamp_detail">Lowers or raises everything. A boost close to full scale is held back by a limiter rather than clipped.</string>
     <string name="equalizer_reset">Reset to flat</string>
+    <string name="equalizer_output_current">Equalizer for: %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

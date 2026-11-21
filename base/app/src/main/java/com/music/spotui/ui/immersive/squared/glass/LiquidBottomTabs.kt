@@ -74,7 +74,6 @@ import com.music.spotui.ui.immersive.squared.glass.backdrop.Backdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.layerBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.drawBackdrop
-import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.blur
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.lens
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.vibrancy
 import com.music.spotui.ui.immersive.squared.glass.backdrop.highlight.Highlight
@@ -269,9 +268,6 @@ fun LiquidBottomTabs(
                     .liquidGlass(
                         config = LocalGlassEffectConfig.current,
                         shape = ContinuousCapsule(),
-                        // Follows the setting like everything else; the shell of a
-                        // panel switcher is not a different material from the bar.
-                        blurRadiusDp = LocalGlassEffectConfig.current.blurRadius,
                         ownBackdrop = backdrop,
                         layerBlock = {
                             val progress = dampedDragAnimation.pressProgress
@@ -416,7 +412,7 @@ fun LiquidBottomTabs(
             }
         }
 
-        // The slot: the page through it, frosted and filmed the way the tabs'
+        // The slot: the page through it, filmed the way the tabs'
         // copy used to bring it, then the wash, the rim and the shadow.
         Box(
             slotPlacement
@@ -429,17 +425,11 @@ fun LiquidBottomTabs(
                     backdrop = pressedBackdrop,
                     shape = { ContinuousCapsule() },
                     effects = {
-                        // At rest the slot is frosted like the bar under it:
-                        // upstream's resting pill sits on the bar's glass and
-                        // lets it show through, where this slot draws the
-                        // page itself, and drawn clear it let the page
-                        // straight through the bar. The frost lifts as it is
-                        // pressed, down to upstream's clear lens.
+                        // Clear, like the bar under it: no blur at rest or pressed.
                         // Over the bar's own glass there is nothing to add at
                         // rest: upstream's innerBlur is 0.
                         if (surfaceBackdrop == null) {
                             vibrancy()
-                            blur(8f.dp.toPx() * (1f - dampedDragAnimation.pressProgress.coerceIn(0f, 1f)))
                         }
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                             // LOCAL CHANGE: liquid_glass_widgets' indicator

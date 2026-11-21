@@ -651,6 +651,7 @@
     <string name="equalizer_preamp">Προενισχυτής</string>
     <string name="equalizer_preamp_detail">Χαμηλώνει ή ανεβάζει τα πάντα. Μια ενίσχυση κοντά στην πλήρη κλίμακα συγκρατείται από έναν περιοριστή αντί να παραμορφωθεί.</string>
     <string name="equalizer_reset">Επαναφορά σε επίπεδο</string>
+    <string name="equalizer_output_current">Ισοσταθμιστής για: %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

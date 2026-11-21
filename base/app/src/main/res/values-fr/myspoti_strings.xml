@@ -663,6 +663,7 @@
     <string name="equalizer_preamp">Préampli</string>
     <string name="equalizer_preamp_detail">Baisse ou monte l’ensemble. Une hausse proche de la pleine échelle est retenue par un limiteur plutôt qu’écrêtée.</string>
     <string name="equalizer_reset">Remettre à plat</string>
+    <string name="equalizer_output_current">Égaliseur pour : %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

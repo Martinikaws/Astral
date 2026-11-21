@@ -651,6 +651,7 @@
     <string name="equalizer_preamp">Vorverstärkung</string>
     <string name="equalizer_preamp_detail">Senkt oder hebt alles an. Eine Anhebung nahe der Vollaussteuerung wird von einem Limiter abgefangen, statt zu übersteuern.</string>
     <string name="equalizer_reset">Auf neutral zurücksetzen</string>
+    <string name="equalizer_output_current">Equalizer für: %1$s</string>
     <string name="equalizer_db">%1$s dB</string>
     <string name="equalizer_hz">%1$s Hz</string>
     <string name="equalizer_khz">%1$s kHz</string>

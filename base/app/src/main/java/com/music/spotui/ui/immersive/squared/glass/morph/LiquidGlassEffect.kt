@@ -4,7 +4,7 @@
  * Modified for Astral, 2026-11.
  *
  * Changes: package renamed to com.music.spotui.ui.immersive.squared.glass (and R to Astral's);
- * otherwise verbatim.
+ * the frost and blur paths are removed (the glass is clear, nothing blurs what is behind it); otherwise verbatim.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -25,8 +25,6 @@ import com.music.spotui.ui.immersive.squared.glass.backdrop.BackdropEffectScope
 import com.music.spotui.ui.immersive.squared.glass.backdrop.effects.effect
 import com.music.spotui.ui.immersive.squared.glass.backdrop.internal.RuntimeShaderEffect
 import com.music.spotui.ui.immersive.squared.glass.backdrop.isRuntimeShaderSupported
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import com.music.spotui.ui.immersive.squared.glass.backdrop.asAndroidRuntimeShader
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -65,17 +63,6 @@ fun BackdropEffectScope.liquidGlassMaterial(
 
     // The recorded layer's pixels per logical pixel.
     val dpr = density * contentScale
-    // iOS 27's frost: its cloud is blurred from beyond the surface, as
-    // upstream's backdrop blur reads the page around the clip. Half the
-    // blur's reach of it, and the rest mirrored: the whole reach grew every
-    // surface's layer by its radius on each side, nearly four times the
-    // pixels on a chip, for an edge that reads the same.
-    val frostRadius = if (settings.effectiveFrost > 0f) blurRadiusForSigma(settings.effectiveFrost * dpr) else 0f
-    if (frostRadius * FROST_REACH > padding) padding = frostRadius * FROST_REACH
-    // Under a frost the page shows only as its colours, which move slowly
-    // however fast the page does: a capture held while it scrolls is taken
-    // again less often, and each taking costs the frost's whole chain.
-    if (frostRadius > 0f) holdRefreshMillis = FROST_HOLD_REFRESH_MS
     val scale = dpr / 3f
     // A shape with no corner of its own (a capsule) is upstream's
     // borderRadius 9999, which the shader clamps to half the short side.
@@ -192,19 +179,6 @@ fun BackdropEffectScope.liquidGlassMaterial(
     )
     shader.setFloatUniform("uLensModel", if (settings.lensModel == GlassLensModel.Paraxial) 1f else 0f)
     shader.setFloatUniform("uBodyShade", settings.effectiveBodyShade.coerceIn(0f, 1f))
-    val ghostSigma = settings.effectiveBlur * dpr
-    shader.setFloatUniform(
-        "uFrost",
-        if (frostRadius > 0f) {
-            // Eased in over its first 2 pt, and kept above 0 so it doubles as the switch.
-            maxOf(settings.frostOpacity.coerceIn(0f, 1f) * (settings.effectiveFrost / 2f).coerceIn(0f, 1f), 1e-3f)
-        } else {
-            0f
-        },
-        settings.frostClamp.coerceIn(-1f, 1f),
-        if (ghostSigma > LiquidGlassSettings.FROST_GHOST_MAX_SIGMA) 0f else ghostSigma,
-        settings.blurWeight.coerceAtLeast(0f),
-    )
     shader.setFloatUniform("uNumShapes", (shapes?.size ?: 1).toFloat())
     shader.setFloatUniform("uDpr", dpr)
     shader.setFloatUniform("uBlend", blendPx * contentScale)
@@ -215,7 +189,7 @@ fun BackdropEffectScope.liquidGlassMaterial(
     // light pages: an elevation and a contact shadow. A BoxShadow's sigma is
     // 0.57735 × its blur radius + 0.5.
     // The settings' own shadows (upstream's effectiveShadow): the elevation's
-    // pair by default, ios27Light's one long faint shadow, none on ios27Dark.
+    // pair by default, the light preset's one long faint shadow, none on the dark.
     val shadows = if (groupShadow) settings.effectiveShadow else emptyList()
     if (shadows.isNotEmpty()) {
         fun sigma(blurRadius: Float) = (blurRadius * 0.57735f + 0.5f) * dpr
@@ -232,103 +206,8 @@ fun BackdropEffectScope.liquidGlassMaterial(
         shader.setFloatUniform("uShadowB", 0f, 0f, 0f, 0f)
     }
 
-    if (frostRadius > 0f && android.os.Build.VERSION.SDK_INT >= 33) {
-        val rows = frostRows(settings, frostRadius, shapes?.size ?: 1, shapeData, blendPx * contentScale) ?: return
-        renderEffect = rows
-    }
     effect(RuntimeShaderEffect(shader, "content"))
 }
-
-/**
- * Upstream's frost pass, as a RenderEffect graph over the backdrop recorded
- * so far: the backdrop weighted by its luminance (frostWeight), blurred at
- * the frost's sigma into the odd rows inside the shapes, and left sharp
- * everywhere else, for the render pass to make the ghost, the clamp and the
- * mix from.
- */
-@androidx.annotation.RequiresApi(33)
-private fun BackdropEffectScope.frostRows(
-    settings: LiquidGlassSettings,
-    radius: Float,
-    shapeCount: Int,
-    shapeData: FloatArray,
-    blend: Float,
-): androidx.compose.ui.graphics.RenderEffect? {
-    val cloudShader = runCatching { obtainRuntimeShader("LiquidGlassRowsCloud", LiquidGlassShader.SOURCE_ROWS) }
-        .onFailure(LiquidGlassRenderer::unavailable).getOrNull() ?: return null
-    val sharpShader = obtainRuntimeShader("LiquidGlassRowsSharp", LiquidGlassShader.SOURCE_ROWS)
-    for ((s, cloud) in listOf(cloudShader to 1f, sharpShader to 0f)) {
-        s.setFloatUniform("uRowsCloud", cloud)
-        s.setFloatUniform("uNumShapes", shapeCount.toFloat())
-        s.setFloatUniform("uShapeData", shapeData)
-        s.setFloatUniform("uBlend", blend)
-    }
-    val input = renderEffect?.asAndroidRenderEffect()
-    val weight = settings.frostWeight
-    val base = if (weight > 1f) 1f / weight else 1f
-    val slope = if (weight > 1f) 1f - 1f / weight else weight - 1f
-    val weighted = if (weight != 1f && weight > 0f) {
-        val filter = android.graphics.ColorMatrixColorFilter(
-            floatArrayOf(
-                1f, 0f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f, 0f,
-                0f, 0f, 1f, 0f, 0f,
-                slope * 0.2126f, slope * 0.7152f, slope * 0.0722f, base, 0f,
-            ),
-        )
-        if (input == null) {
-            android.graphics.RenderEffect.createColorFilterEffect(filter)
-        } else {
-            android.graphics.RenderEffect.createColorFilterEffect(filter, input)
-        }
-    } else {
-        input
-    }
-    val cloud = if (weighted == null) {
-        android.graphics.RenderEffect.createBlurEffect(radius, radius, android.graphics.Shader.TileMode.MIRROR)
-    } else {
-        android.graphics.RenderEffect.createBlurEffect(radius, radius, weighted, android.graphics.Shader.TileMode.MIRROR)
-    }
-    fun rows(shader: com.music.spotui.ui.immersive.squared.glass.backdrop.RuntimeShader, inner: android.graphics.RenderEffect?): android.graphics.RenderEffect {
-        val e = android.graphics.RenderEffect.createRuntimeShaderEffect(shader.asAndroidRuntimeShader(), "content")
-        return if (inner == null) e else android.graphics.RenderEffect.createChainEffect(e, inner)
-    }
-    // The ghost's rows, softened. Upstream reads them nearly sharp (a sigma
-    // of the material's blur, 1.6 px here) and at 15-27 % of the frost they
-    // left every hard edge of the page standing in the glass: over a cover
-    // with text on it the frost read as no frost at all, and switching it
-    // off, which puts a plain blur in its place, looked frostier. A blur of
-    // the platform's keeps the page's shapes and colours in the glass
-    // without its edges, for about what one more blur pass costs. Its sigma
-    // is a little over the quarter of the frost's that stands in for the
-    // frost when it is off, so the frost is never the less blurred of the
-    // two; at a sixth, text behind a dark bar still showed through.
-    val sigma = radius * 0.57735f + 0.5f
-    val ghostRadius = blurRadiusForSigma(sigma * GHOST_SHARE)
-    val ghost = when {
-        ghostRadius <= 0f -> weighted
-        weighted == null -> android.graphics.RenderEffect.createBlurEffect(
-            ghostRadius, ghostRadius, android.graphics.Shader.TileMode.MIRROR,
-        )
-        else -> android.graphics.RenderEffect.createBlurEffect(
-            ghostRadius, ghostRadius, weighted, android.graphics.Shader.TileMode.MIRROR,
-        )
-    }
-    return android.graphics.RenderEffect.createBlendModeEffect(
-        rows(sharpShader, ghost),
-        rows(cloudShader, cloud),
-        android.graphics.BlendMode.PLUS,
-    ).asComposeRenderEffect()
-}
-
-/** The ghost's blur, as a share of the frost's sigma; see frostRows. */
-private const val GHOST_SHARE = 0.3f
-
-/** How long a frosted surface holds its capture while the page under it moves. */
-private const val FROST_HOLD_REFRESH_MS = 300f
-
-/** How much of the frost's blur radius a surface records beyond its edge. */
-private const val FROST_REACH = 0.5f
 
 /**
  * Upstream's blur pass takes a Gaussian sigma; Android's takes a radius it

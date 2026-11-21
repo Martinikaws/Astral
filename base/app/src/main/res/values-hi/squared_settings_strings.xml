@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">सेटिंग्स</string>
+    <string name="squared_back">वापस</string>
+    <string name="squared_page_glass">ग्लास</string>
+    <string name="squared_tile_playback_note">ध्वनि, सुनना, बोल और कवर</string>
+    <string name="squared_tile_equalizer_note">हर आउटपुट के लिए एक कर्व</string>
+    <string name="squared_tile_glass_note">ग्लास कैसा दिखता है और उसकी कीमत</string>
+    <string name="squared_tile_downloads_note">गुणवत्ता, स्टोरेज और कैश</string>
+    <string name="squared_tile_app_note">भाषा, रूप और ऊर्जा</string>
+    <string name="squared_tile_astral">Astral सेटिंग्स</string>
+    <string name="squared_tile_astral_note">खाते, स्रोत, AutoMix और बाकी सब</string>
+    <string name="squared_open_glass">ग्लास और रंग</string>
+    <string name="squared_lyrics_style">बोल कैसे दिखें</string>
+    <string name="squared_lyrics_style_animated">एनिमेटेड</string>
+    <string name="squared_lyrics_style_classic">क्लासिक</string>
+    <string name="squared_group_sound">ध्वनि</string>
+    <string name="squared_group_sound_summary">गुणवत्ता, ट्रांज़िशन, गति</string>
+    <string name="squared_group_listening">सुनना</string>
+    <string name="squared_group_listening_summary">ऑटोप्ले, शफ़ल, बैकग्राउंड</string>
+    <string name="squared_group_lyrics">बोल</string>
+    <string name="squared_group_lyrics_summary">शैली, स्रोत, शब्द-दर-शब्द</string>
+    <string name="squared_group_covers">कवर</string>
+    <string name="squared_group_covers_summary">एनिमेटेड कवर और Canvas</string>
+    <string name="squared_group_downloads">डाउनलोड</string>
+    <string name="squared_group_downloads_summary">ऑफ़लाइन गुणवत्ता और बोल</string>
+    <string name="squared_group_cleanup">स्टोरेज</string>
+    <string name="squared_group_cleanup_summary">कैश और डाउनलोड किए गाने</string>
+    <string name="squared_group_language">भाषा</string>
+    <string name="squared_group_language_summary">ऐप की भाषा</string>
+    <string name="squared_group_appearance">रूप</string>
+    <string name="squared_group_appearance_summary">निचला बार और ग्लास</string>
+    <string name="squared_group_system">सिस्टम</string>
+    <string name="squared_group_system_summary">ऊर्जा, डेटा, संस्करण, लाइसेंस</string>
+    <string name="squared_glass_performance">प्रदर्शन</string>
+    <string name="squared_glass_performance_note">रंगीन परत, कोई सैंपलिंग नहीं: सबसे हल्का</string>
+    <string name="squared_glass_balanced">संतुलित</string>
+    <string name="squared_glass_balanced_note">डिज़ाइन के अनुसार रूप</string>
+    <string name="squared_glass_quality">गुणवत्ता</string>
+    <string name="squared_glass_quality_note">तेज़ अपवर्तन और रंगीन किनारे: सबसे पहले फ़्रेम खोता है</string>
+    <string name="squared_glass_film_only">यह फ़ोन ग्लास को रंगीन परत की तरह दिखाता है: नीचे की लेंस सेटिंग का कोई असर नहीं होगा।</string>
+    <string name="squared_glass_group_material">सामग्री</string>
+    <string name="squared_glass_group_colour">रंग</string>
+    <string name="squared_glass_group_edges">किनारे</string>
+    <string name="squared_glass_group_where">कहाँ इस्तेमाल हो</string>
+    <string name="squared_glass_refraction">अपवर्तन</string>
+    <string name="squared_glass_refraction_note">किनारों पर ग्लास के पीछे की चीज़ को मोड़ता है</string>
+    <string name="squared_glass_vibrancy">जीवंतता</string>
+    <string name="squared_glass_tint">रंगत</string>
+    <string name="squared_glass_tint_none">कोई नहीं</string>
+    <string name="squared_glass_tint_clear">हटाएँ</string>
+    <string name="squared_glass_tint_strength">तीव्रता</string>
+    <string name="squared_glass_film">परत</string>
+    <string name="squared_glass_indicator">चयन संकेतक</string>
+    <string name="squared_glass_rim">किनारे की रोशनी</string>
+    <string name="squared_glass_refraction_depth">अपवर्तन की गहराई</string>
+    <string name="squared_glass_refraction_amount">अपवर्तन की मात्रा</string>
+    <string name="squared_glass_dispersion">रंगीन किनारे</string>
+    <string name="squared_glass_depth">गहराई का प्रभाव</string>
+    <string name="squared_glass_where_bar">निचला बार</string>
+    <string name="squared_glass_where_mini_player">मिनी प्लेयर</string>
+    <string name="squared_glass_where_player">प्लेयर</string>
+    <string name="squared_glass_bar_folds">स्क्रॉल करते समय बार समेटें</string>
+    <string name="squared_glass_bar_folds_note">सबसे महंगा एनिमेशन: स्क्रॉल धीमा लगे तो बंद करें</string>
+    <string name="squared_glass_reset">ग्लास रीसेट करें</string>
+    <string name="squared_eq_output_in_use">अभी उपयोग में</string>
+    <string name="squared_eq_output_not_in_use">कनेक्ट नहीं: जुड़ते ही इसका कर्व लागू होगा</string>
+    <string name="squared_eq_outputs">आउटपुट</string>
+    <string name="squared_eq_kind_speaker">फ़ोन का स्पीकर</string>
+    <string name="squared_eq_kind_wired">वायर वाले हेडफ़ोन</string>
+    <string name="squared_eq_kind_bluetooth">ब्लूटूथ</string>
+    <string name="squared_eq_kind_usb">USB ऑडियो</string>
+    <string name="squared_eq_kind_other">अन्य आउटपुट</string>
+    <string name="squared_eq_save_preset">प्रीसेट के रूप में सहेजें</string>
+    <string name="squared_eq_preset_name">नाम</string>
+    <string name="squared_eq_save">सहेजें</string>
+    <string name="squared_eq_delete_preset">प्रीसेट हटाएँ</string>
+</resources>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings of the Squared look's settings pages (SquaredSettingsScreen and its pages).
+  Kept apart from squared_strings.xml.
+-->
+<resources>
+    <string name="squared_settings_title">Ρυθμίσεις</string>
+    <string name="squared_back">Πίσω</string>
+    <string name="squared_page_glass">Γυαλί</string>
+    <string name="squared_tile_playback_note">Ήχος, ακρόαση, στίχοι και εξώφυλλα</string>
+    <string name="squared_tile_equalizer_note">Μια καμπύλη για κάθε έξοδο</string>
+    <string name="squared_tile_glass_note">Πώς φαίνεται το γυαλί και τι κοστίζει</string>
+    <string name="squared_tile_downloads_note">Ποιότητα, αποθηκευτικός χώρος και κρυφή μνήμη</string>
+    <string name="squared_tile_app_note">Γλώσσα, εμφάνιση και ενέργεια</string>
+    <string name="squared_tile_astral">Ρυθμίσεις Astral</string>
+    <string name="squared_tile_astral_note">Λογαριασμοί, πηγές, AutoMix και όλα τα υπόλοιπα</string>
+    <string name="squared_open_glass">Γυαλί και χρώματα</string>
+    <string name="squared_lyrics_style">Πώς σχεδιάζονται οι στίχοι</string>
+    <string name="squared_lyrics_style_animated">Κινούμενοι</string>
+    <string name="squared_lyrics_style_classic">Κλασικοί</string>
+    <string name="squared_group_sound">Ήχος</string>
+    <string name="squared_group_sound_summary">Ποιότητα, μεταβάσεις, ταχύτητα</string>
+    <string name="squared_group_listening">Ακρόαση</string>
+    <string name="squared_group_listening_summary">Αυτόματη αναπαραγωγή, τυχαία σειρά, παρασκήνιο</string>
+    <string name="squared_group_lyrics">Στίχοι</string>
+    <string name="squared_group_lyrics_summary">Στυλ, πηγές, λέξη προς λέξη</string>
+    <string name="squared_group_covers">Εξώφυλλα</string>
+    <string name="squared_group_covers_summary">Κινούμενα εξώφυλλα και Canvas</string>
+    <string name="squared_group_downloads">Λήψεις</string>
+    <string name="squared_group_downloads_summary">Ποιότητα και στίχοι για χρήση χωρίς σύνδεση</string>
+    <string name="squared_group_cleanup">Αποθήκευση</string>
+    <string name="squared_group_cleanup_summary">Κρυφή μνήμη και ληφθέντα τραγούδια</string>
+    <string name="squared_group_language">Γλώσσα</string>
+    <string name="squared_group_language_summary">Η γλώσσα της εφαρμογής</string>
+    <string name="squared_group_appearance">Εμφάνιση</string>
+    <string name="squared_group_appearance_summary">Η κάτω γραμμή και το γυαλί</string>
+    <string name="squared_group_system">Σύστημα</string>
+    <string name="squared_group_system_summary">Ενέργεια, δεδομένα, έκδοση, άδειες</string>
+    <string name="squared_glass_performance">Απόδοση</string>
+    <string name="squared_glass_performance_note">Μια χρωματισμένη μεμβράνη χωρίς δειγματοληψία: το ελαφρύτερο</string>
+    <string name="squared_glass_balanced">Ισορροπημένο</string>
+    <string name="squared_glass_balanced_note">Η εμφάνιση όπως σχεδιάστηκε</string>
+    <string name="squared_glass_quality">Ποιότητα</string>
+    <string name="squared_glass_quality_note">Ισχυρότερη διάθλαση και χρωματικά περιθώρια: το πρώτο που κοστίζει καρέ</string>
+    <string name="squared_glass_film_only">Αυτό το τηλέφωνο εμφανίζει το γυαλί ως χρωματισμένη μεμβράνη: οι ρυθμίσεις φακού παρακάτω δεν έχουν εφέ.</string>
+    <string name="squared_glass_group_material">Υλικό</string>
+    <string name="squared_glass_group_colour">Χρώμα</string>
+    <string name="squared_glass_group_edges">Άκρες</string>
+    <string name="squared_glass_group_where">Πού χρησιμοποιείται</string>
+    <string name="squared_glass_refraction">Διάθλαση</string>
+    <string name="squared_glass_refraction_note">Κάμπτει ό,τι βρίσκεται πίσω από το γυαλί στις άκρες του</string>
+    <string name="squared_glass_vibrancy">Ζωντάνια</string>
+    <string name="squared_glass_tint">Απόχρωση</string>
+    <string name="squared_glass_tint_none">Καμία</string>
+    <string name="squared_glass_tint_clear">Καθαρισμός</string>
+    <string name="squared_glass_tint_strength">Ένταση</string>
+    <string name="squared_glass_film">Μεμβράνη</string>
+    <string name="squared_glass_indicator">Δείκτης επιλογής</string>
+    <string name="squared_glass_rim">Φωτισμός άκρων</string>
+    <string name="squared_glass_refraction_depth">Βάθος διάθλασης</string>
+    <string name="squared_glass_refraction_amount">Ποσότητα διάθλασης</string>
+    <string name="squared_glass_dispersion">Χρωματικά περιθώρια</string>
+    <string name="squared_glass_depth">Εφέ βάθους</string>
+    <string name="squared_glass_where_bar">Κάτω γραμμή</string>
+    <string name="squared_glass_where_mini_player">Μίνι αναπαραγωγέας</string>
+    <string name="squared_glass_where_player">Αναπαραγωγέας</string>
+    <string name="squared_glass_bar_folds">Αναδίπλωση της γραμμής κατά την κύλιση</string>
+    <string name="squared_glass_bar_folds_note">Το πιο ακριβό animation: απενεργοποιήστε το αν η κύλιση φαίνεται αργή</string>
+    <string name="squared_glass_reset">Επαναφορά του γυαλιού</string>
+    <string name="squared_eq_output_in_use">Σε χρήση τώρα</string>
+    <string name="squared_eq_output_not_in_use">Μη συνδεδεμένη: η καμπύλη της εφαρμόζεται όταν συνδεθεί</string>
+    <string name="squared_eq_outputs">Έξοδοι</string>
+    <string name="squared_eq_kind_speaker">Ηχείο τηλεφώνου</string>
+    <string name="squared_eq_kind_wired">Ενσύρματα ακουστικά</string>
+    <string name="squared_eq_kind_bluetooth">Bluetooth</string>
+    <string name="squared_eq_kind_usb">Ήχος USB</string>
+    <string name="squared_eq_kind_other">Άλλη έξοδος</string>
+    <string name="squared_eq_save_preset">Αποθήκευση ως προεπιλογή</string>
+    <string name="squared_eq_preset_name">Όνομα</string>
+    <string name="squared_eq_save">Αποθήκευση</string>
+    <string name="squared_eq_delete_preset">Διαγραφή προεπιλογής</string>
+</resources>
