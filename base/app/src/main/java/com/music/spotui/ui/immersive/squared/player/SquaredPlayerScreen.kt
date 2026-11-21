@@ -1220,13 +1220,14 @@ fun PlayerScreen(
                             // remember why. It rides above the cover rather
                             // than beside the title, where the transport
                             // already has all the room it needs.
-                            val karaokeAmount by SquaredFeatures.karaoke.collectAsStateWithLifecycle()
+                            val karaokeAmount by com.music.spotui.data.preferences.AudioEffectsPref.karaoke.collectAsStateWithLifecycle()
+                            val karaokeSupported by com.music.spotui.di.AudioEffectsState.supported.collectAsStateWithLifecycle()
                             // Not over the lyrics, where the karaoke's own
                             // control is on screen and the source's credit
                             // takes this same line: the two were drawn on top
                             // of each other (#79).
                             androidx.compose.animation.AnimatedVisibility(
-                                visible = karaokeAmount > 0f && !sdkPlayback && panel != PlayerPanel.LYRICS,
+                                visible = karaokeAmount > 0f && karaokeSupported && !sdkPlayback && panel != PlayerPanel.LYRICS,
                                 enter = fadeIn(tween(220)),
                                 exit = fadeOut(tween(180)),
                                 modifier = Modifier
@@ -1405,7 +1406,7 @@ fun PlayerScreen(
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
-                                Stage.EFFECTS -> Box(Modifier.fillMaxSize())
+                                Stage.EFFECTS -> EffectsPanel(backdrop = panelBackdrop)
 
                                 Stage.QUEUE -> Box(Modifier.fillMaxSize()) {
                                     QueueList(queue, queueActions)
@@ -2862,12 +2863,14 @@ private fun LyricsStage(
             )
         }
 
-        // The karaoke control belongs to the effects phase.
         if (SquaredFeatures.effects) {
-            val karaoke by SquaredFeatures.karaoke.collectAsStateWithLifecycle()
-            KaraokeDial(
+            val karaoke by com.music.spotui.data.preferences.AudioEffectsPref.karaoke.collectAsStateWithLifecycle()
+            val supported by com.music.spotui.di.AudioEffectsState.supported.collectAsStateWithLifecycle()
+            // Not offered for songs the engine cannot process; the effects panel says why.
+            if (supported) KaraokeDial(
                 amount = karaoke,
-                onChange = SquaredFeatures::setKaraoke,
+                onChange = com.music.spotui.data.preferences.AudioEffectsPref::previewKaraoke,
+                onCommit = com.music.spotui.data.preferences.AudioEffectsPref::setKaraoke,
                 backdrop = backdrop,
                 expandSignal = expandSignal,
                 modifier = Modifier

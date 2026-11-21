@@ -4,8 +4,8 @@
  * Modified for Astral, 2026-11.
  *
  * Changes: package renamed; the audio-effects state (speed, pitch, reverb, karaoke, the web SDK
- * check), EffectsPanel and the sleep timer are not carried over, the Effects and Info tabs sit
- * behind SquaredFeatures.effects and .credits, and the strings are Astral's squared_* resources.
+ * check) is Astral's AudioEffectsPref (the panel itself is in SquaredEffectsPanel.kt), the sleep
+ * timer is not carried over, the Effects and Info tabs sit behind SquaredFeatures.effects and .credits, and the strings are Astral's squared_* resources.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -135,9 +135,13 @@ fun PlayerPanelSection(
         // The queue in here too: it opens in the same middle of the screen as
         // the others, and a button for it beside the title was one more
         // control in a row that already had the radio and the heart.
-        // Effects are a later phase: the tab only exists behind SquaredFeatures.effects.
-        val effectsOn = false
-        val karaokeOn = false
+        val effectsSpeed by com.music.spotui.data.preferences.AudioEffectsPref.speed.collectAsStateWithLifecycle()
+        val effectsPitch by com.music.spotui.data.preferences.AudioEffectsPref.pitch.collectAsStateWithLifecycle()
+        val effectsReverb by com.music.spotui.data.preferences.AudioEffectsPref.reverb.collectAsStateWithLifecycle()
+        val effectsKaraoke by com.music.spotui.data.preferences.AudioEffectsPref.karaoke.collectAsStateWithLifecycle()
+        val effectsSupported by com.music.spotui.di.AudioEffectsState.supported.collectAsStateWithLifecycle()
+        val karaokeOn = effectsSupported && effectsKaraoke > 0f
+        val effectsOn = effectsSupported && (effectsSpeed != 1f || effectsPitch != 1f || effectsReverb > 0f || karaokeOn)
 
         val views = remember(showCover) {
             listOfNotNull(

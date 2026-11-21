@@ -72,6 +72,8 @@ fun KaraokeDial(
     amount: Float,
     onChange: (Float) -> Unit,
     backdrop: Backdrop,
+    /** Called once with the final level when a drag ends (Astral: saves it; [onChange] only previews). */
+    onCommit: (Float) -> Unit = onChange,
     modifier: Modifier = Modifier,
     /**
      * Bumped from outside to open it, for the times somebody arrives here on
@@ -84,6 +86,10 @@ fun KaraokeDial(
     var dragging by remember { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
     val change by rememberUpdatedState(onChange)
+    val commit by rememberUpdatedState(onCommit)
+    // Astral: the level as it is dragged, so the fill follows the finger before it is saved.
+    var dragLevel by remember { mutableStateOf<Float?>(null) }
+    val shown = dragLevel ?: amount
     // Read inside the gesture rather than captured by it.
     //
     // The handler is built once and lives for the length of the touch, so a
@@ -136,7 +142,7 @@ fun KaraokeDial(
         label = "karaokePress",
     )
     val fill by animateFloatAsState(
-        targetValue = if (open) amount else 0f,
+        targetValue = if (open) shown else 0f,
         animationSpec = tween(160),
         label = "karaokeFill",
     )
@@ -204,7 +210,7 @@ fun KaraokeDial(
                     var level = latest.value
                     openNow.value = open
 
-                    while (true) {
+                    try { while (true) {
                         val event = awaitPointerEvent(
                             androidx.compose.ui.input.pointer.PointerEventPass.Initial,
                         )
@@ -236,13 +242,18 @@ fun KaraokeDial(
                                 // quiet turned the effect off altogether.
                                 if (level < OFF_BELOW) level = 0f
                                 change(level)
+                                dragLevel = level
                                 lastTouch = System.currentTimeMillis()
                             }
                         }
                     }
-
-                    dragging = false
-                    pressed = false
+                    } finally {
+                        // Lifted, cancelled or torn down mid-drag: the previewed level is saved.
+                        if (dragging) commit(level)
+                        dragLevel = null
+                        dragging = false
+                        pressed = false
+                    }
                     // A touch that went nowhere opens it, or puts it away.
                     if (moved < viewConfiguration.touchSlop) {
                         open = !open
@@ -272,7 +283,7 @@ fun KaraokeDial(
         }
 
         Icon(
-            if (amount > 0f) PhosphorIcons.Fill.MicrophoneStage
+            if (shown > 0f) PhosphorIcons.Fill.MicrophoneStage
             else PhosphorIcons.Regular.MicrophoneStage,
             contentDescription = stringResource(R.string.squared_karaoke),
             // White throughout: the filled glyph is what says it is on, and a
