@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nearby_jam_toggle">Auto-invite nearby (Astral users)</string>
+    <string name="nearby_jam_turn_on_bluetooth">Turn on Bluetooth</string>
+    <string name="nearby_jam_unsupported">Nearby Jam invites aren’t supported on this device.</string>
+    <string name="nearby_jam_advertising_failed">Couldn’t share the Jam nearby. Try again.</string>
+    <string name="nearby_jam_find">Find nearby Jams</string>
+    <string name="nearby_jam_retry_scan">Couldn’t find nearby Jams. Try again</string>
+    <string name="nearby_jam_named_prompt">Join %1$s’s Jam?</string>
+    <string name="nearby_jam_unnamed_prompt">Join a nearby Jam?</string>
+    <string name="nearby_jam_join">Join</string>
+    <string name="nearby_jam_join_failed">Couldn’t join the Jam. Try again.</string>
+</resources>
