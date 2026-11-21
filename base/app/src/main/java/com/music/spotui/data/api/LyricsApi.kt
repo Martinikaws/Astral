@@ -5,7 +5,9 @@ import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.LyricWord
 import com.music.spotui.data.entity.Lyrics
 import com.music.spotui.data.entity.LyricsColors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -86,6 +88,7 @@ object LyricsApi {
 
     /** How long a word-synced source is waited for before the line-synced ones answer instead. */
     private const val WORD_WAIT_MS = 4_000L
+    private const val SPOTIFY_LYRICS_WAIT_MS = 4_500L
 
     /**
      * The last lyrics shown while better ones are looked for (track key → the app's own lines); read
@@ -279,7 +282,7 @@ object LyricsApi {
         val durationMs = track.durationMs
         val durationSec = (durationMs / 1000).toInt()
         fun <T> byHand(block: () -> T): T { bypass.set(true); try { return block() } finally { bypass.remove() } }
-        val spotify = if (sourceId in WORD_SOURCES) runCatching { fromSpotify(track) }.getOrNull() else null
+
         val found = try {
             when {
                 sourceId == "spicy" -> byHand { SpicyLyricsProvider.fetch(runCatching { com.music.spotui.di.Graph.app }.getOrNull(), track.trackId, durationMs) }
@@ -304,6 +307,7 @@ object LyricsApi {
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Log.d("LyricsApi", "$sourceId by hand: ${e.javaClass.simpleName}"); null }
         val lyrics = found?.takeIf { !it.isEmpty } ?: return@withContext null
         // Words from another recording follow Spotify's own timing when that can be checked, and keep its colours.
+        val spotify = if (lyrics.wordSynced && sourceId in WORD_SOURCES) fromSpotify(track) else null
         val chosen = if (lyrics.wordSynced && spotify != null) (alignTo(lyrics, spotify) ?: lyrics).copy(colors = spotify.colors) else lyrics
         cache[track.key] = chosen
         LyricsDisk.write(track.key, chosen)
@@ -681,9 +685,16 @@ object LyricsApi {
     // ── 1. Spotify color-lyrics ──
     private suspend fun fromSpotify(track: Track): Lyrics? {
         if (track.trackId.isBlank()) return null
-        val sp = runCatching { app.myspoti.host.android.MyspotiRuntime.api.extras.lyrics("spotify:track:${track.trackId}") }
-            .onFailure { Log.d("LyricsApi", "spotify lyrics miss for ${track.trackId}: ${it.message}") }
-            .getOrNull() ?: return null
+        val sp = try {
+            withTimeoutOrNull(SPOTIFY_LYRICS_WAIT_MS) {
+                app.myspoti.host.android.MyspotiRuntime.api.extras.lyrics("spotify:track:${track.trackId}")
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.d("LyricsApi", "Spotify lyrics request failed: ${e.javaClass.simpleName}")
+            null
+        } ?: return null
         if (sp.lines.isEmpty()) return null
         val bg = sp.background
         val text = sp.text

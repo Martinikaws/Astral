@@ -474,8 +474,9 @@ fun PlayerScreen(
     // has decoded anything, and in between the surface is empty. Opening the
     // player onto that gap showed a blank middle where the cover belongs, so
     // the cover stays until this turns true and the clip fades in over it.
-    // Reset per track: the next one starts from nothing again.
-    var canvasReady by remember(canvas?.url) { mutableStateOf(false) }
+    // The same URL still needs a fresh frame after the surface is recreated.
+    val playerSettled = LocalPlayerSettled.current
+    var canvasReady by remember(canvas?.url, playerSettled) { mutableStateOf(false) }
 
     // The Canvas gets a layer of its own so the glass over it refracts the clip
     // rather than the app's blurred artwork. It is combined with the app
@@ -760,7 +761,7 @@ fun PlayerScreen(
                     // left on screen — see LocalPlayerSettled. The still
                     // picture underneath is what the travel shows instead, and
                     // at that size and speed the swap is invisible.
-                    motionUrl = coverMotionUrl.takeIf { LocalPlayerSettled.current },
+                    motionUrl = coverMotionUrl.takeIf { playerSettled && canvas == null },
                     // And still behind a panel, as a Canvas is, where it stands
                     // rather than taken away; see MotionCover's playing.
                     motionPlaying = !panelOpen,
@@ -907,67 +908,27 @@ fun PlayerScreen(
                         )
                     },
             ) {
-            Crossfade(
-                targetState = canvas,
-                animationSpec = tween(500),
-                label = "canvas",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = if (canvas?.isVideo == true) clipAlpha else 1f },
-            ) { clip ->
-                when {
-                    clip == null -> Unit
-
-                    // The video only while the player is at rest.
-                    //
-                    // A TextureView inside a layer that is being scaled and
-                    // faded — which is exactly what the closing animation does —
-                    // goes black for the length of the travel: its surface is
-                    // detached and re-attached around the layer change, and
-                    // there is nothing to draw in between. Standing in the
-                    // artwork for those few hundred milliseconds is invisible;
-                    // a black rectangle sliding down the screen is not.
-                    clip.isVideo && LocalGlassEnabled.current -> CanvasSurface(
-                        url = clip.url,
-                        // Still behind a panel. Out of focus and dimmed, the
-                        // motion is barely there, and it was the most costly
-                        // thing on the screen: every new frame of the clip had
-                        // the whole screen blurred again and every pane of
-                        // glass redrawn over it, which is what made the lyrics
-                        // stutter. A still frame is blurred once.
-                        isPlaying = state.isPlaying && !panelOpen,
-                        onFirstFrame = { if (clip.url == canvas?.url) canvasReady = true },
-                        // Only while this clip is still the one playing.
-                        //
-                        // A Crossfade keeps the outgoing content alive for the
-                        // length of the fade, and a Canvas that is leaving goes
-                        // on reading itself for those few hundred milliseconds.
-                        // Its last report landed *after* the track change had
-                        // emptied the field, so a song with no clip of its own
-                        // kept the previous one's colours — there was nothing
-                        // left to clear them again.
-                        onTone = { columns ->
-                            if (clip.url == canvas?.url) onClipColumns(columns)
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-
-                    // Nothing at all, rather than the cover: what shows through
-                    // is the app's own blurred artwork, which is the same
-                    // picture out of focus and reads as the clip softening for a
-                    // moment. Dropping a sharp cover in for the length of the
-                    // animation was worse than the black rectangle it fixed.
-                    clip.isVideo -> Unit
-
-                    // A handful of canvases are stills rather than clips.
-                    else -> com.bumptech.glide.integration.compose.GlideImage(
-                        model = clip.url,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                // Fade the new loop over artwork once it decodes. Keep only the current decoder.
+                canvas?.let { clip ->
+                    if (clip.isVideo) {
+                        if (playerSettled) {
+                            CanvasSurface(
+                                url = clip.url,
+                                isPlaying = state.isPlaying && !panelOpen,
+                                onFrameVisible = { canvasReady = it },
+                                onTone = onClipColumns,
+                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = clipAlpha },
+                            )
+                        }
+                    } else {
+                        com.bumptech.glide.integration.compose.GlideImage(
+                            model = clip.url,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
-            }
 
             // Only over a Canvas, and deliberately light. Clips are graded for
             // their own sake and some are near-white; this buys the controls

@@ -3504,6 +3504,9 @@ object SongPlayer {
         return false
     }
 
+    // Remember the confirmed local item independently of the optimistically displayed Spotify URI.
+    private var localLyricsTrack: com.music.spotui.data.local.LocalTrack? = null
+
     /** The local player's track / state, shown like any other (player, mini player, notification). */
     fun onLocalState(t: com.music.spotui.data.local.LocalTrack, isPlaying: Boolean, pos: Long, dur: Long) {
         main.post {
@@ -3535,6 +3538,13 @@ object SongPlayer {
             }
             pushNotification(song.copy(coverUri = cover), liked)
             if (songChanged) refreshCurrentLiked()
+            if (localLyricsTrack !== t
+                && app.myspoti.power.EnergySettings.state.value.policy.allowBackgroundLookups
+                && (com.music.spotui.video.MusicVideoController.inForeground || !com.music.spotui.data.DataSaver.metered)
+            ) {
+                localLyricsTrack = t
+                com.music.spotui.data.api.LyricsApi.prefetch(lyricsTrack(song))
+            }
             com.music.spotui.extensions.Extensions.mirrorTick(isPlaying, uri)
             AccountSync.onLocal(t, isPlaying, pos, dur)
             val source = if (t.uri.scheme == "file") com.music.spotui.data.local.ListenHistory.Source.DOWNLOAD

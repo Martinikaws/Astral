@@ -2,6 +2,7 @@ package com.music.spotui.data.api
 
 import android.content.Context
 import android.util.Log
+import app.myspoti.engine.BuildConfig
 import com.music.spotui.data.DataSaver
 import com.music.spotui.data.entity.LyricLine
 import com.music.spotui.data.entity.LyricWord
@@ -25,13 +26,21 @@ object SpicyLyricsProvider {
     private const val ENDPOINT = "https://api.spicylyrics.org/v1/lyrics/"
     private const val PREF_KEY = "spicy_lyrics_api_key"
     private const val TIMEOUT_MS = 5_000
-    private const val UA = "Astral (https://github.com/)"
+    private const val UA = "Astral (https://github.com/Martinikaws/Astral)"
+    private val clientKeyPattern = Regex("sl_pk_[A-Za-z0-9_-]+")
+    private val trackIdPattern = Regex("[A-Za-z0-9]{22}")
+
+    fun isConfigured(context: Context): Boolean = readApiKey(context) != null
+
+    internal fun publishableKey(value: String?): String? =
+        value?.trim()?.takeIf(clientKeyPattern::matches)
 
     /** Fetches lyrics for [trackId] from Spicy Lyrics, or returns null on miss/auth/network failure. */
     fun fetch(context: Context?, trackId: String, durationMs: Long = 0L): Lyrics? {
         if (context == null) return null
         val id = trackId.trim().substringAfterLast(':')
-        if (id.isBlank()) return null
+        if (!id.matches(trackIdPattern)) return null
+        val key = readApiKey(context) ?: return null
         if (!runCatching { OfflineStore.isOnline(context) }.getOrDefault(true)) return null
 
         return runCatching {
@@ -44,9 +53,8 @@ object SpicyLyricsProvider {
                 readTimeout = TIMEOUT_MS
                 setRequestProperty("User-Agent", UA)
                 setRequestProperty("Accept", "application/json")
-                readApiKey(context)?.let { key ->
-                    setRequestProperty("Authorization", "Bearer $key")
-                }
+                instanceFollowRedirects = false
+                setRequestProperty("Authorization", "Bearer $key")
             }
             try {
                 val code = conn.responseCode
@@ -76,10 +84,10 @@ object SpicyLyricsProvider {
         for (name in prefNames) {
             val key = runCatching {
                 context.getSharedPreferences(name, Context.MODE_PRIVATE).getString(PREF_KEY, null)
-            }.getOrNull()?.trim()
-            if (!key.isNullOrEmpty()) return key
+            }.getOrNull()
+            publishableKey(key)?.let { return it }
         }
-        return null
+        return publishableKey(BuildConfig.SPICY_LYRICS_CLIENT_KEY)
     }
 
     /** Parses a Spicy Lyrics v1 JSON payload into [Lyrics], or null if empty/invalid. */

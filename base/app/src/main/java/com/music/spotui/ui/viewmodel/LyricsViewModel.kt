@@ -140,9 +140,15 @@ class LyricsViewModel constructor() : ViewModel() {
         }
     }
 
-    fun load(track: LyricsApi.Track, force: Boolean = false, localChanged: Boolean = false) {
+    fun load(
+        track: LyricsApi.Track,
+        force: Boolean = false,
+        localChanged: Boolean = false,
+        sourcesChanged: Boolean = false,
+    ) {
         val key = track.key
-        if (!force && !localChanged && loadedKey == key && _state.value !is State.NotFound) return
+        val sameTrack = loadedKey == key
+        if (!force && !localChanged && !sourcesChanged && sameTrack && _state.value !is State.NotFound) return
         pendingLoad?.cancel()
         earlyLoad?.cancel()
         loadedKey = key
@@ -159,7 +165,7 @@ class LyricsViewModel constructor() : ViewModel() {
                 LyricsApi.romanizeLater(track, cached)
                 return
             }
-        } else if (!(force && _state.value is State.Loaded)) {
+        } else if (!(sameTrack && (force || sourcesChanged) && _state.value is State.Loaded)) {
             // Read again (the setting changed): the lyrics shown stay until the new ones replace them.
             _state.value = State.Loading
         }

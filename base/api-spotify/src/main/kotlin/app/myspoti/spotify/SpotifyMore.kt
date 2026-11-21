@@ -425,9 +425,22 @@ class SpotifyUsers(private val gql: Gql, private val bridge: Bridge, private val
     }
 }
 
+/** Distinguish an explicit missing clip from an incomplete or failed GraphQL response. */
+internal fun parseCanvasResponse(response: kotlinx.serialization.json.JsonElement): Canvas? {
+    if (response.list("errors").isNotEmpty()) throw GqlException("canvas", "server returned errors")
+    val data = response.obj("data") ?: throw GqlException("canvas", "missing data")
+    val track = data["trackUnion"] ?: throw GqlException("canvas", "missing track")
+    if (track == kotlinx.serialization.json.JsonNull) return null
+    val payload = (track as? kotlinx.serialization.json.JsonObject)?.get("canvas")
+        ?: throw GqlException("canvas", "missing Canvas field")
+    if (payload == kotlinx.serialization.json.JsonNull) return null
+    val url = payload.str("url")?.takeIf(String::isNotBlank) ?: throw GqlException("canvas", "missing video URL")
+    return Canvas(payload.str("uri") ?: "", url, payload.str("type") ?: "")
+}
+
 class SpotifyTrackExtras(private val gql: Gql, private val bridge: Bridge, private val http: SpotifyHttp) : TrackExtras {
     override suspend fun lyrics(trackUri: Uri): Lyrics? {
-        val r = http.getJson("https://spclient.wg.spotify.com/color-lyrics/v2/track/${idOf(trackUri)}?format=json&vocalRemoval=false&market=from_token")
+        val r = http.getColorLyricsJson(idOf(trackUri))
             ?: return null
         val l = r.obj("lyrics") ?: return null
         val synced = l.str("syncType") != "UNSYNCED"
@@ -445,9 +458,7 @@ class SpotifyTrackExtras(private val gql: Gql, private val bridge: Bridge, priva
     }
 
     override suspend fun canvas(trackUri: Uri): Canvas? {
-        val c = gql.query("canvas", vars("trackUri" to trackUri)).obj("data.trackUnion.canvas") ?: return null
-        val url = c.str("url") ?: return null
-        return Canvas(c.str("uri") ?: "", url, c.str("type") ?: "")
+        return parseCanvasResponse(gql.query("canvas", vars("trackUri" to trackUri)))
     }
 
     override suspend fun credits(trackUri: Uri): Credits {

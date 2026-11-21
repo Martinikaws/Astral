@@ -1,6 +1,8 @@
 package com.music.spotui.data.api
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import android.util.Log
@@ -1153,11 +1155,14 @@ class Api constructor(
     suspend fun getCanvasUrl(trackId: String): String? {
         if (trackId.isBlank()) return null
         CanvasCache.map[trackId]?.let { return it.value }
-        if (!ready()) return null
-        // Only cache a completed response. Cancellation or a service failure can be retried.
-        val url = api.extras.canvas("spotify:track:$trackId")?.videoUrl
-        CanvasCache.map[trackId] = CanvasCache.Entry(url)
-        return url
+        // The wrapper distinguishes a genuine no-Canvas response from a timed-out request.
+        val entry = withTimeoutOrNull(8_000L) {
+            if (!readyToRead()) throw java.io.IOException("Spotify is not ready for a Canvas lookup")
+            CanvasCache.Entry(api.extras.canvas("spotify:track:$trackId")?.videoUrl)
+        } ?: throw java.io.IOException("Canvas lookup timed out")
+        currentCoroutineContext().ensureActive()
+        CanvasCache.map[trackId] = entry
+        return entry.value
     }
 
     /** The Canvas already looked up for [trackId]: null when never asked, else its url (or none). */

@@ -21,7 +21,6 @@
  */
 package com.music.spotui.ui.immersive.squared
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
@@ -51,12 +50,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -111,7 +110,6 @@ import com.music.spotui.ui.immersive.squared.glass.liquidGlass
 import com.music.spotui.ui.immersive.squared.player.FloatingMiniPlayer
 import com.music.spotui.ui.immersive.squared.player.GlassFilm
 import com.music.spotui.ui.immersive.squared.settings.SquaredGlassStore
-import com.music.spotui.ui.immersive.squared.player.LocalGlassEnabled
 import com.music.spotui.ui.immersive.squared.player.LocalPlayerFilm
 import com.music.spotui.ui.immersive.squared.player.MiniPlayerHeight
 import com.music.spotui.ui.immersive.squared.player.NowPlayingSheet
@@ -124,6 +122,12 @@ import kotlinx.coroutines.launch
 
 /** How the player settles when it is not being dragged. */
 private val ExpandSpec = spring<Float>(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+
+internal fun squaredDragOpens(progress: Float, velocity: Float): Boolean = when {
+    velocity < -800f -> true
+    velocity > 800f -> false
+    else -> progress > 0.4f
+}
 
 private val BarHeight = 61.dp
 private val TabIcon = 26.dp
@@ -164,14 +168,16 @@ fun SquaredShell(
     // drag crosses halfway would restart the effect below and animate under the finger. It is
     // written once, when the sheet is let go.
     var dragging by remember { mutableStateOf(false) }
-    LaunchedEffect(sheetOpen) { if (!dragging) expand.animateTo(if (sheetOpen) 1f else 0f, ExpandSpec) }
-    LaunchedEffect(Unit) {
-        snapshotFlow { (expand.targetValue > 0.5f) to dragging }.collect { (open, held) ->
-            if (!held && PlayerSheet.open.value != open) PlayerSheet.open.value = open
-        }
+    var dragPosition by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(sheetOpen, dragging, dragPosition) {
+        if (dragging) expand.snapTo(dragPosition)
+        else expand.animateTo(if (sheetOpen) 1f else 0f, ExpandSpec)
     }
     LaunchedEffect(navController) {
-        navController.currentBackStackEntryFlow.drop(1).collect { expand.animateTo(0f, ExpandSpec) }
+        navController.currentBackStackEntryFlow.drop(1).collect {
+            PlayerSheet.open.value = false
+            dragging = false
+        }
     }
 
     // The bar folds with the chrome state the pages already scroll.
@@ -265,29 +271,25 @@ fun SquaredShell(
                                             .then(miniGlass)
                                             .draggable(
                                                 state = rememberDraggableState { delta ->
-                                                    scope.launch {
-                                                        if (playerTravelPx > 0f) {
-                                                            expand.snapTo((expand.value - delta / playerTravelPx).coerceIn(0f, 1f))
-                                                        }
+                                                    if (dragging && playerTravelPx > 0f) {
+                                                        dragPosition = (dragPosition - delta / playerTravelPx).coerceIn(0f, 1f)
                                                     }
                                                 },
                                                 orientation = Orientation.Vertical,
-                                                onDragStarted = { dragging = true },
+                                                onDragStarted = {
+                                                    dragPosition = expand.value.coerceIn(0f, 1f)
+                                                    dragging = true
+                                                },
                                                 onDragStopped = { velocity ->
-                                                    val target = when {
-                                                        velocity < -800f -> 1f
-                                                        velocity > 800f -> 0f
-                                                        expand.value > 0.4f -> 1f
-                                                        else -> 0f
+                                                    if (dragging) {
+                                                        PlayerSheet.open.value = squaredDragOpens(dragPosition, velocity)
+                                                        dragging = false
                                                     }
-                                                    PlayerSheet.open.value = target == 1f
-                                                    dragging = false
-                                                    scope.launch { expand.animateTo(target, ExpandSpec) }
                                                 },
                                             ),
                                         inline = LocalFloatingTabBarInline.current,
                                         collapseProgress = LocalFloatingTabBarCollapseProgress.current?.invoke(),
-                                        onClick = { scope.launch { expand.animateTo(1f, ExpandSpec) } },
+                                        onClick = { PlayerSheet.open.value = true },
                                         onTogglePlay = model.actions.playPause,
                                         onNext = model.actions.next,
                                         onPrevious = model.actions.previous,
@@ -395,6 +397,7 @@ fun SquaredShell(
                 if (playback.hasItem) {
                     NowPlayingSheet(
                         progress = expand,
+                        onCollapse = { PlayerSheet.open.value = false },
                         background = {
                             Box(Modifier.fillMaxSize().layerBackdrop(playerBackdrop)) {
                                 AmbientArtworkBackground(
@@ -410,7 +413,6 @@ fun SquaredShell(
                         },
                         expandedContent = {
                             CompositionLocalProvider(
-                                LocalGlassEnabled provides true,
                                 LocalInkOverride provides PlayerInk,
                                 LocalContentColor provides PlayerInk,
                                 LocalPlayerFilm provides playerFilm.copy(alpha = 0.5f),
@@ -419,7 +421,7 @@ fun SquaredShell(
                                 PlayerScreen(
                                     state = playback,
                                     positionMs = model.positionMs,
-                                    onCollapse = { scope.launch { expand.animateTo(0f, ExpandSpec) } },
+                                    onCollapse = { PlayerSheet.open.value = false },
                                     onTogglePlay = model.actions.playPause,
                                     onNext = model.actions.next,
                                     onPrevious = model.actions.previous,

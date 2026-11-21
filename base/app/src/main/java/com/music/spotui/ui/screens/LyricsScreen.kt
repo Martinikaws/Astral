@@ -295,21 +295,22 @@ internal fun rememberLyricsState(vm: LyricsViewModel, title: String, artist: Str
     val playingUri = SongPlayer.nowPlaying.value.uri
     // The lyrics extensions changed (one installed, removed…): the song is read again from the new set.
     val sources by com.music.spotui.data.api.LyricsApi.sourcesTick.collectAsState()
-    var seen by remember { mutableStateOf(sources) }
+    var seen by remember(vm) { mutableStateOf(sources) }
     val folderState by com.music.spotui.lyrics.local.LocalLyricsFolder.changes.collectAsState()
     var folderSeen by remember { mutableStateOf(folderState) }
     var timingKey by remember(vm) { mutableStateOf("") }
     val offsets by com.music.spotui.data.preferences.LyricsTimingPref.state.collectAsState()
     LaunchedEffect(title, artist, playingUri, SongPlayer.currentTrackId, sources, hold, folderState) {
-        // The first half of a mix: the words of the song going out stay, the new song's load after it.
+        // Loading is held through the first half of a mix and while the sheet is closed.
+        // A source revision asks the ViewModel to reconsider the track without deleting its lyrics.
         if (hold) return@LaunchedEffect
-        val again = seen != sources
-        seen = sources
-        val folderChanged = folderSeen != folderState
-        folderSeen = folderState
         SongPlayer.currentLyricsTrack()?.let {
+            val sourcesChanged = seen != sources
+            val folderChanged = folderSeen != folderState
+            seen = sources
+            folderSeen = folderState
             timingKey = it.key
-            vm.load(it, force = again, localChanged = folderChanged)
+            vm.load(it, sourcesChanged = sourcesChanged, localChanged = folderChanged)
         }
     }
     val state = vm.state.collectAsState().value

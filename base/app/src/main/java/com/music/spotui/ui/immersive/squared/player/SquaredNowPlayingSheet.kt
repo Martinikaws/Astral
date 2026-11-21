@@ -17,8 +17,6 @@ package com.music.spotui.ui.immersive.squared.player
 import com.music.spotui.ui.immersive.squared.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,13 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 
 /**
  * The now-playing bar and the player, as one surface.
@@ -75,6 +71,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NowPlayingSheet(
     progress: Animatable<Float, *>,
+    onCollapse: () -> Unit,
     /**
      * Drawn under the player, fading in with it.
      *
@@ -86,7 +83,6 @@ fun NowPlayingSheet(
     background: @Composable () -> Unit,
     expandedContent: @Composable () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
 
     // Nothing here reads `progress.value` during composition, and that is the
     // whole performance story of this file.
@@ -101,28 +97,13 @@ fun NowPlayingSheet(
     // happens when the answer *changes*, not when the number does.
     val expandedVisible by remember { derivedStateOf { progress.value > 0.001f } }
 
-    // True only at the two ends of the travel; see LocalGlassEnabled.
+    // Live video and glass return once the expanded sheet stops moving.
     val settled by remember {
-        derivedStateOf { progress.value <= 0.001f || progress.value >= 0.999f }
+        derivedStateOf { progress.value >= 0.999f && !progress.isRunning }
     }
 
     Box(Modifier.fillMaxSize()) {
-        // One spec for both directions, and the same one the tap uses: closing
-        // is meant to be the opening played backwards, so nothing about the
-        // motion may depend on which way it is going.
-        fun settle(target: Float) {
-            scope.launch {
-                progress.animateTo(
-                    target,
-                    // Slightly under-damped: it arrives with the smallest
-                    // settle rather than stopping dead, which is what makes a
-                    // panel this size feel like it has weight.
-                    spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
-                )
-            }
-        }
-
-        BackHandler(enabled = expandedVisible) { settle(0f) }
+        BackHandler(enabled = expandedVisible, onBack = onCollapse)
 
         // The player, full size from the first frame to the last. Nothing about
         // the travel touches measure or layout any more: the growing container

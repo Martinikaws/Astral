@@ -20,4 +20,5 @@
     <string name="spicy_lookup_failed">Lookup failed</string>
     <string name="spicy_lookup_unknown">Source unreported</string>
     <string name="spicy_renderer_backgrounds">Spicy Lyrics backgrounds</string>
+    <string name="spicy_provider_key_missing">Spicy Lyrics requires a publishable client key in this build.</string>
 </resources>

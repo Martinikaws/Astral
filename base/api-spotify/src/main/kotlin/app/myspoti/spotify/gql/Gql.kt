@@ -22,7 +22,10 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
+
 import okhttp3.OkHttpClient
+import kotlinx.coroutines.withTimeoutOrNull
+import java.net.Inet4Address
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -103,6 +106,13 @@ class SpotifyHttp(
     private data class WebToken(val access: String, val expiresAtMs: Long, val clientId: String, val appVersion: String, val anonymous: Boolean,
                                 val fetchedAtMs: Long = System.currentTimeMillis())
     private data class ClientToken(val value: String, val expiresAtMs: Long, val clientId: String = "")
+
+    private val ipv4LyricsHttp by lazy {
+        http.newBuilder().dns { host ->
+            val addresses = http.dns.lookup(host)
+            addresses.filterIsInstance<Inet4Address>().ifEmpty { addresses }
+        }.build()
+    }
 
     private val lock = Mutex()
     private var web: WebToken? = null
@@ -208,7 +218,21 @@ class SpotifyHttp(
     }
 
     /** Sends a request with browser headers. Returns the status and body text. */
-    suspend fun send(method: String, url: String, body: String? = null, contentType: String = JSON_TYPE, accept: String = "application/json"): Pair<Int, String> {
+    suspend fun send(method: String, url: String, body: String? = null, contentType: String = JSON_TYPE, accept: String = "application/json"): Pair<Int, String> =
+        sendWith(http, method, url, body, contentType, accept, cancellable = method == "GET")
+
+    internal suspend fun sendReadQuery(url: String, body: String): Pair<Int, String> =
+        sendWith(http, "POST", url, body, JSON_TYPE, "application/json", cancellable = true)
+
+    private suspend fun sendWith(
+        client: OkHttpClient,
+        method: String,
+        url: String,
+        body: String?,
+        contentType: String,
+        accept: String,
+        cancellable: Boolean,
+    ): Pair<Int, String> {
         // The account's token only ever goes to Spotify itself.
         val host = url.toHttpUrl().host
         require(host == "spotify.com" || host.endsWith(".spotify.com")) { "not a Spotify host: $host" }
@@ -226,12 +250,12 @@ class SpotifyHttp(
         // Bytes keep the content type exactly as given (OkHttp appends a charset to String bodies,
         // which some Spotify endpoints reject with 400).
         builder.method(method, body?.toByteArray()?.toRequestBody(contentType.toMediaType()) ?: if (method == "GET" || method == "DELETE") null else ByteArray(0).toRequestBody(null))
-        val call = http.newCall(builder.build())
+        val call = client.newCall(builder.build())
         // A read is given up with its caller (a timeout, a song skipped): a blocking execute ignores
         // the coroutine's cancellation, and a caller's 3 s timeout then lasted the client's 10 s
         // (log seen: an extension asked for a skipped-to song 10 s late, behind its ISRC lookup).
         // Writes still run to their end: a caller gone must not leave one half sent.
-        val result = if (method == "GET") call.executeCancellable() else withContext(Dispatchers.IO) { call.execute().use { it.code to it.body.string() } }
+        val result = if (cancellable) call.executeCancellable() else withContext(Dispatchers.IO) { call.execute().use { it.code to it.body.string() } }
         if (result.first == 401) lock.withLock { web = null; runCatching { tokenStore?.save(storedKey(), "") } }
         return result
     }
@@ -317,7 +341,23 @@ class SpotifyHttp(
     }
 
     suspend fun getJson(url: String): JsonElement? {
-        val (code, text) = send("GET", url)
+        return jsonResponse(send("GET", url))
+    }
+
+    /** Give a stalled IPv6 route a bounded IPv4 retry for color lyrics only. */
+    suspend fun getColorLyricsJson(trackId: String): JsonElement? {
+        val url = "https://spclient.wg.spotify.com/color-lyrics/v2/track/$trackId?format=json&vocalRemoval=false&market=from_token"
+        val first = try {
+            withTimeoutOrNull(1_500L) { send("GET", url) }
+        } catch (_: java.io.IOException) {
+            null
+        }
+        val response = first ?: sendWith(ipv4LyricsHttp, "GET", url, null, JSON_TYPE, "application/json", cancellable = true)
+        return jsonResponse(response)
+    }
+
+    private fun jsonResponse(response: Pair<Int, String>): JsonElement? {
+        val (code, text) = response
         return when (code) {
             200 -> Bridge.json.parseToJsonElement(text)
             204, 404 -> null
@@ -449,7 +489,9 @@ class HttpGql(private val http: SpotifyHttp, private val source: OpsSource, priv
         }
         val mutation = isMutation(name)
         val (code, text) = try {
-            http.send("POST", "https://api-partner.spotify.com/pathfinder/v2/query", body.toString())
+            val endpoint = "https://api-partner.spotify.com/pathfinder/v2/query"
+            if (mutation) http.send("POST", endpoint, body.toString())
+            else http.sendReadQuery(endpoint, body.toString())
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.io.IOException) {

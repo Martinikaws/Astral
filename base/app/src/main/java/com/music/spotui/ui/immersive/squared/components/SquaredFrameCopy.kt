@@ -50,6 +50,7 @@ internal suspend fun TextureView.copyFrame(width: Int, height: Int): Bitmap? {
         // 14 the request itself waits for the render thread to make the copy,
         // and made from the main thread that wait was the main thread's again.
         copies.post {
+            if (!done.isActive) return@post
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             // A second handle on the same queue, not a second queue: it is only
             // read from, and releasing it leaves the video's own connection
@@ -64,7 +65,7 @@ internal suspend fun TextureView.copyFrame(width: Int, height: Int): Bitmap? {
                 PixelCopy.request(surface, bitmap, { result ->
                     surface.release()
                     if (result == PixelCopy.SUCCESS) {
-                        done.resume(bitmap)
+                        done.resume(bitmap) { _, unused, _ -> unused?.recycle() }
                     } else {
                         bitmap.recycle()
                         done.resume(null)
