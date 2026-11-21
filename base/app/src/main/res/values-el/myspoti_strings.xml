@@ -100,7 +100,6 @@
     <string name="support_scan">Σάρωσε με το κινητό σου</string>
     <string name="support_action">Στήριξε στο Ko-fi</string>
     <string name="support_decline">Όχι, ευχαριστώ</string>
-    <string name="support_row_detail">Μια μικρή δωρεά στο Ko-fi ή στο GitHub Sponsors βοηθά την εφαρμογή να συνεχίσει</string>
     <string name="supporter_perks_title">Ανταμοιβές υποστηρικτή</string>
     <string name="supporter_perks_detail">Χρώμα τόνου, εικονίδιο εφαρμογής και σήμα, ως ευχαριστία</string>
     <string name="supporter_perks_locked">Ξεκλειδώνεται με τη στήριξη του Astral. Βασίζεται στον λόγο σου: δεν ελέγχεται τίποτα.</string>
@@ -276,6 +275,8 @@
     <string name="quality_streaming_cell_title">Ροή με δεδομένα κινητής</string>
     <string name="canvas_wifi_only">Canvas μόνο σε Wi-Fi</string>
     <string name="canvas_wifi_only_detail">Τα βίντεο σε επανάληψη παίζουν μόνο σε Wi-Fi, ποτέ με δεδομένα κινητής</string>
+    <string name="canvas_behind_lyrics">Canvas πίσω από τους στίχους</string>
+    <string name="canvas_behind_lyrics_detail">Το βίντεο Canvas γεμίζει την οθόνη πίσω από τους στίχους, με το mesh ως εναλλακτική</string>
     <string name="playlist_delete_confirm">Να διαγραφεί η «%1$s»; Μπορεί να επαναφερθεί από τον λογαριασμό σου στο Spotify για 90 ημέρες.</string>
     <string name="playlist_saved">Η playlist ενημερώθηκε</string>
     <string name="go_to_profile">Μετάβαση στο προφίλ</string>

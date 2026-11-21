@@ -106,31 +106,6 @@ fun GitHubSponsorButton(modifier: Modifier = Modifier, onClick: (() -> Unit)? = 
     ) { Text(stringResource(R.string.support_github_action), color = AppText, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
 }
 
-/** "Support Myspoti" from the profile menu: Ko-fi or GitHub Sponsors, the user picks. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SupportSheet(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    com.music.spotui.extensions.ProtectedSurfaceEffect(app.myspoti.extensions.ProtectedSurface.SUPPORT)
-    LookSheet(
-        onDismissRequest = onDismiss,
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = tone(0xFF282828),
-    ) {
-        androidx.compose.foundation.layout.Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
-            Text(stringResource(R.string.support_title), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.support_body), color = AppMuted, fontSize = 14.sp,
-                modifier = Modifier.padding(top = 10.dp, bottom = 18.dp))
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(50))
-                    .background(AppAccent).pressable(0.96f) { onDismiss(); SupportReminder.open(context) },
-            ) { Text(stringResource(R.string.support_action), color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-            GitHubSponsorButton(Modifier.padding(top = 10.dp)) { onDismiss(); SupportReminder.openSponsors(context) }
-        }
-    }
-}
-
 @Composable
 private fun AboutRow(title: String, detail: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp)) {

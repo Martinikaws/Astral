@@ -110,7 +110,6 @@
     <string name="support_scan">Отсканируйте телефоном</string>
     <string name="support_action">Поддержать на Ko-fi</string>
     <string name="support_decline">Нет, спасибо</string>
-    <string name="support_row_detail">Небольшое пожертвование на Ko-fi или GitHub Sponsors помогает развивать приложение</string>
     <string name="supporter_perks_title">Бонусы для поддержавших</string>
     <string name="supporter_perks_detail">Цвет акцента, значок приложения и бейдж в знак благодарности</string>
     <string name="supporter_perks_locked">Открывается, если вы поддержали Astral. На честное слово: ничего не проверяется.</string>
@@ -321,6 +320,8 @@
     <string name="quality_streaming_cell_title">Стриминг по мобильной сети</string>
     <string name="canvas_wifi_only">Canvas только по Wi-Fi</string>
     <string name="canvas_wifi_only_detail">Зацикленные видео воспроизводятся по Wi-Fi, но не в мобильной сети</string>
+    <string name="canvas_behind_lyrics">Canvas за текстом песни</string>
+    <string name="canvas_behind_lyrics_detail">Видео Canvas заполняет экран за текстом, а градиентная сетка служит запасным вариантом</string>
     <string name="playlist_delete_confirm">Удалить «%1$s»? Его можно восстановить в аккаунте Spotify в течение 90 дней.</string>
     <string name="playlist_saved">Плейлист обновлён</string>
     <string name="go_to_profile">Перейти в профиль</string>

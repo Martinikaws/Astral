@@ -963,6 +963,31 @@ private fun SpicyLyricsBackdrop(
     }
 }
 
+/**
+ * The Canvas of the song for the lyrics background ("Canvas behind lyrics"): null when the setting is
+ * off, the song has none, or the usual allowances (Canvases and energy saving, data saver, Wi-Fi only,
+ * no ad) say no. Looked up through the same cache as the players.
+ */
+@Composable
+private fun rememberLyricsCanvas(trackId: String): String? {
+    val context = LocalContext.current
+    val energy by EnergySettings.state.collectAsState()
+    val allowed = com.music.spotui.data.preferences.CanvasPref.behindLyrics && trackId.isNotBlank() &&
+        energy.policy.allowCanvas && !com.music.spotui.data.DataSaver.active &&
+        !(com.music.spotui.data.DataSaver.metered && com.music.spotui.data.preferences.isCanvasWifiOnly(context)) &&
+        !SongPlayer.adPlaying
+    val known = remember(trackId, allowed) {
+        if (allowed) com.music.spotui.di.Graph.api.knownCanvas(trackId)?.getOrNull() else null
+    }
+    val fetched by androidx.compose.runtime.produceState<String?>(known, trackId, allowed) {
+        value = known
+        if (allowed && known == null) {
+            value = runCatching { com.music.spotui.di.Graph.api.getCanvasUrl(trackId) }.getOrNull()
+        }
+    }
+    return (fetched ?: known).takeIf { allowed && !it.isNullOrBlank() }
+}
+
 /** Full-screen lyrics (Spotify's "Lyrics" view). [reveal] drives the staggered entrance, null = all shown. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -1091,6 +1116,31 @@ fun LyricsScreen(
             reduceMotion = reduceMotion,
             reveal = reveal,
         )
+        // "Canvas behind lyrics": the song's Canvas, cropped to fill, fades in over the Spicy background
+        // above (which stays as the fallback when there is none) under the same scrim as the Immersive player.
+        val canvasUrl = rememberLyricsCanvas(trackId)
+        if (canvasUrl != null) {
+            var canvasShown by remember(canvasUrl) {
+                mutableStateOf(com.music.spotui.ui.components.CanvasPlayer.isReady(canvasUrl))
+            }
+            val canvasAlpha = animateFloatAsState(if (canvasShown) 1f else 0f, tween(300), label = "lyricsCanvas")
+            com.music.spotui.ui.immersive.player.CanvasBackgroundVideo(
+                url = canvasUrl,
+                onFirstFrame = { canvasShown = true },
+                playing = playing,
+                blurPercent = com.music.spotui.data.preferences.CanvasPref.blur,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = canvasAlpha.value },
+            )
+            Box(
+                Modifier.fillMaxSize().graphicsLayer { alpha = canvasAlpha.value }
+                    .background(com.music.spotui.ui.immersive.player.CanvasScrimBrush),
+            )
+            Box(
+                Modifier.fillMaxSize()
+                    .graphicsLayer { alpha = canvasAlpha.value * com.music.spotui.ui.immersive.player.CANVAS_PANEL_DIM }
+                    .background(Color.Black),
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

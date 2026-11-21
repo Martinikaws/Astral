@@ -107,7 +107,6 @@
     <string name="support_scan">用手机扫描</string>
     <string name="support_action">在 Ko-fi 上支持</string>
     <string name="support_decline">不用了</string>
-    <string name="support_row_detail">在 Ko-fi 或 GitHub Sponsors 上的小额捐助有助于应用持续更新</string>
     <string name="supporter_perks_title">支持者福利</string>
     <string name="supporter_perks_detail">强调色、应用图标和徽章，以表谢意</string>
     <string name="supporter_perks_locked">支持 Astral 后解锁。全凭自觉：不会进行任何验证。</string>
@@ -318,6 +317,8 @@
     <string name="quality_streaming_cell_title">移动数据流媒体音质</string>
     <string name="canvas_wifi_only">仅在 Wi-Fi 下使用 Canvas</string>
     <string name="canvas_wifi_only_detail">循环视频仅在 Wi-Fi 下播放，绝不使用移动数据</string>
+    <string name="canvas_behind_lyrics">歌词背后的 Canvas</string>
+    <string name="canvas_behind_lyrics_detail">Canvas 视频全屏显示在歌词后方，没有时回退为渐变网格</string>
     <string name="playlist_delete_confirm">删除“%1$s”？90 天内可从你的 Spotify 账号恢复。</string>
     <string name="playlist_saved">播放列表已更新</string>
     <string name="go_to_profile">前往个人资料</string>

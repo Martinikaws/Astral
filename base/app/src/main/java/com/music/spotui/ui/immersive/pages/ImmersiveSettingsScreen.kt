@@ -1055,6 +1055,11 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     detail = stringResource(R.string.canvas_wifi_only_detail))
             }
             row {
+                ImmersiveSwitchRow(stringResource(R.string.canvas_behind_lyrics), checked = com.music.spotui.data.preferences.CanvasPref.behindLyrics,
+                    onChecked = { com.music.spotui.data.preferences.CanvasPref.setBehindLyrics(ctx, it) },
+                    detail = stringResource(R.string.canvas_behind_lyrics_detail))
+            }
+            row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_music_video_title), checked = com.music.spotui.data.preferences.MusicVideoPref.on,
                     onChecked = { com.music.spotui.data.preferences.MusicVideoPref.set(ctx, it) }, detail = stringResource(R.string.settings_music_video_detail))
             }

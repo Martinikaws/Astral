@@ -100,7 +100,6 @@
     <string name="support_scan">Scansiona con il telefono</string>
     <string name="support_action">Sostieni su Ko-fi</string>
     <string name="support_decline">No grazie</string>
-    <string name="support_row_detail">Una piccola donazione su Ko-fi o GitHub Sponsors aiuta l\'app ad andare avanti</string>
     <string name="supporter_perks_title">Vantaggi per i sostenitori</string>
     <string name="supporter_perks_detail">Colore principale, icona dell\'app e un badge, per dire grazie</string>
     <string name="supporter_perks_locked">Sbloccati sostenendo Astral. Ci fidiamo della tua parola: niente viene controllato.</string>
@@ -276,6 +275,8 @@
     <string name="quality_streaming_cell_title">Streaming con dati mobili</string>
     <string name="canvas_wifi_only">Canvas solo in Wi-Fi</string>
     <string name="canvas_wifi_only_detail">I video in loop partono in Wi-Fi, mai con i dati mobili</string>
+    <string name="canvas_behind_lyrics">Canvas dietro i testi</string>
+    <string name="canvas_behind_lyrics_detail">Il video Canvas riempie lo schermo dietro i testi, con il mesh come alternativa</string>
     <string name="playlist_delete_confirm">Eliminare «%1$s»? Si può ripristinare dal tuo account Spotify per 90 giorni.</string>
     <string name="playlist_saved">Playlist aggiornata</string>
     <string name="go_to_profile">Vai al profilo</string>
