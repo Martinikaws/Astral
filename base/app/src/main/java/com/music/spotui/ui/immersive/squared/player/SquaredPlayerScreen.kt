@@ -936,7 +936,7 @@ fun PlayerScreen(
                         // glass redrawn over it, which is what made the lyrics
                         // stutter. A still frame is blurred once.
                         isPlaying = state.isPlaying && !panelOpen,
-                        onFirstFrame = { canvasReady = true },
+                        onFirstFrame = { if (clip.url == canvas?.url) canvasReady = true },
                         // Only while this clip is still the one playing.
                         //
                         // A Crossfade keeps the outgoing content alive for the

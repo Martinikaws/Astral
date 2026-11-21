@@ -17,6 +17,7 @@
     <string name="spicy_lookup_empty">No lyrics lookup this session.</string>
     <string name="spicy_lookup_result">%1$s · %2$s · %3$d ms</string>
     <string name="spicy_lookup_no_result">No lyrics found</string>
+    <string name="spicy_lookup_failed">Lookup failed</string>
     <string name="spicy_lookup_unknown">Source unreported</string>
     <string name="spicy_renderer_backgrounds">Spicy Lyrics backgrounds</string>
 </resources>

@@ -1154,7 +1154,8 @@ class Api constructor(
         if (trackId.isBlank()) return null
         CanvasCache.map[trackId]?.let { return it.value }
         if (!ready()) return null
-        val url = runCatching { api.extras.canvas("spotify:track:$trackId")?.videoUrl }.getOrNull()
+        // Only cache a completed response. Cancellation or a service failure can be retried.
+        val url = api.extras.canvas("spotify:track:$trackId")?.videoUrl
         CanvasCache.map[trackId] = CanvasCache.Entry(url)
         return url
     }

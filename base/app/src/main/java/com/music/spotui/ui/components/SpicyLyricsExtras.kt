@@ -125,7 +125,11 @@ internal fun SpicyLyricsExtras() {
         Text(
             if (attempt == null) stringResource(R.string.spicy_lookup_empty)
             else stringResource(R.string.spicy_lookup_result, attempt.title,
-                attempt.provider ?: stringResource(if (attempt.found) R.string.spicy_lookup_unknown else R.string.spicy_lookup_no_result),
+                attempt.provider ?: stringResource(when {
+                    attempt.failed -> R.string.spicy_lookup_failed
+                    attempt.found -> R.string.spicy_lookup_unknown
+                    else -> R.string.spicy_lookup_no_result
+                }),
                 attempt.durationMs),
             color = AppMuted,
         )

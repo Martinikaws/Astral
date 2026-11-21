@@ -3,8 +3,7 @@
  * app/src/main/java/dev/lelonio/square/ui/player/CanvasSurface.kt at 139441f.
  * Modified for Astral, 2026-11.
  *
- * Changes: package renamed; the PlayerView layout is Astral's squared_canvas_surface; otherwise
- * verbatim.
+ * Changes: Astral's PlayerView layout and track-change handling.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -119,7 +118,7 @@ fun CanvasSurface(
     }
 
     // The view the picture is actually drawn into, kept so it can be read back.
-    var texture by remember(url) { mutableStateOf<android.view.TextureView?>(null) }
+    var texture by remember { mutableStateOf<android.view.TextureView?>(null) }
     val tone = rememberUpdatedState(onTone)
     LaunchedEffect(texture) {
         val view = texture ?: return@LaunchedEffect
@@ -147,15 +146,14 @@ fun CanvasSurface(
             // cropping is bars.
             val view = android.view.LayoutInflater.from(ctx)
                 .inflate(R.layout.squared_canvas_surface, null) as PlayerView
-            view.player = exoPlayer
-            // PlayerView builds the surface itself from `surface_type`, so the
-            // TextureView is found rather than made.
+            // PlayerView builds the surface itself from the XML surface type.
             texture = view.videoSurfaceView as? android.view.TextureView
             view
         },
-        // Nothing here changes with recomposition; the player is swapped by
-        // remember(url) when the track does.
-        update = {},
+        update = { view ->
+            if (view.player !== exoPlayer) view.player = exoPlayer
+        },
+        onRelease = { it.player = null },
         modifier = modifier,
     )
 }
