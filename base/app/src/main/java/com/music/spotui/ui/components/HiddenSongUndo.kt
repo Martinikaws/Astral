@@ -34,7 +34,10 @@ fun HiddenSongUndo() {
     LaunchedEffect(hidden) {
         val song = hidden ?: return@LaunchedEffect
         val chosen = host.showSnackbar(
-            message = context.getString(R.string.hidden_song_toast, song.title),
+            message = context.getString(
+                if (song.snoozedUntil > 0L) R.string.snoozed_song_toast else R.string.hidden_song_toast,
+                song.title,
+            ),
             actionLabel = context.getString(R.string.undo),
             duration = SnackbarDuration.Long,
         )

@@ -47,6 +47,21 @@ object AutoMix {
     var on by mutableStateOf(Graph.app.getSharedPreferences(PREFS, 0).getBoolean(KEY, false))
         private set
 
+    private val playlists get() = Graph.app.getSharedPreferences("playlist_automix", 0)
+    private val playlistMix = mutableStateOf(
+        playlists.all.mapNotNull { (uri, value) -> (value as? Boolean)?.let { uri to it } }.toMap(),
+    )
+
+    fun enabledFor(contextUri: String): Boolean = playlistMix.value[contextUri] ?: on
+
+    fun setPlaylistMix(uri: String, enabled: Boolean) {
+        if (!uri.startsWith("spotify:playlist:") || uri.substringAfterLast(':').isBlank()) return
+        playlistMix.value = playlistMix.value + (uri to enabled)
+        playlists.edit().putBoolean(uri, enabled).apply()
+        val player = com.music.spotui.di.LocalPlayer
+        if (player.active.value && player.contextUri == uri) player.autoMixChanged()
+    }
+
     fun set(value: Boolean) {
         on = value
         if (!value) cancelRequests()

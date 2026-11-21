@@ -145,6 +145,7 @@ import com.adamglin.phosphoricons.regular.Gauge
 import com.adamglin.phosphoricons.regular.MusicNotes
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.regular.DeviceRotate
+import com.adamglin.phosphoricons.regular.DotsThree
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.fill.TextAa
@@ -403,6 +404,7 @@ fun PlayerScreen(
     onOpenDevices: () -> Unit,
     /** Opens Astral's add-to-playlist sheet. */
     onAddToPlaylist: () -> Unit,
+    onOpenSongMenu: (() -> Unit)? = null,
     /**
      * Opens an artist, a playlist or an album by uri, with a name to show while
      * it loads. The player closes itself first; see the two callers.
@@ -1625,6 +1627,16 @@ fun PlayerScreen(
                                         )
                                     }
                                 }
+                                if (onOpenSongMenu != null) {
+                                    Spacer(Modifier.size(8.dp))
+                                    RoundGlassButton(backdrop = lowerBackdrop, size = 40.dp, onClick = onOpenSongMenu) {
+                                        Icon(
+                                            PhosphorIcons.Regular.DotsThree,
+                                            contentDescription = stringResource(R.string.squared_more),
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
                                 if (true) {
                                 Spacer(Modifier.size(8.dp))
                                 RoundGlassButton(
@@ -2436,7 +2448,7 @@ internal fun Controls(
 
             // Ringed while a playlist plays as a Spotify Mix, as the official
             // player's button is; see Mixes.playing.
-            val mixPlaying = false
+            val mixPlaying = com.music.spotui.di.LocalPlayer.mixCue.value?.mixing == true
             Box(Modifier.mixRing(mixPlaying)) {
             RoundGlassButton(backdrop = backdrop, size = 76.dp, onClick = onTogglePlay) {
                 // A ring around the icon while the track is still being fetched.

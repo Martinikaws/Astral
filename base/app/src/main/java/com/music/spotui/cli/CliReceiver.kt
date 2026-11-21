@@ -216,7 +216,7 @@ class CliReceiver : BroadcastReceiver() {
             if (c.context == null) JsonNull else buildJsonObject { put("songs", songs?.takeIf { l -> l.any { it.spotifyTrackId == id } }?.size ?: 0) }
         }
         is CliCommand.AutoMixSet -> onMain {
-            c.on?.let { com.music.spotui.automix.AutoMix.set(it); com.music.spotui.di.LocalPlayer.autoMixChanged(it) }
+            c.on?.let { com.music.spotui.automix.AutoMix.set(it); com.music.spotui.di.LocalPlayer.autoMixChanged() }
             JsonPrimitive(com.music.spotui.di.LocalPlayer.autoMixState())
         }
         is CliCommand.AutoMixSegue -> onMain {
@@ -271,7 +271,7 @@ class CliReceiver : BroadcastReceiver() {
             val a = com.music.spotui.automix.AutoMix
             when (c.name) {
                 null -> Unit
-                "enabled" -> { val on = c.value == "on"; a.set(on); com.music.spotui.di.LocalPlayer.autoMixChanged(on) }
+                "enabled" -> { val on = c.value == "on"; a.set(on); com.music.spotui.di.LocalPlayer.autoMixChanged() }
                 "segue" -> a.changeSegue(c.value == "on")
                 "orpheon" -> a.changeOrpheon(c.value == "on")
                 "ideas" -> app.myspoti.automix.segue.MixIdea.values().forEach { a.changeIdea(it, c.value == "on") }

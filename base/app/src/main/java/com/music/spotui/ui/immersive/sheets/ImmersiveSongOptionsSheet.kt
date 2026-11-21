@@ -268,6 +268,10 @@ fun ImmersiveSongOptionsSheet(
                 if (hidden) com.music.spotui.data.preferences.HiddenSongs.show(context, song.spotifyTrackId) else SongPlayer.hideSong(song)
                 onDismiss()
             }
+            if (!hidden) ImmersiveSheetRow(Icons.Rounded.ThumbDownOffAlt, stringResource(R.string.snooze_song)) {
+                SongPlayer.hideSong(song, snooze = true)
+                onDismiss()
+            }
         }
 
         val trackUri = "spotify:track:${song.spotifyTrackId}"

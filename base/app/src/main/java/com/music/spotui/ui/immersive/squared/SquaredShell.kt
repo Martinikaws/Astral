@@ -75,6 +75,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import app.myspoti.engine.R
 import com.adamglin.PhosphorIcons
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Share
+import com.music.spotui.ui.immersive.sheets.ImmersiveSheetRow
+import com.music.spotui.ui.immersive.sheets.ImmersiveSongOptionsSheet
+import com.music.spotui.ui.components.shareLyricLines
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.fill.House
 import com.adamglin.phosphoricons.fill.MagnifyingGlass
@@ -182,6 +187,7 @@ fun SquaredShell(
     var showDevices by remember { mutableStateOf(false) }
     var showPlaylists by remember { mutableStateOf(false) }
     var showLyricSources by remember { mutableStateOf(false) }
+    var showSongMenu by remember(playback.mediaId, sheetOpen) { mutableStateOf(false) }
 
     // Colours: the playing record's own, from the extra catalogue when it answered.
     val art = model.art
@@ -440,6 +446,7 @@ fun SquaredShell(
                                     coverPending = model.artPending,
                                     onOpenDevices = { showDevices = true },
                                     onAddToPlaylist = { if (model.song != null) showPlaylists = true },
+                                    onOpenSongMenu = if (model.song != null) ({ showSongMenu = true }) else null,
                                     onOpenAlbum = if (playback.album.isNotBlank()) model.actions.openAlbum else null,
                                     alreadySaved = model.liked,
                                     inLikedSongs = model.liked,
@@ -458,6 +465,30 @@ fun SquaredShell(
         val song = model.song
         if (showPlaylists && song != null) AddToPlaylistSheet(song, context, onDismiss = { showPlaylists = false })
         if (showLyricSources) LyricsSourceSheet(onDismiss = { showLyricSources = false })
+        if (showSongMenu && song != null) {
+            ImmersiveSongOptionsSheet(
+                song = song,
+                navController = navController,
+                context = context,
+                nowPlaying = true,
+                onDismiss = { showSongMenu = false },
+                extraRows = {
+                    val lyrics = model.shareableLyrics
+                    if (lyrics != null) {
+                        val indices = lyrics.lines.indices.filter { index ->
+                            lyrics.lines[index].text.trim().let { it.isNotEmpty() && it != "♪" }
+                        }
+                        if (indices.isNotEmpty()) ImmersiveSheetRow(Icons.Rounded.Share, stringResource(R.string.lyrics_share)) {
+                            val index = if (lyrics.synced) {
+                                indices.lastOrNull { lyrics.lines[it].timeMs <= model.positionMs.value } ?: indices.first()
+                            } else indices.first()
+                            showSongMenu = false
+                            shareLyricLines(context, lyrics, index..index, song.title, song.singer)
+                        }
+                    }
+                },
+            )
+        }
     }
 }
 
