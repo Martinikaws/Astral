@@ -77,13 +77,16 @@ fun MyNavHost(
         popExitTransition = { if (immersiveState.value) IPages.popExit(reduceState.value)(this) else if (reduceState.value) ExitTransition.None else navPopExit(initialState, targetState) },
     ){
         page(Routes.Home.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveHomeScreen(navHostController) else HomeScreen(navHostController)
+            if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredHomeHost(navHostController)
+            else if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveHomeScreen(navHostController) else HomeScreen(navHostController)
         }
         page(Routes.Search.route){
-            if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveSearchScreen(navHostController) else SearchScreen(navHostController)
+            if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredSearchHost(navHostController)
+            else if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveSearchScreen(navHostController) else SearchScreen(navHostController)
         }
         page(Routes.Library.route) {
-            if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(navHostController) else LibraryScreen(navHostController)
+            if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredLibraryHost(navHostController)
+            else if (isImmersive()) com.music.spotui.ui.immersive.screens.ImmersiveLibraryScreen(navHostController) else LibraryScreen(navHostController)
         }
         page(Routes.Modules.route) {
             ModulesScreen(navHostController)
@@ -157,6 +160,7 @@ fun MyNavHost(
         }
 
         page(Routes.Liked.route){
+            if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredCollectionHost(navHostController, type = "liked", id = "") else
             PageStyleContent(
                 basic = { ContextScreen(navHostController, type = "liked", id = "") },
                 glass = { com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "liked", id = "") },
@@ -215,6 +219,7 @@ fun MyNavHost(
             /* We check if it's not null */
             val albumId = navBackStackEntry.arguments?.getString("albumId").orEmpty()
             uId?.let { name ->
+                if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredAlbumHost(navHostController, name = name, artist = artist, id = albumId) else
                 PageStyleContent(
                     basic = { AlbumByIdScreen(navHostController, name = name, artist = artist, id = albumId) },
                     glass = { com.music.spotui.ui.immersive.screens.ImmersiveAlbumByIdScreen(navHostController, name = name, artist = artist, id = albumId) },
@@ -229,6 +234,7 @@ fun MyNavHost(
             val pId = navBackStackEntry.arguments?.getString("pId")
             val name = navBackStackEntry.arguments?.getString("name").orEmpty()
             pId?.let {
+                if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredCollectionHost(navHostController, type = "playlist", id = it) else
                 PageStyleContent(
                     basic = { ContextScreen(navHostController, type = "playlist", id = it) },
                     glass = { com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "playlist", id = it) },
@@ -247,6 +253,7 @@ fun MyNavHost(
 
         page("$LIKED_BY_ARTIST_ROUTE/{key}") { navBackStackEntry ->
             navBackStackEntry.arguments?.getString("key")?.let {
+                if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredCollectionHost(navHostController, type = "liked-artist", id = it) else
                 PageStyleContent(
                     basic = { ContextScreen(navHostController, type = "liked-artist", id = it) },
                     glass = { com.music.spotui.ui.immersive.screens.ImmersiveContextScreen(navHostController, type = "liked-artist", id = it) },
@@ -268,7 +275,7 @@ fun MyNavHost(
         ) { navBackStackEntry ->
             val sId = navBackStackEntry.arguments?.getString("sId")
             val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            sId?.let { if (isImmersive()) com.music.spotui.ui.immersive.podcast.ImmersiveShowScreen(navHostController, showId = it, showName = name) else ShowScreen(navHostController, showId = it, showName = name) }
+            sId?.let { if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredShowHost(navHostController, showId = it, showName = name) else if (isImmersive()) com.music.spotui.ui.immersive.podcast.ImmersiveShowScreen(navHostController, showId = it, showName = name) else ShowScreen(navHostController, showId = it, showName = name) }
         }
 
         page(
@@ -312,6 +319,7 @@ fun MyNavHost(
             val artistId = navBackStackEntry.arguments?.getString("artistId").orEmpty()
             /* We check if it's not null */
             aId?.let { aid->
+                if (isSquared()) com.music.spotui.ui.immersive.squared.screens.SquaredArtistHost(navHostController, aid, artistId) else
                 PageStyleContent(
                     basic = { ArtistScreen(navHostController, aid, artistId) },
                     glass = { com.music.spotui.ui.immersive.screens.ImmersiveArtistScreen(navHostController, aid, artistId) },
@@ -528,6 +536,11 @@ private val FullWidthRoutes = setOf(
 val LocalPageSettled = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.State<Boolean>> {
     androidx.compose.runtime.mutableStateOf(true)
 }
+
+/** True when the Squared look (Square's own screens) is active. */
+@Composable
+internal fun isSquared(): Boolean =
+    com.music.spotui.ui.look.LocalLook.current == com.music.spotui.data.preferences.Look.SQUARED
 
 /** True when any interactive floating glass look is active ([Look.IMMERSIVE], [Look.GLASSIFY], [Look.LIQUID_MUSIC], [Look.CUPERTINO]). */
 @Composable
