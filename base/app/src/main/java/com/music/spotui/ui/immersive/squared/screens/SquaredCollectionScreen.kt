@@ -444,8 +444,9 @@ fun SquaredCollectionScreen(
     // record was opened in the light setting.
     val chromeInk = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
 
-    val pageInk = catalogueInk
-        ?: inkSource?.let { inkTintedBy(it, baseInk) }
+    val pageInk = sequenceOf(catalogueInk, inkSource?.let { inkTintedBy(it, baseInk) })
+        .filterNotNull()
+        .firstOrNull { it.alpha == 1f && com.music.spotui.ui.immersive.squared.contrastRatio(it, pageColor) >= 4.5f }
         ?: baseInk
 
     // What the glass on this screen refracts.
@@ -574,6 +575,7 @@ fun SquaredCollectionScreen(
         colorScheme = MaterialTheme.colorScheme.copy(
             onSurface = pageInk,
             onSurfaceVariant = pageInk.copy(alpha = 0.66f),
+            background = pageColor,
             onBackground = pageInk,
         ),
         typography = MaterialTheme.typography,

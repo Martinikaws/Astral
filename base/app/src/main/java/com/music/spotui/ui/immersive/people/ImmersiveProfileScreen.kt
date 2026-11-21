@@ -2,6 +2,25 @@ package com.music.spotui.ui.immersive.people
 
 import com.music.spotui.ui.immersive.sheets.ImmersiveAlertDialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
+import com.music.spotui.ui.immersive.squared.LocalInkOverride
+import com.music.spotui.ui.immersive.squared.SquaredArtwork
+import com.music.spotui.data.api.ProfileCache
+import com.music.spotui.ui.immersive.squared.components.ProfilePicture
+import com.music.spotui.ui.immersive.squared.inkOn
+import com.music.spotui.ui.immersive.squared.pageColorFor
+import com.music.spotui.ui.immersive.squared.rememberArtworkColor
+import com.music.spotui.ui.immersive.squared.screens.rememberSquaredContentPadding
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,57 +95,88 @@ private val AvatarSize = 168.dp
  * and the public playlists as rows. Same data and actions as the Classic profile page.
  */
 @Composable
-fun ImmersiveProfileScreen(navController: NavController, userId: String, userName: String = "") {
+fun ImmersiveProfileScreen(
+    navController: NavController,
+    userId: String,
+    userName: String = "",
+    squared: Boolean = false,
+) {
     val uri = "spotify:user:$userId"
     var profile by remember(userId) { mutableStateOf<UserProfile?>(null) }
     var failed by remember(userId) { mutableStateOf(false) }
     var following by remember(userId) { mutableStateOf<Boolean?>(null) }
-    val me = com.music.spotui.data.api.ProfileCache.id == userId
+    var accountId by remember(userId) { mutableStateOf(ProfileCache.id) }
+    val me = accountId == userId
     // Blocking, as on the Classic profile: null until the server has said.
     var blocked by remember(userId) { mutableStateOf<Boolean?>(null) }
     var blockAsk by remember(userId) { mutableStateOf(false) }
-    var barMenu by remember { mutableStateOf(false) }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    var barMenu by remember(userId) { mutableStateOf(false) }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var attempt by remember(userId) { mutableStateOf(0) }
     LaunchedEffect(userId, attempt) {
         failed = false
         runCatching { MyspotiRuntime.api.users.profile(uri) }
             .onSuccess { profile = it }.onFailure { failed = true }
-        if (!me) following = runCatching { MyspotiRuntime.api.users.isFollowing(listOf(uri)).single() }.getOrNull()
-        if (!me) blocked = runCatching { MyspotiRuntime.api.users.isBlocked(uri) }.getOrNull()
+    }
+    LaunchedEffect(userId, attempt) { accountId = ProfileCache.awaitId(context, 5_000L) }
+    LaunchedEffect(userId, accountId, attempt) {
+        if (accountId == null || me) return@LaunchedEffect
+        coroutineScope {
+            launch { following = runCatching { MyspotiRuntime.api.users.isFollowing(listOf(uri)).singleOrNull() }.getOrNull() }
+            launch { blocked = runCatching { MyspotiRuntime.api.users.isBlocked(uri) }.getOrNull() }
+        }
     }
     val p = profile
-    val displayName = p?.name?.takeIf { it.isNotBlank() } ?: userName
+    val displayName = p?.name?.takeIf { it.isNotBlank() }
+        ?: ProfileCache.name?.takeIf { me && it.isNotBlank() }
+        ?: userName.ifBlank { userId }
     val listState = rememberLazyListState()
-    val avatarUrl = p?.images?.best(300)?.url
+    val avatarUrl = p?.images?.best(300)?.url ?: ProfileCache.imageUrl?.takeIf { me }
 
     val starryEnabled by com.music.spotui.data.preferences.StarryNightPref.enabled.collectAsState()
-    val pageBg = if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val pageBg = if (squared) {
+        val accent by rememberArtworkColor(avatarUrl)
+        pageColorFor(accent)
+    } else if (starryEnabled && Immersive.Page == Color.Transparent) Color.Transparent else Immersive.Page
+    val pageInk = if (squared) inkOn(pageBg) else Immersive.Text
+    val bottomPadding = if (squared) rememberSquaredContentPadding().calculateBottomPadding() else Immersive.BottomChrome
+    val titleThreshold = with(LocalDensity.current) { 168.dp.roundToPx() }
+    val squaredTitleVisible by remember(listState, titleThreshold) {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > titleThreshold }
+    }
 
     ImmersiveOverscrollHost {
         Box(Modifier.fillMaxSize().then(if (pageBg == Color.Transparent) Modifier else Modifier.background(pageBg))) {
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(bottom = Immersive.BottomChrome),
+                contentPadding = PaddingValues(bottom = bottomPadding),
                 modifier = Modifier.fillMaxSize().immersiveHazeSource(),
             ) {
                 item(key = "header") {
                     Box(Modifier.fillMaxWidth()) {
-                        CoverGlow(avatarUrl, height = 360.dp)
+                        if (!squared) CoverGlow(avatarUrl, height = 360.dp)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth().padding(top = immersiveTopContentPadding() + 8.dp, bottom = 12.dp),
                         ) {
-                            ImmersiveCover(
-                                url = avatarUrl,
-                                modifier = Modifier.size(AvatarSize),
-                                shape = CircleShape,
-                                placeholderIcon = Icons.Rounded.Person,
-                            )
+                            if (squared) {
+                                CompositionLocalProvider(LocalInkOverride provides pageInk) {
+                                    val size = 132.dp
+                                    ProfilePicture(avatarUrl, displayName, size, Modifier.size(size), decodeSize = size)
+                                }
+                            } else {
+                                ImmersiveCover(
+                                    url = avatarUrl,
+                                    modifier = Modifier.size(AvatarSize),
+                                    shape = CircleShape,
+                                    placeholderIcon = Icons.Rounded.Person,
+                                )
+                            }
                             Spacer(Modifier.height(18.dp))
                             Text(
                                 text = displayName,
+                                color = pageInk,
                                 style = Immersive.LargeTitle,
                                 textAlign = TextAlign.Center,
                                 maxLines = 2,
@@ -140,13 +190,13 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     p.followers?.let {
-                                        CountLink(pluralStringResource(R.plurals.profile_followers, it, it)) {
+                                        CountLink(pluralStringResource(R.plurals.profile_followers, it, it), if (squared) pageInk else Immersive.Accent) {
                                             navController.navigate(followListRoute(userId, followers = true))
                                         }
                                     }
-                                    if (p.followers != null && p.following != null) Text("·", style = Immersive.Subhead)
+                                    if (p.followers != null && p.following != null) Text("·", color = pageInk, style = Immersive.Subhead)
                                     p.following?.let {
-                                        CountLink(stringResource(R.string.profile_following_count, it)) {
+                                        CountLink(stringResource(R.string.profile_following_count, it), if (squared) pageInk else Immersive.Accent) {
                                             navController.navigate(followListRoute(userId, followers = false))
                                         }
                                     }
@@ -169,7 +219,7 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                             }
                             if (blocked == true) {
                                 Spacer(Modifier.height(10.dp))
-                                Text(stringResource(R.string.profile_blocked), style = Immersive.Subhead)
+                                Text(stringResource(R.string.profile_blocked), color = pageInk, style = Immersive.Subhead)
                             }
                             val f = following
                             if (!me && f != null && blocked != true) {
@@ -198,33 +248,48 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                 when {
                     p == null && !failed -> immersiveSongListSkeleton(count = 4, keyPrefix = "skeleton:profile", alpha = 0.5f)
                     p == null -> item(key = "failed") {
-                        ImmersiveMessageState(
-                            message = stringResource(R.string.page_load_failed),
-                            actionLabel = stringResource(R.string.retry_button),
-                            onAction = { attempt++ },
-                        )
+                        if (squared) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(stringResource(R.string.page_load_failed), color = pageInk, style = Immersive.Body)
+                                TextButton(onClick = { attempt++ }) {
+                                    Text(stringResource(R.string.retry_button), color = pageInk)
+                                }
+                            }
+                        } else {
+                            ImmersiveMessageState(
+                                message = stringResource(R.string.page_load_failed),
+                                actionLabel = stringResource(R.string.retry_button),
+                                onAction = { attempt++ },
+                            )
+                        }
                     }
                     p.publicPlaylists.isNotEmpty() -> {
-                        item(key = "playlists-header") { SectionHeader(stringResource(R.string.profile_public_playlists)) }
-                        items(p.publicPlaylists, key = { it.uri }) { pl ->
+                        item(key = "playlists-header") {
+                            if (squared) Text(
+                                stringResource(R.string.profile_public_playlists),
+                                style = Immersive.Headline,
+                                color = pageInk,
+                                modifier = Modifier.padding(horizontal = Immersive.Gutter, vertical = 12.dp),
+                            ) else SectionHeader(stringResource(R.string.profile_public_playlists))
+                        }
+                        items(p.publicPlaylists.distinctBy { it.uri }, key = { it.uri }) { pl ->
                             val followers = pl.followers?.toInt()
-                            ImmersiveListRow(
-                                title = pl.name,
-                                subtitle = followers?.let { pluralStringResource(R.plurals.profile_followers, it, it) },
-                                imageUrl = pl.images.best(160)?.url,
-                                round = false,
-                                onClick = { navController.navigate(playlistRoute(pl.uri.substringAfterLast(':'), pl.name)) },
-                                modifier = rowPlacement(),
+                            val subtitle = followers?.let { pluralStringResource(R.plurals.profile_followers, it, it) }
+                            val art = pl.images.best(160)?.url
+                            val open = { navController.navigate(playlistRoute(pl.uri.substringAfterLast(':'), pl.name)) }
+                            if (squared) SquaredProfilePlaylist(pl.name, subtitle, art, pageInk, open)
+                            else ImmersiveListRow(
+                                title = pl.name, subtitle = subtitle, imageUrl = art, round = false,
+                                onClick = open, modifier = rowPlacement(),
                             )
                         }
                     }
                 }
             }
-            ImmersiveTopBar(
-                title = displayName,
-                collapse = rememberHeaderCollapse(listState),
-                onBack = { navController.navigateUp() },
-                actions = {
+            val actions: @Composable () -> Unit = {
                     val b = blocked
                     if (!me && b != null) Box {
                         com.music.spotui.ui.immersive.shell.ImmersiveBarAction(
@@ -248,8 +313,40 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                             )
                         }
                     }
-                },
-            )
+            }
+            if (squared) {
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { navController.navigateUp() },
+                        modifier = Modifier.background(pageBg, CircleShape),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            stringResource(R.string.accessibility_navigate_back),
+                            tint = pageInk,
+                        )
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        if (squaredTitleVisible) Text(
+                            displayName,
+                            modifier = Modifier.background(pageBg, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 8.dp),
+                            color = pageInk,
+                            style = Immersive.BodyStrong,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    actions()
+                }
+            } else {
+                ImmersiveTopBar(
+                    title = displayName, collapse = rememberHeaderCollapse(listState),
+                    onBack = { navController.navigateUp() }, actions = { actions() },
+                )
+            }
         }
     }
     if (blockAsk) ImmersiveAlertDialog(
@@ -275,12 +372,34 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
 
 /** "1,204 followers": an accent link to the list behind the number. */
 @Composable
-private fun CountLink(text: String, onClick: () -> Unit) {
+private fun CountLink(text: String, ink: Color, onClick: () -> Unit) {
     Text(
         text = text,
-        style = Immersive.Subhead.copy(color = Immersive.Accent),
+        style = Immersive.Subhead.copy(color = ink),
         modifier = Modifier
             .immersiveClickable(onClick = onClick, pressedScale = 0.95f)
             .padding(horizontal = 6.dp, vertical = 6.dp),
     )
+}
+
+@Composable
+private fun SquaredProfilePlaylist(
+    name: String,
+    subtitle: String?,
+    artwork: String?,
+    ink: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = Immersive.Gutter, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        SquaredArtwork(artwork, name, Modifier.size(48.dp), corner = 9.dp, decodeSize = 48.dp)
+        Column(Modifier.weight(1f)) {
+            Text(name, color = ink, style = Immersive.BodyStrong, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            subtitle?.let { Text(it, color = ink, style = Immersive.Caption) }
+        }
+    }
 }
