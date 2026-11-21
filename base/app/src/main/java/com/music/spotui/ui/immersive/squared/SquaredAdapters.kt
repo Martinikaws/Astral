@@ -216,7 +216,7 @@ private fun rememberSquaredLyrics(): SquaredLyricsState {
                     LyricLine(
                         startTimeMs = if (l.lyrics.synced) line.timeMs else null,
                         text = line.text,
-                        words = line.words.orEmpty().map { LyricWord(it.startMs, it.endMs, it.text) },
+                        words = lyricWordsFor(line.text, line.words.orEmpty().map { LyricWord(it.startMs, it.endMs, it.text) }),
                         translation = translations?.getOrNull(i)?.takeIf { it.isNotBlank() },
                         romanization = line.romanization,
                     )

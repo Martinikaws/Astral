@@ -92,6 +92,7 @@ import com.music.spotui.ui.immersive.squared.glass.GlassWarmUp
 import com.music.spotui.ui.immersive.squared.glass.LiquidBottomTab
 import com.music.spotui.ui.immersive.squared.glass.LiquidBottomTabs
 import com.music.spotui.ui.immersive.squared.glass.LocalAppBackdrop
+import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.emptyBackdrop
 import com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.layerBackdrop
 import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -206,7 +207,11 @@ fun SquaredShell(
 
     Box(modifier.fillMaxSize()) {
         // The page: recorded as the backdrop the glass bends.
-        Box(Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) { content() }
+        // In-page glass must not sample the layer it is drawn into (that recurses on the render
+        // thread), so the page gets an empty backdrop: its glass degrades to tinted glass.
+        Box(Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) {
+            CompositionLocalProvider(LocalAppBackdrop provides remember { emptyBackdrop() }) { content() }
+        }
 
         SquaredTheme(seed = ambientAccent, darkTheme = true) {
             CompositionLocalProvider(LocalAppBackdrop provides pageBackdrop) {

@@ -101,6 +101,7 @@ import androidx.compose.ui.zIndex
 import com.music.spotui.ui.immersive.squared.LyricLine
 import com.music.spotui.ui.immersive.squared.LyricWord
 import com.music.spotui.ui.immersive.squared.Lyrics
+import com.music.spotui.ui.immersive.squared.lyricWordPieces
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -453,14 +454,7 @@ fun SyllableSyncLine(
     isBackground: Boolean = false,
 ) {
     val wordPieces = remember(line.text, line.words) {
-        var at = 0
-        line.words.map { word ->
-            val start = line.text.indexOf(word.text, at).takeIf { it >= 0 } ?: at
-            var stop = start + word.text.length
-            while (stop < line.text.length && line.text[stop].isWhitespace()) stop++
-            at = stop
-            word to line.text.substring(start, stop)
-        }
+        lyricWordPieces(line.text, line.words)
     }
 
     FlowRow(

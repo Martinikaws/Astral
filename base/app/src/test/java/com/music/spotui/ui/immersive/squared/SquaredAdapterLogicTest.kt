@@ -97,4 +97,21 @@ class SquaredAdapterLogicTest {
         assertFalse(motionAllowed(true, true, false, true, true))
         assertTrue(motionAllowed(true, true, false, true, false))
     }
+
+    @Test fun wordPiecesNeverExceedLineText() {
+        val text = "hello world"
+        val words = listOf(LyricWord(0, 1, "hello "), LyricWord(1, 2, "world  "), LyricWord(2, 3, "extra"))
+        val pieces = lyricWordPieces(text, words)
+        assertEquals(3, pieces.size)
+        assertTrue(pieces.all { text.contains(it.second) })
+        assertEquals("hello ", pieces[0].second)
+    }
+
+    @Test fun mismatchedWordsAreDroppedOtherwiseKept() {
+        val ok = listOf(LyricWord(0, 1, "hel"), LyricWord(1, 2, "lo "))
+        assertEquals(ok, lyricWordsFor("hello", ok))
+        val romanized = listOf(LyricWord(0, 1, "konnichiwa"))
+        assertTrue(lyricWordsFor("こんにちは", romanized).isEmpty())
+        assertTrue(lyricWordsFor("hi", listOf(LyricWord(0, 1, "hi"), LyricWord(1, 2, "(trans)"))).isEmpty())
+    }
 }

@@ -69,3 +69,30 @@ internal fun motionAllowed(
     metered: Boolean,
     canvasWifiOnly: Boolean,
 ): Boolean = canvasSetting && energyAllowsCanvas && !dataSaverActive && !(metered && canvasWifiOnly)
+
+/**
+ * Splits [text] into one piece per word, each piece being the exact substring of [text] Square
+ * renders for that word (trailing whitespace included). Words that cannot be located, or run past
+ * the end, are clamped to the text, so no range is ever out of bounds.
+ */
+internal fun lyricWordPieces(text: String, words: List<LyricWord>): List<Pair<LyricWord, String>> {
+    var at = 0
+    return words.map { word ->
+        val found = text.indexOf(word.text, at)
+        val start = (if (found >= 0) found else at).coerceIn(0, text.length)
+        var stop = (start + word.text.length).coerceIn(start, text.length)
+        while (stop < text.length && text[stop].isWhitespace()) stop++
+        at = stop
+        word to text.substring(start, stop)
+    }
+}
+
+/**
+ * Word timings are only kept when they spell the line (ignoring whitespace); romanization,
+ * translation or provider quirks otherwise leave the line plain instead of mis-highlighted.
+ */
+internal fun lyricWordsFor(text: String, words: List<LyricWord>): List<LyricWord> {
+    if (words.isEmpty()) return words
+    val joined = words.joinToString("") { it.text }.filterNot { it.isWhitespace() }
+    return if (joined == text.filterNot { it.isWhitespace() }) words else emptyList()
+}

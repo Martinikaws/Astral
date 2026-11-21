@@ -20,6 +20,7 @@
 
 package com.music.spotui.ui.immersive.squared.glass
 
+import com.music.spotui.ui.immersive.squared.glass.backdrop.backdrops.emptyBackdrop
 import com.music.spotui.ui.immersive.squared.glass.morph.liquidGlassMaterial
 import com.music.spotui.ui.immersive.squared.glass.morph.LiquidGlassRenderer
 import android.app.ActivityManager
@@ -346,7 +347,7 @@ val LocalGlassEffectConfig = staticCompositionLocalOf { GlassEffectConfig() }
 val LocalGlassFrozen = staticCompositionLocalOf<() -> Boolean> { { false } }
 
 /** The backdrop content (app UI) that glass surfaces sample from. */
-val LocalAppBackdrop = staticCompositionLocalOf<Backdrop> { error("No AppBackdrop provided") }
+val LocalAppBackdrop = staticCompositionLocalOf<Backdrop> { emptyBackdrop() }
 
 /**
  * When set, glass surfaces in scope pool one recorded+effect-processed layer
