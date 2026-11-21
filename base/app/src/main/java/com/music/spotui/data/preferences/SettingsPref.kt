@@ -222,7 +222,7 @@ object TransitionPref {
         val automix = mode == Mode.AUTOMIX
         if (automix != com.music.spotui.automix.AutoMix.on) {
             com.music.spotui.automix.AutoMix.set(automix)
-            com.music.spotui.di.LocalPlayer.autoMixChanged(automix)
+            com.music.spotui.di.LocalPlayer.autoMixChanged()
         }
         when (mode) {
             Mode.OFF -> CrossfadePref.set(c, 0)

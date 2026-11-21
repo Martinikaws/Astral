@@ -55,7 +55,7 @@ import com.music.spotui.ui.look.rememberReduceMotion
  */
 @Composable
 fun rememberMixCue(): LocalPlayer.MixCue? =
-    LocalPlayer.mixCue.value?.takeIf { LocalPlayer.active.value && com.music.spotui.automix.AutoMix.on && com.music.spotui.automix.AutoMix.showInPlayer }
+    LocalPlayer.mixCue.value?.takeIf { LocalPlayer.active.value && com.music.spotui.automix.AutoMix.enabledFor(LocalPlayer.contextUri) && com.music.spotui.automix.AutoMix.showInPlayer }
 
 /**
  * How the player moves with an AutoMix mix: it draws in (the content compresses a little) while
@@ -137,7 +137,7 @@ private const val RELEASE_NS = 1_400_000_000L
 fun rememberMixPulse(cue: LocalPlayer.MixCue?): MixPulse? {
     val reduceMotion = rememberReduceMotion()
     // Kept across mixes (not only while one is near): the release plays after its cue is gone.
-    val on = !reduceMotion && com.music.spotui.automix.AutoMix.on && com.music.spotui.automix.AutoMix.showInPlayer &&
+    val on = !reduceMotion && com.music.spotui.automix.AutoMix.enabledFor(LocalPlayer.contextUri) && com.music.spotui.automix.AutoMix.showInPlayer &&
         com.music.spotui.automix.AutoMix.pulseLevel > 0
     val pulse = remember(on) { if (on) MixPulse() else null }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle

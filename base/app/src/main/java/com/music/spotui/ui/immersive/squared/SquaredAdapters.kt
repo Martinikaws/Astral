@@ -45,6 +45,7 @@ class SquaredPlayerModel(
     val queue: List<QueueEntry>,
     val queueActions: QueueActions,
     val lyrics: Lyrics?,
+    val shareableLyrics: com.music.spotui.data.entity.Lyrics?,
     val lyricsLoading: Boolean,
     val canTranslate: Boolean,
     val translationOn: Boolean,
@@ -79,6 +80,7 @@ fun rememberSquaredPlayer(navController: NavController): SquaredPlayerModel {
         queue = queue,
         queueActions = queueActions,
         lyrics = lyrics.lyrics,
+        shareableLyrics = lyrics.original,
         lyricsLoading = lyrics.loading,
         canTranslate = lyrics.canTranslate,
         translationOn = lyrics.translationOn,
@@ -191,6 +193,7 @@ private fun rememberSquaredQueue(state: ImmersivePlayerState): Pair<List<QueueEn
 /** Astral's lyrics (and the translation it can fetch) in Square's model. */
 private class SquaredLyricsState(
     val lyrics: Lyrics?,
+    val original: com.music.spotui.data.entity.Lyrics?,
     val loading: Boolean,
     val canTranslate: Boolean,
     val translationOn: Boolean,
@@ -228,6 +231,7 @@ private fun rememberSquaredLyrics(): SquaredLyricsState {
     }
     return SquaredLyricsState(
         lyrics = mapped,
+        original = loaded?.lyrics,
         loading = state is LyricsViewModel.State.Loading,
         canTranslate = loaded != null && !LyricsViewModel.sameLanguage(loaded.sourceLanguage, target),
         translationOn = loaded?.showTranslation == true,

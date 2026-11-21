@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Delete
@@ -165,6 +167,25 @@ fun PlaylistOptionsSheet(
             Spacer(Modifier.height(6.dp))
             val share = { SpotifyCode.show(ShareTarget(page.uri, page.name, page.ownerName, page.coverUri)); onDismiss() }
             // The whole playlist into the queue, in its order (a long one is read to its end first).
+            if (page.uri.startsWith("spotify:playlist:")) {
+                val mix = com.music.spotui.automix.AutoMix
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.playlist_mix), color = AppText)
+                        Text(stringResource(R.string.playlist_mix_detail), color = AppMuted, fontSize = 12.sp)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = mix.enabledFor(page.uri),
+                        onCheckedChange = { mix.setPlaylistMix(page.uri, it) },
+                        modifier = Modifier.semantics {
+                            contentDescription = context.getString(R.string.playlist_mix)
+                        },
+                    )
+                }
+            }
             QueueListRows(page.uri, page, onDismiss)
             // Every song of this playlist into another one of yours (Web Player: "Add playlist to other playlist").
             if (page.uri.startsWith("spotify:playlist:")) OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_playlist_to_playlist)) { mergingInto = true }

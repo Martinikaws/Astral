@@ -168,7 +168,7 @@ object LocalPlayer {
     private fun offload(p: ExoPlayer) {
         val pref = com.music.spotui.data.preferences.EqualizerPref
         val on = LocalOffload.allowed(
-            eqFlat = Equalizer.current?.flat ?: true, spatialWidth = Spatial.current, autoMix = com.music.spotui.automix.AutoMix.on,
+            eqFlat = Equalizer.current?.flat ?: true, spatialWidth = Spatial.current, autoMix = mixEnabled,
             crossfadeSeconds = CrossfadePref.seconds, speed = pref.speed, skipSilence = pref.skipSilence,
             pitch = pitch(), reverb = AudioFx.reverb, karaoke = AudioFx.karaoke,
         )
@@ -214,7 +214,7 @@ object LocalPlayer {
     private fun player(): ExoPlayer = exo ?: build(true).also { p ->
             mainListener = listenerFor(p).also(p::addListener)
             exo = p
-            deckEq = if (com.music.spotui.automix.AutoMix.on && com.music.spotui.automix.AutoMix.djEq) com.music.spotui.automix.DeckEq.attach(p.audioSessionId) else null
+            deckEq = if (mixEnabled && com.music.spotui.automix.AutoMix.djEq) com.music.spotui.automix.DeckEq.attach(p.audioSessionId) else null
             // A new local session takes the repeat the player shows (it started off).
             setRepeatMode(SongPlayer.repeatMode.value)
         }
@@ -225,7 +225,7 @@ object LocalPlayer {
     private fun listenerFor(p: ExoPlayer): Player.Listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = publish()
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
-            if (exo !== p || !com.music.spotui.automix.AutoMix.on || !com.music.spotui.automix.AutoMix.djEq) return
+            if (exo !== p || !mixEnabled || !com.music.spotui.automix.AutoMix.djEq) return
             deckEq?.release()
             deckEq = com.music.spotui.automix.DeckEq.attach(audioSessionId)
             mix?.takeIf { it.deck === p }?.eq = deckEq
@@ -577,6 +577,7 @@ object LocalPlayer {
         val took = android.os.SystemClock.elapsedRealtime() - built
         if (took >= 50) log("setMediaItems: ${order.size} songs in $took ms")
         p.prepare()
+        autoMixChanged()
         if (shuffle && !whole) setShuffle(true)
         if (!paused) p.play()
         continueIfLast(p)
@@ -824,7 +825,7 @@ object LocalPlayer {
             asking = ahead; askedAt = now
             com.music.spotui.automix.AutoMix.request(listOfNotNull(a.uri, b.uri, tracks.getOrNull(next + 1)?.uri)) {
                 handler.post {
-                    if (active.value && com.music.spotui.automix.AutoMix.on) {
+                    if (active.value && mixEnabled) {
                         cuePair = ""
                         if (exo?.isPlaying == true) { handler.removeCallbacks(tick); handler.post(tick) }
                     }
@@ -1098,7 +1099,7 @@ object LocalPlayer {
      */
     private fun mixOnSkip(): Boolean {
         val p = exo ?: return false
-        if (!com.music.spotui.automix.AutoMix.on || !com.music.spotui.automix.AutoMix.mixOnNext || CastPlayback.active || !p.isPlaying || outgoing != null) return false
+        if (!mixEnabled || !com.music.spotui.automix.AutoMix.mixOnNext || CastPlayback.active || !p.isPlaying || outgoing != null) return false
         mix?.let { if (it.skip || it.state >= MixState.PREROLL) return false }
         val next = p.nextMediaItemIndex
         if (next == C.INDEX_UNSET || LocalRepeat.loopsSong(repeat, p.mediaItemCount)) return false
@@ -1440,9 +1441,12 @@ object LocalPlayer {
         com.music.spotui.automix.AutoMix.journal("mix ended early")
     }
 
-    /** AutoMix turned on or off in the settings. */
-    fun autoMixChanged(on: Boolean) {
+    private val mixEnabled: Boolean get() = com.music.spotui.automix.AutoMix.enabledFor(listUri)
+
+    /** The effective AutoMix setting changed. */
+    fun autoMixChanged() {
         val p = exo ?: return
+        val on = mixEnabled
         if (on && deckEq == null && com.music.spotui.automix.AutoMix.djEq) deckEq = com.music.spotui.automix.DeckEq.attach(p.audioSessionId)
         if (!on) { cancelMix("AutoMix off"); planned = null; updateCue() }
         offload(p)
@@ -1518,7 +1522,7 @@ object LocalPlayer {
     fun autoMixState(): String {
         val run = mix
         val p = exo
-        return "AutoMix ${if (com.music.spotui.automix.AutoMix.on) "on" else "off"}, " +
+        return "AutoMix ${if (mixEnabled) "on" else "off"}, " +
             (if (run == null) "no deck" else "deck ${run.state} ${run.plan.style}, progress ${"%.2f".format(run.progress())}") +
             (planned?.let { ", plan ${it.plan}" } ?: "") + (p?.let { ", at ${it.currentPosition} ms of ${it.duration}" } ?: "")
     }
@@ -1557,7 +1561,7 @@ object LocalPlayer {
         val run = mix?.takeIf { it.state <= MixState.MIXING }
         val plan: app.myspoti.automix.MixPlan?
         val from: Int; val to: Int
-        if (p == null || !active.value || !com.music.spotui.automix.AutoMix.on && run == null) {
+        if (p == null || !active.value || !mixEnabled && run == null) {
             cueState.value = null
             com.music.spotui.automix.TransitionEditorBridge.refresh()
             return
@@ -1661,7 +1665,7 @@ object LocalPlayer {
                 if (t >= 1f) endFade() else handler.postDelayed(this, 40)
                 return
             }
-            if (mix != null || (com.music.spotui.automix.AutoMix.on && !CastPlayback.active)) {
+            if (mix != null || (mixEnabled && !CastPlayback.active)) {
                 if (mixTick(p)) handler.postDelayed(this, mixTickDelay(p))
                 return
             }

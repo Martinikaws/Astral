@@ -120,7 +120,7 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
             val song = list.getOrNull(index)?.let(songOf)
             if (song != null && page != null) {
                 if (inOrder) vm.play(page, song)
-                else SongPlayer.playSong(song.url, context, songs = list.mapNotNull(songOf))
+                else SongPlayer.playSong(song.url, context, contextUri = page.uri, songs = list.mapNotNull(songOf))
             }
         },
         onEnqueue = { track -> songOf(track)?.let { SongPlayer.queueSongs(listOf(it), next = false) {} } },
@@ -141,7 +141,7 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
             val songs = list.mapNotNull(songOf)
             val first = songs.firstOrNull()
             if (first != null && page != null) {
-                if (inOrder) vm.play(page, first) else SongPlayer.playSong(first.url, context, songs = songs)
+                if (inOrder) vm.play(page, first) else SongPlayer.playSong(first.url, context, contextUri = page.uri, songs = songs)
             }
         },
         onTrackMenu = { track -> menuSong = songOf(track) },

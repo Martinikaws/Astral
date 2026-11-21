@@ -712,10 +712,9 @@ object SongPlayer {
      * "Not interested": the song is kept in a list on this phone (nothing goes to Spotify), taken
      * out of the queue, and skipped if it plays now. From then on lists skip it ([skipHidden]).
      */
-    fun hideSong(song: SongsModel) {
+    fun hideSong(song: SongsModel, snooze: Boolean = false) {
         val id = song.spotifyTrackId
-        if (id.isBlank()) return
-        com.music.spotui.data.preferences.HiddenSongs.hide(Graph.app, song)
+        if (!com.music.spotui.data.preferences.HiddenSongs.hide(Graph.app, song, snooze)) return
         Haptics.confirm()
         _queue.value.let { it.queued + it.nextUp }.filter { it.provider != LOCAL && it.uri == SPOTIFY_TRACK_PREFIX + id }.forEach(::removeFromQueue)
         LocalPlayer.upcoming().filter { LocalPlayer.spotifyIdOf(it.second) == id }.map { it.first }.sortedDescending().forEach(LocalPlayer::remove)

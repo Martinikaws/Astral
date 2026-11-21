@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="snooze_song">Snooze for 30 days</string>
+    <string name="snoozed_song_toast">Snoozed %1$s for 30 days</string>
+    <string name="playlist_mix">Mix playlist</string>
+    <string name="playlist_mix_detail">DJ transitions for tracks Astral can play locally</string>
+</resources>
