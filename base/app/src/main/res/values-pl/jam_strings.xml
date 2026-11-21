@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jam_subtitle">Słuchajcie razem w czasie rzeczywistym</string>
+    <string name="jam_restricted_notice">Do rozpoczęcia wymagane jest Premium, ale nadal możesz dołączyć</string>
+    <string name="jam_details_title">Szczegóły Jamu</string>
+    <string name="jam_manage">Zarządzaj Jamem</string>
+    <string name="jam_invite_friends_title">Zaproś znajomych</string>
+    <string name="jam_invite_friends_subtitle">Każdy, kto ma link lub kod QR, może dołączyć do tego Jamu</string>
+    <string name="jam_invite_others">Zaproś innych</string>
+    <string name="jam_share_link">Udostępnij link</string>
+    <string name="jam_copy_link">Kopiuj link</string>
+    <string name="jam_link_copied">Skopiowano link z zaproszeniem</string>
+    <string name="jam_qr_tap_fullscreen">Dotknij kodu QR, aby wyświetlić na pełnym ekranie</string>
+    <string name="jam_qr_fullscreen_title">Zeskanuj, aby dołączyć do Jamu</string>
+    <string name="jam_host_badge">Gospodarz</string>
+    <string name="jam_remove_member">Usuń z Jamu</string>
+    <string name="jam_guest_settings_title">Uprawnienia gości</string>
+    <string name="jam_let_others_change">Pozwól innym zmieniać to, co jest odtwarzane</string>
+    <string name="jam_let_others_change_detail">Zezwól gościom na sterowanie odtwarzaniem i głośnością</string>
+    <string name="jam_end">Zakończ Jam</string>
+    <string name="jam_join_section">Dołącz do Jamu</string>
+    <string name="jam_starting">Uruchamianie Jamu…</string>
+</resources>

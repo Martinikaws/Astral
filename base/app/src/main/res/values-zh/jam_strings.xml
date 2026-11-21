@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jam_subtitle">实时一起收听</string>
+    <string name="jam_restricted_notice">发起需 Premium，你仍可加入</string>
+    <string name="jam_details_title">Jam 详情</string>
+    <string name="jam_manage">管理 Jam</string>
+    <string name="jam_invite_friends_title">邀请好友</string>
+    <string name="jam_invite_friends_subtitle">任何拥有链接或二维码的人都可以加入此 Jam</string>
+    <string name="jam_invite_others">邀请其他人</string>
+    <string name="jam_share_link">分享链接</string>
+    <string name="jam_copy_link">复制链接</string>
+    <string name="jam_link_copied">邀请链接已复制</string>
+    <string name="jam_qr_tap_fullscreen">轻触二维码可全屏查看</string>
+    <string name="jam_qr_fullscreen_title">扫码加入 Jam</string>
+    <string name="jam_host_badge">主持人</string>
+    <string name="jam_remove_member">从 Jam 中移除</string>
+    <string name="jam_guest_settings_title">访客权限</string>
+    <string name="jam_let_others_change">允许其他人更改正在播放的内容</string>
+    <string name="jam_let_others_change_detail">允许访客控制播放和音量</string>
+    <string name="jam_end">结束 Jam</string>
+    <string name="jam_join_section">加入 Jam</string>
+    <string name="jam_starting">正在开启 Jam…</string>
+</resources>

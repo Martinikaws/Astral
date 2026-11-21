@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jam_subtitle">Ακούστε μαζί σε πραγματικό χρόνο</string>
+    <string name="jam_restricted_notice">Απαιτείται Premium για έναρξη, μπορείτε όμως να συμμετάσχετε</string>
+    <string name="jam_details_title">Λεπτομέρειες Jam</string>
+    <string name="jam_manage">Διαχείριση Jam</string>
+    <string name="jam_invite_friends_title">Πρόσκληση φίλων</string>
+    <string name="jam_invite_friends_subtitle">Οποιοσδήποτε έχει τον σύνδεσμο ή τον κωδικό QR μπορεί να συμμετάσχει σε αυτό το Jam</string>
+    <string name="jam_invite_others">Πρόσκληση άλλων</string>
+    <string name="jam_share_link">Κοινοποίηση συνδέσμου</string>
+    <string name="jam_copy_link">Αντιγραφή συνδέσμου</string>
+    <string name="jam_link_copied">Ο σύνδεσμος πρόσκλησης αντιγράφηκε</string>
+    <string name="jam_qr_tap_fullscreen">Πατήστε τον κωδικό QR για πλήρη οθόνη</string>
+    <string name="jam_qr_fullscreen_title">Σαρώστε για συμμετοχή στο Jam</string>
+    <string name="jam_host_badge">Οικοδεσπότης</string>
+    <string name="jam_remove_member">Αφαίρεση από το Jam</string>
+    <string name="jam_guest_settings_title">Δικαιώματα καλεσμένων</string>
+    <string name="jam_let_others_change">Να επιτρέπεται σε άλλους να αλλάζουν αυτό που παίζει</string>
+    <string name="jam_let_others_change_detail">Επιτρέψτε στους καλεσμένους να ελέγχουν την αναπαραγωγή και την ένταση</string>
+    <string name="jam_end">Τερματισμός Jam</string>
+    <string name="jam_join_section">Συμμετοχή σε Jam</string>
+    <string name="jam_starting">Έναρξη Jam…</string>
+</resources>

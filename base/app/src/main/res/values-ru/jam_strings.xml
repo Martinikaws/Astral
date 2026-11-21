@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jam_subtitle">Слушайте вместе в реальном времени</string>
+    <string name="jam_restricted_notice">Для запуска нужен Premium, но вы можете присоединиться</string>
+    <string name="jam_details_title">О сеансе Jam</string>
+    <string name="jam_manage">Управление Jam</string>
+    <string name="jam_invite_friends_title">Пригласить друзей</string>
+    <string name="jam_invite_friends_subtitle">Любой, у кого есть ссылка или QR-код, может присоединиться к этому Jam</string>
+    <string name="jam_invite_others">Пригласить других</string>
+    <string name="jam_share_link">Поделиться ссылкой</string>
+    <string name="jam_copy_link">Копировать ссылку</string>
+    <string name="jam_link_copied">Ссылка-приглашение скопирована</string>
+    <string name="jam_qr_tap_fullscreen">Нажмите на QR-код, чтобы открыть на весь экран</string>
+    <string name="jam_qr_fullscreen_title">Отсканируйте, чтобы войти в Jam</string>
+    <string name="jam_host_badge">Хост</string>
+    <string name="jam_remove_member">Удалить из Jam</string>
+    <string name="jam_guest_settings_title">Права гостей</string>
+    <string name="jam_let_others_change">Разрешить другим менять воспроизведение</string>
+    <string name="jam_let_others_change_detail">Разрешить гостям управлять воспроизведением и громкостью</string>
+    <string name="jam_end">Завершить Jam</string>
+    <string name="jam_join_section">Присоединиться к Jam</string>
+    <string name="jam_starting">Запуск Jam…</string>
+</resources>
