@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="effects_title">Effetti</string>
+    <string name="effects_unsupported">Gli effetti funzionano con i brani riprodotti dall\'app stessa (da estensioni, download e file tuoi). Questo brano è riprodotto dal player di Spotify, quindi sono disattivati.</string>
+    <string name="effects_presets">Preset</string>
+    <string name="effects_preset_original">Originale</string>
+    <string name="effects_preset_slowed">Rallentato + Riverbero</string>
+    <string name="effects_preset_sped_up">Accelerato</string>
+    <string name="effects_preset_default_name">Personalizzato</string>
+    <string name="effects_preset_name">Nome del preset</string>
+    <string name="effects_save_preset">Salva preset</string>
+    <string name="effects_save">Salva</string>
+    <string name="effects_reset">Ripristina</string>
+    <string name="effects_delete_preset">Elimina il preset %1$s</string>
+    <string name="effects_speed">Velocità</string>
+    <string name="effects_pitch">Tonalità</string>
+    <string name="effects_off">No</string>
+    <string name="effects_reverb">Riverbero</string>
+    <string name="effects_karaoke">Karaoke</string>
+    <string name="effects_karaoke_hint">Abbassa la voce al centro del mix stereo. Non è una traccia vocale separata, quindi parte del canto può restare e alcuni strumenti al centro possono risultare più bassi.</string>
+</resources>

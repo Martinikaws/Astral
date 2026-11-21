@@ -90,6 +90,7 @@ object LocalPlayer {
     internal fun buildPreviewDeck(): Pair<ExoPlayer, com.music.spotui.automix.SegueProcessor> {
         val p = build(main = false, deck = true)
         p.skipSilenceEnabled = false
+        // Pitch 1: the transition preview sets the incoming deck's speed with pitch 1 too, so both stay in one key.
         p.playbackParameters = androidx.media3.common.PlaybackParameters(1f)
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setAudioOffloadPreferences(androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
@@ -100,8 +101,8 @@ object LocalPlayer {
     }
 
     /**
-     * The default renderers, with the equalizer and the spatial stage after it in the audio chain
-     * (each player its own, see EqualizerProcessor and SpatialProcessor), ahead of the silence
+     * The default renderers, with the karaoke, the equalizer, the reverb and the spatial stage after it in the audio chain
+     * (each player its own, see KaraokeProcessor, EqualizerProcessor, ReverbProcessor and SpatialProcessor), ahead of the silence
      * skipping and the speed the sink adds after them. The spatial stage is last of the two: its
      * limiter is what keeps a widened peak under full scale. The segue stage comes first: it passes
      * the audio as it came unless a plan is armed, and it must see the buffers whole to know their place.
@@ -115,7 +116,7 @@ object LocalPlayer {
                 .setAudioTrackBufferSizeProvider(PCM_BUFFER)
             val stage = com.music.spotui.automix.SegueProcessor()
             lastSegueStage = stage
-            return com.music.spotui.automix.SegueSink(builder.setAudioProcessors(arrayOf(stage, EqualizerProcessor(), SpatialProcessor())).build(), stage)
+            return com.music.spotui.automix.SegueSink(builder.setAudioProcessors(arrayOf(stage, KaraokeProcessor(), EqualizerProcessor(), ReverbProcessor(), SpatialProcessor())).build(), stage)
         }
     }
     /**
@@ -151,7 +152,7 @@ object LocalPlayer {
 
     private fun tune(p: ExoPlayer) {
         val pref = com.music.spotui.data.preferences.EqualizerPref
-        if (p.playbackParameters.speed != pref.speed) p.playbackParameters = androidx.media3.common.PlaybackParameters(pref.speed)
+        if (p.playbackParameters.speed != pref.speed || p.playbackParameters.pitch != pitch()) p.playbackParameters = params(pref.speed)
         if (p.skipSilenceEnabled != pref.skipSilence) p.skipSilenceEnabled = pref.skipSilence
         offload(p)
     }
@@ -169,6 +170,7 @@ object LocalPlayer {
         val on = LocalOffload.allowed(
             eqFlat = Equalizer.current?.flat ?: true, spatialWidth = Spatial.current, autoMix = com.music.spotui.automix.AutoMix.on,
             crossfadeSeconds = CrossfadePref.seconds, speed = pref.speed, skipSilence = pref.skipSilence,
+            pitch = pitch(), reverb = AudioFx.reverb, karaoke = AudioFx.karaoke,
         )
         val mode = if (on) androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
             else androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
@@ -201,6 +203,12 @@ object LocalPlayer {
 
     /** The speed the local player plays at (the settings', 1 by default). */
     fun rate(): Float = com.music.spotui.data.preferences.EqualizerPref.speed
+
+    /** The pitch the user set in the effects (1 by default): every speed the players are given, a mix's ramps too, keeps it. */
+    private fun pitch(): Float = com.music.spotui.data.preferences.AudioEffectsPref.currentPitch()
+
+    /** The playback parameters for [speed] under the user's pitch (an AutoMix tempo change keeps the key it is in). */
+    private fun params(speed: Float) = androidx.media3.common.PlaybackParameters(speed, pitch())
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun player(): ExoPlayer = exo ?: build(true).also { p ->
@@ -937,14 +945,14 @@ object LocalPlayer {
      */
     @Suppress("UNUSED_PARAMETER")
     private fun mixParameters(plan: app.myspoti.automix.MixPlan, speed: Float): androidx.media3.common.PlaybackParameters =
-        androidx.media3.common.PlaybackParameters(speed)
+        params(speed)
 
     /** A's speed at [x] of the mix ([MixRun.glideA]), the user's own speed included. */
     private fun glide(run: MixRun, a: ExoPlayer, x: Double) {
         val g = run.glideA(x)
         run.glide = g
         val speed = (g * rate()).toFloat()
-        if (kotlin.math.abs(a.playbackParameters.speed - speed) > 0.0005f) a.playbackParameters = androidx.media3.common.PlaybackParameters(speed)
+        if (kotlin.math.abs(a.playbackParameters.speed - speed) > 0.0005f) a.playbackParameters = params(speed)
     }
 
     /** [analysis] with its voices from the song's timed lyrics, when they are already here. On the plan's thread. */
@@ -1276,7 +1284,7 @@ object LocalPlayer {
                 if (left > 500 && a.isPlaying) {
                     // Re-enter gently from the audio actually heard; do not chase an obsolete grid after a stall.
                     segueStages[a]?.disarm(); segueStages[d]?.disarm()
-                    if (run.plan.ramped) a.playbackParameters = androidx.media3.common.PlaybackParameters(rate())
+                    if (run.plan.ramped) a.playbackParameters = params(rate())
                     val bLeftMs = d.duration.takeIf { it > 0 }?.minus(d.currentPosition)
                     val bAvailable = bLeftMs?.coerceAtLeast(0L)?.div(1000.0) ?: Double.POSITIVE_INFINITY
                     val available = minOf(left / 1000.0, bAvailable)
@@ -1292,7 +1300,7 @@ object LocalPlayer {
                             d.currentPosition / 1000.0, recoveryLength, 1.0, 0, 0.5, 0.1, run.plan.matchB, 0.0, "fade: incoming buffer recovered")
                         run.plan = plan; run.lastSpeed = 0f; run.glide = 1.0
                         run.recoveryGainA = a.volume; run.recoveryStartedAt = android.os.SystemClock.uptimeMillis()
-                        d.playbackParameters = androidx.media3.common.PlaybackParameters(rate())
+                        d.playbackParameters = params(rate())
                         com.music.spotui.automix.AutoMix.journal("incoming deck recovered: bounded gentle fade ${recoveryLength}s")
                     }
                 }
@@ -1320,13 +1328,13 @@ object LocalPlayer {
                 if (plan.ramped) {
                     if (plan.ramped && a.isPlaying) {
                         val speedA = (plan.speedA(a.currentPosition / 1000.0) * rate()).toFloat()
-                        if (kotlin.math.abs(speedA - run.lastSpeedA) > 0.0005f) { a.playbackParameters = androidx.media3.common.PlaybackParameters(speedA); run.lastSpeedA = speedA }
+                        if (kotlin.math.abs(speedA - run.lastSpeedA) > 0.0005f) { a.playbackParameters = params(speedA); run.lastSpeedA = speedA }
                     }
                     if (plan.ramped && x >= 1.0) {
                         // B's ramp has ended at its own speed: what is left is the outgoing song's tail, which
                         // has no beat to hold, and a nudge there is a time-stretch heard on the song alone.
                         val own = rate()
-                        if (kotlin.math.abs(own - run.lastSpeed) > 0.0005f) { d.playbackParameters = androidx.media3.common.PlaybackParameters(own); run.lastSpeed = own }
+                        if (kotlin.math.abs(own - run.lastSpeed) > 0.0005f) { d.playbackParameters = params(own); run.lastSpeed = own }
                     } else if (a.isPlaying) lock(run, a, preroll = false, quiet = run.segueGainB(x) < 0.35 || plan.style == app.myspoti.automix.MixPlan.Style.CUT)
                 } else {
                     glide(run, a, x)
@@ -1351,7 +1359,7 @@ object LocalPlayer {
             run.eq?.neutral()
             segueStages[d]?.disarm()
             d.volume = 1f
-            d.playbackParameters = androidx.media3.common.PlaybackParameters(rate())
+            d.playbackParameters = params(rate())
             run.lastSpeed = rate()
             mix = null
             tune(d)

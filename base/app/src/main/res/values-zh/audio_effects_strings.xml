@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="effects_title">效果</string>
+    <string name="effects_unsupported">效果适用于应用自己播放的歌曲（来自扩展、下载和你的本地文件）。这首歌由 Spotify 自带播放器播放，因此效果已关闭。</string>
+    <string name="effects_presets">预设</string>
+    <string name="effects_preset_original">原声</string>
+    <string name="effects_preset_slowed">减速 + 混响</string>
+    <string name="effects_preset_sped_up">加速</string>
+    <string name="effects_preset_default_name">自定义</string>
+    <string name="effects_preset_name">预设名称</string>
+    <string name="effects_save_preset">保存预设</string>
+    <string name="effects_save">保存</string>
+    <string name="effects_reset">重置</string>
+    <string name="effects_delete_preset">删除预设 %1$s</string>
+    <string name="effects_speed">速度</string>
+    <string name="effects_pitch">音高</string>
+    <string name="effects_off">关</string>
+    <string name="effects_reverb">混响</string>
+    <string name="effects_karaoke">卡拉 OK</string>
+    <string name="effects_karaoke_hint">降低立体声混音中央的人声。这不是单独的人声音轨，所以部分歌声可能保留，中央的某些乐器也可能变小。</string>
+</resources>

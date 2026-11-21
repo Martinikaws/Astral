@@ -5,8 +5,12 @@ internal object LocalOffload {
     /**
      * Only when no stage of ours changes the samples, as Media3 leaves them out in offload:
      * the equalizer off or flat, no spatial width (null or 1), AutoMix and the crossfade off, the
-     * speed at 1, no silence skipping.
+     * speed and the pitch at 1, no silence skipping, no reverb and no karaoke.
      */
-    fun allowed(eqFlat: Boolean, spatialWidth: Float?, autoMix: Boolean, crossfadeSeconds: Int, speed: Float, skipSilence: Boolean): Boolean =
-        eqFlat && (spatialWidth == null || spatialWidth <= 1f) && !autoMix && crossfadeSeconds <= 0 && speed == 1f && !skipSilence
+    fun allowed(
+        eqFlat: Boolean, spatialWidth: Float?, autoMix: Boolean, crossfadeSeconds: Int, speed: Float, skipSilence: Boolean,
+        pitch: Float = 1f, reverb: Float = 0f, karaoke: Float = 0f,
+    ): Boolean =
+        eqFlat && (spatialWidth == null || spatialWidth <= 1f) && !autoMix && crossfadeSeconds <= 0 && speed == 1f && !skipSilence &&
+            pitch == 1f && reverb <= 0f && karaoke <= 0f
 }
