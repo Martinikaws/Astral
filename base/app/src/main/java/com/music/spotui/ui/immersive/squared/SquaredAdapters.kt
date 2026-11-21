@@ -241,7 +241,7 @@ private fun rememberSquaredLyrics(): SquaredLyricsState {
  * setting, the battery policy and the data rules, the same as the other looks.
  */
 @Composable
-private fun rememberSquaredMotionAllowed(): Boolean {
+internal fun rememberSquaredMotionAllowed(): Boolean {
     val context = LocalContext.current
     val energy by app.myspoti.power.EnergySettings.state.collectAsState()
     return motionAllowed(
