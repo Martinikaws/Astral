@@ -81,8 +81,19 @@ private fun liftedTone(colour: Color, mix: Float): Color {
  * or read off the picture, and that colour is as dark as it is whichever way
  * the phone is set. What can be read on it is decided by it, not by the phone.
  */
-fun inkOn(ground: Color): Color =
-    if (ground.luminance() > 0.42f) Color(0xFF15161A) else Color(0xFFF7F8FA)
+internal fun contrastRatio(first: Color, second: Color): Float {
+    val a = first.luminance()
+    val b = second.luminance()
+    return (maxOf(a, b) + 0.05f) / (minOf(a, b) + 0.05f)
+}
+
+fun inkOn(ground: Color): Color {
+    val dark = Color(0xFF15161A)
+    val light = Color(0xFFF7F8FA)
+    val best = if (contrastRatio(ground, dark) >= contrastRatio(ground, light)) dark else light
+    if (contrastRatio(ground, best) >= 4.5f) return best
+    return if (contrastRatio(ground, Color.Black) >= contrastRatio(ground, Color.White)) Color.Black else Color.White
+}
 
 /**
  * An ink that overrides the theme's, for the surfaces that own their colour.

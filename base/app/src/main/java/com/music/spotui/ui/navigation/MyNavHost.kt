@@ -249,7 +249,14 @@ fun MyNavHost(
         ) { navBackStackEntry ->
             val uId = navBackStackEntry.arguments?.getString("uId")
             val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            uId?.let { if (isImmersive()) com.music.spotui.ui.immersive.people.ImmersiveProfileScreen(navHostController, userId = it, userName = name) else com.music.spotui.ui.screens.ProfileScreen(navHostController, userId = it, userName = name) }
+            uId?.let {
+                val squared = isSquared()
+                if (squared || isImmersive()) {
+                    com.music.spotui.ui.immersive.people.ImmersiveProfileScreen(navHostController, it, name, squared = squared)
+                } else {
+                    com.music.spotui.ui.screens.ProfileScreen(navHostController, userId = it, userName = name)
+                }
+            }
         }
 
         page("$LIKED_BY_ARTIST_ROUTE/{key}") { navBackStackEntry ->
