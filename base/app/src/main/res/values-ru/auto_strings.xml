@@ -17,4 +17,5 @@
     <string name="aa_speed_set">Скорость %1$s</string>
     <string name="aa_unreachable">Нет связи со службой. Проверьте подключение.</string>
     <string name="aa_play_failed">Не удалось воспроизвести</string>
+    <string name="aa_car_nothing_playing">Включите что-нибудь в Astral</string>
 </resources>

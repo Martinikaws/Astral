@@ -17,4 +17,5 @@
     <string name="aa_speed_set">速度 %1$s</string>
     <string name="aa_unreachable">无法连接服务，请检查网络连接。</string>
     <string name="aa_play_failed">无法播放</string>
+    <string name="aa_car_nothing_playing">在 Astral 中播放内容</string>
 </resources>
