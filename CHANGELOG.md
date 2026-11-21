@@ -2,6 +2,21 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.7 — Squared Look, Audio Effects, Canvas Behind Lyrics, Immersive Android Auto (2026-11-21)
+
+### New
+- **Squared Look**: a new Look ported from the open-source app [Square](https://github.com/Lelonio/Square) (GPL-3.0), running on Astral's own sign-in, data and player. Clear refractive glass with a floating tab bar (Home, Search, Library), a mini player that drags up into the full player, Square's lyrics, queue and effects panel, its own Home, Search, Library, album, artist, playlist and podcast pages, and monthly listening. Square's settings come with it (Playback, Equalizer, Glass, Downloads, App), plus an **Astral Settings** section for everything else. Animated covers and artist artwork can be turned off in its settings.
+- **Audio effects** in every Look (a song's options → Effects): speed, pitch, reverb and a karaoke dial that takes the vocals out, with presets (Original, Slowed + Reverb, Sped Up) and your own. They work on songs Astral plays itself (extension streams, downloads, phone files), not on Spotify's own audio, Cast or Spotify Connect.
+- **Per-output equalizer**: each output (phone speaker, wired, every Bluetooth device, USB) keeps its own curve. Your current curve is the starting point for all of them.
+- **Canvas behind lyrics** (on by default): when a song has a Canvas, it plays full screen behind Spicy Lyrics, in the Immersive and Classic Looks.
+- **Immersive Android Auto screen** (experimental): the cover, credits and synced lyrics on the car screen, also in split screen. Astral shows up in Android Auto as a navigation app for this; it needs **Unknown sources** on in Android Auto's developer settings, and the normal music controls in the car stay as before.
+
+### Changed
+- In full-bleed Looks the song title and buttons now sit right above the progress bar.
+- "Support Astral" is no longer in the profile menu (it is still in About).
+
+---
+
 ## v1.0.6 — Tablet Layouts, Cupertino Look, Android Auto Rework (2026-11-20)
 
 ### New
