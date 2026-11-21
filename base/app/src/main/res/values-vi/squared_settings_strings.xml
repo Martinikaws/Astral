@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Cài đặt</string>
-    <string name="squared_back">Quay lại</string>
     <string name="squared_page_glass">Kính</string>
     <string name="squared_tile_playback_note">Âm thanh, nghe nhạc, lời bài hát và ảnh bìa</string>
     <string name="squared_tile_equalizer_note">Một đường cong cho mỗi đầu ra</string>

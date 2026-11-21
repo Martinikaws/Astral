@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">설정</string>
-    <string name="squared_back">뒤로</string>
     <string name="squared_page_glass">글래스</string>
     <string name="squared_tile_playback_note">사운드, 재생, 가사, 커버</string>
     <string name="squared_tile_equalizer_note">출력마다 하나의 곡선</string>

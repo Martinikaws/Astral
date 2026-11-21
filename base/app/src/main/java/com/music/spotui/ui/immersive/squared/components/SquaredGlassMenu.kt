@@ -3,7 +3,7 @@
  * app/src/main/java/dev/lelonio/square/ui/components/GlassMenu.kt at 139441f.
  * Modified for Astral, 2026-11.
  *
- * Changes: package renamed, imports redirected; otherwise verbatim.
+ * Changes: package renamed, imports redirected; no frost/blur (Astral's clear glass); otherwise verbatim.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -431,20 +431,12 @@ fun BoxScope.GlassChoiceMenu(
             .liquidGlassGroup(
                 backdrop = backdrop,
                 capture = capture,
-                // The listener's glass, frosted as menus are (see #132). Under
-                // the iOS 27 material, the material itself, as upstream's menu
-                // inherits the theme's: this path reads a sharp and a blurred
-                // copy of the page and has no frost pass, so the frost's cloud
-                // is its blur, at the frost's own sigma.
-                settings = com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current.let { config ->
-                    if (config.ios27) {
-                        com.music.spotui.ui.immersive.squared.glass.ios27Settings(!darkPage, config).let {
-                            if (it.frost > 0f) it.copy(blur = maxOf(it.blur, it.frost), frost = 0f) else it
-                        }
-                    } else {
-                        config.toLiquidGlassSettings(blurScale = MENU_BLUR_SCALE, minBlur = MENU_MIN_BLUR)
-                    }
-                },
+                // The listener's clear glass with the denser sheet film, so the
+                // rows stay legible with nothing blurring the page behind them.
+                settings = com.music.spotui.ui.immersive.squared.glass.refractionSettings(
+                    !darkPage,
+                    com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current.copy(sheet = true),
+                ),
                 darkPage = darkPage,
             ) { frame().glass },
     ) {
@@ -554,7 +546,6 @@ private fun BoxScope.CompatibleGlassChoiceMenu(
                 .liquidGlass(
                     config = config,
                     shape = shape,
-                    blurRadiusDp = config.blurRadius * MENU_BLUR_SCALE,
                     highlightAlpha = 0.3f,
                     ownBackdrop = backdrop,
                 )
@@ -810,12 +801,6 @@ private class RoundRectInColumn(
 /** Upstream's GlassMenu.menuBorderRadius default, in logical pixels. */
 private const val CHOICE_MENU_RADIUS = 32f
 
-/**
- * The least a choice menu frosts, in logical pixels: upstream's own menu
- * blur. Turned down further, the page shows through the rows sharp (#132).
- */
-private const val MENU_MIN_BLUR = 10f
-
 /** Room around the glass for its overshoot, its blend and its shadow. */
 private val MORPH_MARGIN = 40.dp
 
@@ -936,15 +921,6 @@ fun GlassChoiceItem(
         }
     }
 }
-
-/** Dark enough that a track title behind it never competes with a label. */
-/**
- * How much deeper a menu blurs than the pill-sized surfaces.
- *
- * A multiplier rather than a number of pixels, so the setting still decides:
- * turned down, this is a light frost; turned up, the page behind it goes.
- */
-private const val MENU_BLUR_SCALE = 2f
 
 /** Upstream's GlassMenu default width: 200 logical pixels. */
 val CHOICE_MENU_WIDTH = 200.dp

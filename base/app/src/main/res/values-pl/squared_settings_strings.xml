@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Ustawienia</string>
-    <string name="squared_back">Wstecz</string>
     <string name="squared_page_glass">Szkło</string>
     <string name="squared_tile_playback_note">Dźwięk, słuchanie, teksty i okładki</string>
     <string name="squared_tile_equalizer_note">Osobna krzywa dla każdego wyjścia</string>

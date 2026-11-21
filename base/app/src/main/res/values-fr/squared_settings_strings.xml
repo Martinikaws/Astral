@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Réglages</string>
-    <string name="squared_back">Retour</string>
     <string name="squared_page_glass">Verre</string>
     <string name="squared_tile_playback_note">Son, écoute, paroles et pochettes</string>
     <string name="squared_tile_equalizer_note">Une courbe par sortie</string>

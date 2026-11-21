@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">設定</string>
-    <string name="squared_back">戻る</string>
     <string name="squared_page_glass">ガラス</string>
     <string name="squared_tile_playback_note">サウンド、再生、歌詞、カバー</string>
     <string name="squared_tile_equalizer_note">出力ごとのカーブ</string>

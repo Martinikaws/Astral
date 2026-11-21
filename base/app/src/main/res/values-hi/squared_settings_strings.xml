@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">सेटिंग्स</string>
-    <string name="squared_back">वापस</string>
     <string name="squared_page_glass">ग्लास</string>
     <string name="squared_tile_playback_note">ध्वनि, सुनना, बोल और कवर</string>
     <string name="squared_tile_equalizer_note">हर आउटपुट के लिए एक कर्व</string>

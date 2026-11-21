@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">设置</string>
-    <string name="squared_back">返回</string>
     <string name="squared_page_glass">玻璃</string>
     <string name="squared_tile_playback_note">声音、聆听、歌词和封面</string>
     <string name="squared_tile_equalizer_note">每个输出一条曲线</string>

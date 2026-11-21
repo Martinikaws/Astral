@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Ayarlar</string>
-    <string name="squared_back">Geri</string>
     <string name="squared_page_glass">Cam</string>
     <string name="squared_tile_playback_note">Ses, dinleme, şarkı sözleri ve kapaklar</string>
     <string name="squared_tile_equalizer_note">Her çıkış için bir eğri</string>

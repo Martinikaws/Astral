@@ -3,7 +3,7 @@
  * app/src/main/java/dev/lelonio/square/ui/library/PlaylistScreen.kt at 139441f.
  * Modified for Astral, 2026-11.
  *
- * Changes: package renamed and the screen renamed SquaredCollectionScreen; it serves albums,
+ * Changes: no frost/blur (Astral's clear glass); package renamed and the screen renamed SquaredCollectionScreen; it serves albums,
  * playlists, artists and podcasts from state handed in by SquaredCollectionHost. Coil is replaced
  * by Glide (the image loader Astral uses). Removed because Astral has no counterpart: the
  * download and offline controls, the local-files permission card, the Mix and transition UI, the
@@ -2355,7 +2355,6 @@ private fun GlassCapsule(
             .liquidGlass(
                 config = com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current,
                 shape = shape,
-                blurRadiusDp = com.music.spotui.ui.immersive.squared.glass.LocalGlassEffectConfig.current.blurRadius,
                 ownBackdrop = backdrop,
             )
             // The rim comes with the material now; this is the drawn edge that

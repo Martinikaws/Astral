@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Settings</string>
-    <string name="squared_back">Back</string>
     <string name="squared_page_glass">Glass</string>
     <string name="squared_tile_playback_note">Sound, listening, lyrics and covers</string>
     <string name="squared_tile_equalizer_note">A curve for each output</string>

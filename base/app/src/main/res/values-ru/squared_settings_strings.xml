@@ -5,7 +5,6 @@
 -->
 <resources>
     <string name="squared_settings_title">Настройки</string>
-    <string name="squared_back">Назад</string>
     <string name="squared_page_glass">Стекло</string>
     <string name="squared_tile_playback_note">Звук, прослушивание, тексты и обложки</string>
     <string name="squared_tile_equalizer_note">Своя кривая для каждого выхода</string>
