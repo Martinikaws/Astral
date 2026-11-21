@@ -37,11 +37,11 @@ object LyricTranslate {
         if (payload.isEmpty()) return Result(lines.map { "" }, null)
 
         val translated = translateText(payload.joinToString("\n"), targetLang) ?: return null
-        val parts = translated.text.split("\n")
+        val parts = translated.text.trimEnd('\n', '\r').split("\n")
+        // A joined or inserted line would otherwise shift every translation after it.
+        if (parts.size != idx.size) return null
         val out = MutableList(lines.size) { "" }
-        idx.forEachIndexed { j, lineIdx ->
-            out[lineIdx] = parts.getOrElse(j) { payload[j] }.trim()
-        }
+        idx.forEachIndexed { j, lineIdx -> out[lineIdx] = parts[j].trim() }
         return Result(out, translated.sourceLanguage)
     }
 

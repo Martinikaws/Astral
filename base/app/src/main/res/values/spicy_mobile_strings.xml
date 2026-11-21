@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="spicy_delay_value">Lyrics timing (%1$+d ms)</string>
+    <string name="spicy_delay_earlier">Earlier</string>
+    <string name="spicy_delay_later">Later</string>
+    <string name="spicy_delay_reset">Reset</string>
+    <string name="spicy_bloom_renderer">Bloom lyric animation</string>
+    <string name="spicy_reduce_effects">Reduce lyric effects</string>
+    <string name="spicy_hold_background">Hold animated lyrics backgrounds still</string>
+    <string name="spicy_local_lyrics">Local lyrics folder</string>
+    <string name="spicy_local_folder_none">Choose a folder containing LRC or TTML files. Name a file after the song or use Artist – Song.</string>
+    <string name="spicy_local_folder_choose">Choose folder</string>
+    <string name="spicy_local_folder_rescan">Rescan</string>
+    <string name="spicy_local_folder_unlink">Unlink</string>
+    <string name="spicy_local_folder_error">Could not read the lyrics folder.</string>
+    <string name="spicy_lookup_title">Last lyrics lookup</string>
+    <string name="spicy_lookup_empty">No lyrics lookup this session.</string>
+    <string name="spicy_lookup_result">%1$s · %2$s · %3$d ms</string>
+    <string name="spicy_lookup_no_result">No lyrics found</string>
+    <string name="spicy_lookup_unknown">Source unreported</string>
+    <string name="spicy_renderer_backgrounds">Spicy Lyrics backgrounds</string>
+</resources>

@@ -27,6 +27,7 @@ data class Line(
     val lineTimed: Boolean = false,
     /** The source's own translation of this line (TTML `x-translation` or the head's entry). */
     val translation: String? = null,
+    val romanizationNote: String? = null,
     /** Synced lyrics' line with no timing of its own, placed in the gap around it; lit whole, never wiped. */
     val untimed: Boolean = false,
 ) {

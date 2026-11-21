@@ -523,7 +523,14 @@ Not taken: the parts Spicy Lyrics Mobile credits to *mild-lyrics* (source fetchi
 Genius romanization alignment), because that project publishes no licence. Their usage analytics were not
 taken either.
 
-The MIT licence text that applies to @kawarp/core, cubic-spline and spr:
+The offline romanization port adds Spicy Lyrics Mobile's Greek and Cyrillic tables, kana
+conversion, Korean rules and pinyin dictionaries. The kana table is based on
+[kuroshiro](https://github.com/hexenq/kuroshiro), Copyright (c) 2015–2021 Hexen Qi (MIT).
+Korean rules are based on [aromanize-js](https://github.com/fujaru/aromanize-js),
+Copyright (c) 2017 Fajar Chandra (MIT). The character and phrase dictionaries are from
+[pinyin](https://github.com/hotoo/pinyin) 4.0.0 (MIT). The MIT licence below applies to these parts.
+Local folder selection and timing controls use Astral's own Android code and lyrics parsers.
+The MIT licence text:
 
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal

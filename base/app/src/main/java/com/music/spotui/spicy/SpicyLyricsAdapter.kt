@@ -34,8 +34,15 @@ data class SpicyDocument(
  * [romanize] shows a line's own romanization (when the source gave one) in place of its text, as
  * one whole-line word.
  */
-fun spicyDocument(lyrics: Lyrics, songDurationMs: Long = 0L, romanize: Boolean = false, minimalMode: Boolean = false): SpicyDocument {
-    if (!lyrics.synced) return SpicyDocument(staticLines(lyrics, romanize), LyricsType.Static)
+fun spicyDocument(
+    lyrics: Lyrics,
+    songDurationMs: Long = 0L,
+    romanize: Boolean = false,
+    minimalMode: Boolean = false,
+    translations: List<String>? = null,
+    romanizationAsNote: Boolean = false,
+): SpicyDocument {
+    if (!lyrics.synced) return SpicyDocument(staticLines(lyrics, romanize, translations, romanizationAsNote), LyricsType.Static)
     val type = if (lyrics.wordSynced) LyricsType.Syllable else LyricsType.Line
     val source = lyrics.lines
     val out = ArrayList<Line>(source.size + 4)
@@ -47,7 +54,8 @@ fun spicyDocument(lyrics: Lyrics, songDurationMs: Long = 0L, romanize: Boolean =
         val limit = next ?: songDurationMs.takeIf { it > line.timeMs }
         val opposite = (line.voice ?: 1) > 1
         val agent = line.voice?.toString()
-        val roman = if (romanize) line.romanization?.trim()?.takeIf { it.isNotEmpty() && !it.equals(line.text.trim(), ignoreCase = true) } else null
+        val romanization = if (romanize) note(line.romanization, line.text) else null
+        val roman = romanization.takeUnless { romanizationAsNote }
         val id = group++
 
         val leadWords: List<Word>
@@ -79,6 +87,8 @@ fun spicyDocument(lyrics: Lyrics, songDurationMs: Long = 0L, romanize: Boolean =
             startMs = if (background != null) minOf(leadStart, background.startMs) else leadStart,
             endMs = leadEnd.coerceAtLeast(leadStart),
             agent = agent, role = LineRole.LEAD, groupId = id, oppositeAligned = opposite, lineTimed = lineTimed,
+            translation = note(translations?.getOrNull(index), line.text)?.takeUnless { it == romanization },
+            romanizationNote = romanization.takeIf { romanizationAsNote },
         )
         out += lead
         if (background != null) out += background
@@ -86,10 +96,23 @@ fun spicyDocument(lyrics: Lyrics, songDurationMs: Long = 0L, romanize: Boolean =
     return SpicyDocument(buildDisplayTimeline(out, minimalMode), type)
 }
 
-private fun staticLines(lyrics: Lyrics, romanize: Boolean): List<Line> = lyrics.lines.mapNotNull { line ->
-    val text = (if (romanize) line.romanization?.takeIf { it.isNotBlank() } else null) ?: line.text
-    if (text.isBlank() || text.trim() == "♪") return@mapNotNull null
-    Line(listOf(Word(text.trim(), 0L, 0L)), 0L, 0L, oppositeAligned = (line.voice ?: 1) > 1)
+private fun note(value: String?, original: String): String? =
+    value?.trim()?.takeIf { it.isNotEmpty() && !it.equals(original.trim(), ignoreCase = true) }
+
+private fun staticLines(
+    lyrics: Lyrics,
+    romanize: Boolean,
+    translations: List<String>?,
+    romanizationAsNote: Boolean,
+): List<Line> = lyrics.lines.mapIndexedNotNull { index, line ->
+    val romanization = if (romanize) note(line.romanization, line.text) else null
+    val text = romanization.takeUnless { romanizationAsNote } ?: line.text
+    if (text.isBlank() || text.trim() == "♪") return@mapIndexedNotNull null
+    Line(
+        listOf(Word(text.trim(), 0L, 0L)), 0L, 0L, oppositeAligned = (line.voice ?: 1) > 1,
+        translation = note(translations?.getOrNull(index), line.text)?.takeUnless { it == romanization },
+        romanizationNote = romanization.takeIf { romanizationAsNote },
+    )
 }
 
 /** Whether anything is left to draw once the source's own breaks ("" and "♪") are dropped. */

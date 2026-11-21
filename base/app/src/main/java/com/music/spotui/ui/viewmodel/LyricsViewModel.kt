@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.spotui.data.api.LyricTranslate
 import com.music.spotui.data.api.LyricsApi
+import com.music.spotui.data.api.LyricsLookupStatus
+import com.music.spotui.lyrics.local.LocalLyricsFolder
+import kotlinx.coroutines.CancellationException
 import com.music.spotui.data.entity.Lyrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +47,8 @@ class LyricsViewModel constructor() : ViewModel() {
     val state: StateFlow<State> = _state
 
     private var loadedKey: String? = null
+    private var pendingLoad: kotlinx.coroutines.Job? = null
+    private var earlyLoad: kotlinx.coroutines.Job? = null
 
     init {
         // Romanizations an extension gave after the lyrics showed join the lines still shown.
@@ -114,30 +119,46 @@ class LyricsViewModel constructor() : ViewModel() {
         _triedNothing.value = null
         val key = track.key
         viewModelScope.launch {
-            val lyrics = runCatching { LyricsApi.fetchFrom(track, sourceId) }.getOrNull()
+            val lyrics = try {
+                LyricsLookupStatus.observe(track.title) { LyricsApi.fetchFrom(track, sourceId) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
             // A skip meanwhile: the answer is for the previous song.
             if (loadedKey == key) {
                 if (lyrics == null) _triedNothing.value = sourceId
                 // The cache holds the latest: romanizations that came while this answer was on its way.
-                else _state.value = loadedState(LyricsApi.cached(track) ?: lyrics)
+                else {
+                    pendingLoad?.cancel()
+                    earlyLoad?.cancel()
+                    _state.value = loadedState(LyricsApi.cached(track) ?: lyrics)
+                }
             }
             _trying.value = null
         }
     }
 
-    fun load(track: LyricsApi.Track, force: Boolean = false) {
+    fun load(track: LyricsApi.Track, force: Boolean = false, localChanged: Boolean = false) {
         val key = track.key
-        if (!force && loadedKey == key && _state.value !is State.NotFound) return
+        if (!force && !localChanged && loadedKey == key && _state.value !is State.NotFound) return
+        pendingLoad?.cancel()
+        earlyLoad?.cancel()
         loadedKey = key
         stopSelecting()
         _triedNothing.value = null
         if (force) LyricsApi.forget(track)
         // Already resolved (prefetched while the track started): no loading flash. Found while an
         // extension had not answered: shown, and asked again (its answer replaces them).
-        val cached = LyricsApi.cached(track)
+        val local = LocalLyricsFolder.linked
+        val cached = if (local) null else LyricsApi.cached(track)
         if (cached != null) {
             _state.value = loadedState(cached)
-            if (LyricsApi.settled(track)) return
+            if (LyricsApi.settled(track)) {
+                LyricsApi.romanizeLater(track, cached)
+                return
+            }
         } else if (!(force && _state.value is State.Loaded)) {
             // Read again (the setting changed): the lyrics shown stay until the new ones replace them.
             _state.value = State.Loading
@@ -155,10 +176,21 @@ class LyricsViewModel constructor() : ViewModel() {
                 }
             }
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        earlyLoad = earlyJob
+        pendingLoad = viewModelScope.launch(Dispatchers.IO) {
             // The cache holds the latest: romanizations that came while this answer was on its way.
-            val lyrics = LyricsApi.fetch(track)?.let { LyricsApi.cached(track) ?: it }
-            earlyJob.cancel()
+            val lyrics = try {
+                LyricsLookupStatus.observe(track.title) {
+                    val fromFolder = if (local) runCatching { LocalLyricsFolder.find(track) }.getOrNull() else null
+                    fromFolder?.let {
+                        com.music.spotui.data.api.LyricsRomanize.apply(
+                            it, com.music.spotui.data.api.LyricsRomanize.offline(it, com.music.spotui.data.api.LyricsRomanize.wanted(it)),
+                        )
+                    } ?: LyricsApi.fetch(track)?.let { LyricsApi.cached(track) ?: it }
+                }
+            } finally {
+                earlyJob.cancel()
+            }
             withContext(Dispatchers.Main) {
                 // A skip during the fetch: don't show the previous song's lyrics.
                 if (loadedKey != key) return@withContext

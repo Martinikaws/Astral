@@ -33,6 +33,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -612,6 +613,13 @@ fun LyricsView(
                         ))
                     }) { drawStandardLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config) }
                     else -> drawStandardLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config)
+                }
+                layout.supplements.forEach { row ->
+                    drawText(
+                        row.text,
+                        color = Color.White.copy(alpha = (lineAnim.opacity * 0.82f).coerceIn(0f, 1f)),
+                        topLeft = Offset(lineStartX, scrollOffset + dynamicY) + row.offset,
+                    )
                 }
             }
 

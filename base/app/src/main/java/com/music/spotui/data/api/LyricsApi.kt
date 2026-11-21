@@ -318,15 +318,18 @@ object LyricsApi {
      * romanization: the lyrics show at once and the romanizations follow ([romanized]). They are
      * kept, in memory and storage, only while [lyrics] are still the song's.
      */
-    private fun romanizeLater(track: Track, lyrics: Lyrics) {
+    internal fun romanizeLater(track: Track, lyrics: Lyrics) {
         val wanted = LyricsRomanize.wanted(lyrics)
-        if (wanted.isEmpty() || !runCatching { com.music.spotui.extensions.Extensions.hasRomanizer() }.getOrDefault(false)) return
+        if (wanted.isEmpty()) return
         scope.launch {
-            val found = runCatching {
+            val hasExtension = runCatching { com.music.spotui.extensions.Extensions.hasRomanizer() }.getOrDefault(false)
+            val fromExtension = if (hasExtension) runCatching {
                 com.music.spotui.extensions.Extensions.romanizeFor(
                     track.trackId, track.title, track.artist, track.album, track.durationMs, track.coverUrl, lyrics.language, wanted)
-            }.getOrDefault(emptyMap())
-            val updated = LyricsRomanize.apply(lyrics, found)
+            }.getOrDefault(emptyMap()) else emptyMap()
+            val extended = LyricsRomanize.apply(lyrics, fromExtension)
+            val local = LyricsRomanize.offline(extended, LyricsRomanize.wanted(extended))
+            val updated = LyricsRomanize.apply(extended, local)
             if (updated === lyrics) return@launch
             // Another source picked or the song forgotten meanwhile: these were for lyrics no longer shown.
             if (!cache.replace(track.key, lyrics, updated)) return@launch

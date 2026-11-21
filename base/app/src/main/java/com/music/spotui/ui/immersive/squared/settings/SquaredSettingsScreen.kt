@@ -410,6 +410,8 @@ private fun PlaybackPage(padding: PaddingValues, header: @Composable () -> Unit)
                         squared.setLyricsStyle(SquaredLyricsStyle.CLASSIC)
                     }
                     SettingsDivider()
+                    com.music.spotui.ui.components.SpicyLyricsExtras()
+                    SettingsDivider()
                     SettingsSwitchRow(
                         stringResource(R.string.lyrics_word_sync_title), wordSync,
                         detail = stringResource(if (wordSync) R.string.lyrics_word_sync_on else R.string.lyrics_word_sync_off),

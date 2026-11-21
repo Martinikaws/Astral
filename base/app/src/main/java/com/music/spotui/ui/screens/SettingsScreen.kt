@@ -288,6 +288,7 @@ fun SettingsScreen(navController: NavController) {
             if (tab == TAB_LYRICS) {
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
             Section(R.string.settings_section_lyrics)
+            com.music.spotui.ui.components.SpicyLyricsExtras()
             var wordSync by remember { mutableStateOf(com.music.spotui.data.preferences.isLyricsWordSync(ctx)) }
             OptionRow(
                 label = stringResource(R.string.lyrics_word_sync_title),
