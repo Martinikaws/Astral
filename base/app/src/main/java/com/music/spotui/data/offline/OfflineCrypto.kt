@@ -138,6 +138,7 @@ object OfflineCrypto {
         private var usingOther = false
         /** The address an extension gave is read through the safe client, never through [other] (see [MediaDataSource]). */
         private val net = com.music.spotui.extensions.MediaDataSource()
+        private val flacNet = com.music.spotui.extensions.MediaDataSource(com.music.spotui.flac.FlacSources::openStream)
         /** Which of [other] and [net] is open when [usingOther]. */
         private var active: DataSource = other
         /** An extension's DASH answer, read as one file (see [DashLive]). */
@@ -151,6 +152,12 @@ object OfflineCrypto {
 
         override fun open(dataSpec: DataSpec): Long {
             uri = dataSpec.uri
+            if (dataSpec.uri.scheme == com.music.spotui.flac.FlacSources.SCHEME) {
+                com.music.spotui.data.DataSaver.check()
+                active = flacNet
+                usingOther = true
+                return flacNet.open(dataSpec)
+            }
             // A song an extension gives the audio of (audio-source hook): asked here, on the
             // player's loading thread, then read from where it says with its headers. An address
             // the server refuses (expired or gone: 401, 403, 404, 410) is asked for once more.
@@ -306,7 +313,7 @@ object OfflineCrypto {
             return n
         }
 
-        override fun getUri(): Uri? = if (usingOther) active.uri else uri
+        override fun getUri(): Uri? = if (usingOther && uri?.scheme != com.music.spotui.flac.FlacSources.SCHEME) active.uri else uri
 
         // Without this, a station's "icy-metaint" response header never reaches the extractor
         // (BaseDataSource's default is an empty map): it can't tell the audio apart from the

@@ -176,6 +176,10 @@ fun ImmersiveExtensionsScreen(navController: NavController) {
             Text(stringResource(R.string.extensions_loading), style = Immersive.Caption)
         }
 
+        if (tab != 2 && query.isBlank() && category == null) item(key = "ext:flac") {
+            com.music.spotui.ui.screens.BundledFlacSources(navController)
+        }
+
         if (tab == 0) {
             if (registry.repositories.none { !ExtensionStore.isOfficial(it) } && !officialShown) immersiveBlock("empty") { EmptyState() }
             storeSources.forEach { url ->

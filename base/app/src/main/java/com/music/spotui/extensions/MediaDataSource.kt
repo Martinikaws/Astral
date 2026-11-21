@@ -22,7 +22,10 @@ import java.io.InputStream
  * read as an empty rest. The headers are the data spec's (the extension's included).
  */
 @UnstableApi
-internal class MediaDataSource : BaseDataSource(true), HttpDataSource {
+internal class MediaDataSource(
+    private val fetch: (String, Map<String, String>, Map<String, String>, Int) -> ExtensionMediaHttp.Opened =
+        { url, headers, fixed, timeout -> MediaHttp.open(url, headers = headers, fixed = fixed, timeoutMs = timeout) },
+) : BaseDataSource(true), HttpDataSource {
     private val props = HttpDataSource.RequestProperties()
     private var opened: ExtensionMediaHttp.Opened? = null
     private var input: InputStream? = null
@@ -42,7 +45,7 @@ internal class MediaDataSource : BaseDataSource(true), HttpDataSource {
         }
         System.getProperty("http.agent")?.let { fixed["User-Agent"] = it }
         val o = try {
-            MediaHttp.open(dataSpec.uri.toString(), headers = props.snapshot + dataSpec.httpRequestHeaders, fixed = fixed, timeoutMs = TIMEOUT_MS)
+            fetch(dataSpec.uri.toString(), props.snapshot + dataSpec.httpRequestHeaders, fixed, TIMEOUT_MS)
         } catch (e: IOException) {
             throw HttpDataSource.HttpDataSourceException.createForIOException(e, dataSpec, HttpDataSource.HttpDataSourceException.TYPE_OPEN)
         }
