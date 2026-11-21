@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="effects_title">Effects</string>
+    <string name="effects_unsupported">Effects work on songs the app plays itself (from extensions, downloads and your own files). This song is played by Spotify\'s own player, so they are switched off for it.</string>
+    <string name="effects_presets">Presets</string>
+    <string name="effects_preset_original">Original</string>
+    <string name="effects_preset_slowed">Slowed + Reverb</string>
+    <string name="effects_preset_sped_up">Sped Up</string>
+    <string name="effects_preset_default_name">Custom</string>
+    <string name="effects_preset_name">Preset name</string>
+    <string name="effects_save_preset">Save preset</string>
+    <string name="effects_save">Save</string>
+    <string name="effects_reset">Reset</string>
+    <string name="effects_delete_preset">Delete preset %1$s</string>
+    <string name="effects_speed">Speed</string>
+    <string name="effects_pitch">Pitch</string>
+    <string name="effects_off">Off</string>
+    <string name="effects_reverb">Reverb</string>
+    <string name="effects_karaoke">Karaoke</string>
+    <string name="effects_karaoke_hint">Turns down the voice in the middle of the stereo mix. It is not a separate vocal track, so some of the singing may stay and some instruments in the centre may get quieter.</string>
+    <string name="effects_semitones" translatable="false">st</string>
+</resources>

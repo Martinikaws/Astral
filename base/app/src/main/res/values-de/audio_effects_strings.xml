@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="effects_title">Effekte</string>
+    <string name="effects_unsupported">Effekte funktionieren bei Titeln, die die App selbst abspielt (aus Erweiterungen, Downloads und eigenen Dateien). Dieser Titel wird vom Spotify-Player selbst abgespielt, deshalb sind sie dafür ausgeschaltet.</string>
+    <string name="effects_presets">Voreinstellungen</string>
+    <string name="effects_preset_original">Original</string>
+    <string name="effects_preset_slowed">Verlangsamt + Hall</string>
+    <string name="effects_preset_sped_up">Beschleunigt</string>
+    <string name="effects_preset_default_name">Eigene</string>
+    <string name="effects_preset_name">Name der Voreinstellung</string>
+    <string name="effects_save_preset">Voreinstellung speichern</string>
+    <string name="effects_save">Speichern</string>
+    <string name="effects_reset">Zurücksetzen</string>
+    <string name="effects_delete_preset">Voreinstellung %1$s löschen</string>
+    <string name="effects_speed">Tempo</string>
+    <string name="effects_pitch">Tonhöhe</string>
+    <string name="effects_off">Aus</string>
+    <string name="effects_reverb">Hall</string>
+    <string name="effects_karaoke">Karaoke</string>
+    <string name="effects_karaoke_hint">Dämpft die Stimme in der Mitte des Stereomixes. Es ist keine getrennte Gesangsspur, daher kann ein Teil des Gesangs bleiben und manche Instrumente in der Mitte werden leiser.</string>
+</resources>

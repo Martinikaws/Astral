@@ -352,6 +352,21 @@ https://github.com/Instrument/instrument-serif, Copyright 2022 The Instrument Se
 The Squared look's display typeface (`base/app/src/main/res/font/instrument_serif.ttf`, as Square
 ships it) next to Inter (above). Licence text in `base/licenses/InstrumentSerif-OFL.txt`.
 
+### Square — GPL-3.0: audio effects
+https://github.com/Lelonio/Square (commit `139441f`), by Lelonio.
+
+Astral's audio effects (speed, pitch, reverb, karaoke, presets) are ported from Square's `playback` package and stay
+under the GPL-3.0. Each ported file says so in its header, with "Modified for Astral, 2026-11" and what changed:
+
+- `base/app/src/main/java/com/music/spotui/di/KaraokeProcessor.kt`: the DUET-style time-frequency mask
+  (`CentreExtractor.kt`) and the idea behind the karaoke dial, as a media3 audio processor.
+- `base/app/src/main/java/com/music/spotui/di/ReverbProcessor.kt`: the reverb's room settings (`ReverbTuning.kt`,
+  `PlayerReverb.kt`); the reverb itself is written for Astral as an audio processor.
+- `base/app/src/main/java/com/music/spotui/data/preferences/AudioEffectsPref.kt`: the persisted effect settings
+  (`AudioEffects.kt`) and the preset model with its three built-in presets (`EffectPresets.kt`).
+
+No Square strings, icons, images or brand are included.
+
 ## Design references: no code or assets copied
 
 Astral's Starry Night backdrop, its Glassify and LiquidMusic looks, its Spicy Lyrics-style display, its

@@ -94,6 +94,7 @@ fun ImmersiveSongOptionsSheet(
     var showSleep by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
+    var showEffects by remember { mutableStateOf(false) }
     var showMeaning by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
     var showNerd by remember { mutableStateOf(false) }
@@ -109,6 +110,7 @@ fun ImmersiveSongOptionsSheet(
         return
     }
     if (showSpeed) { SpeedSheet(onDismiss = { showSpeed = false; onDismiss() }); return }
+    if (showEffects) { com.music.spotui.ui.components.AudioEffectsSheet(onDismiss = { showEffects = false; onDismiss() }); return }
     if (showSavedIn) { SavedInSheet(song = song, context = context, onDismiss = { showSavedIn = false; onDismiss() }); return }
     if (showAddTo) {
         AddToPlaylistSheet(song = song, context = context, onDismiss = { showAddTo = false; onDismiss() }, excludePlaylistId = currentPlaylistId)
@@ -313,6 +315,10 @@ fun ImmersiveSongOptionsSheet(
         }
         if (nowPlaying && song.url.startsWith("episode:")) {
             ImmersiveSheetRow(Icons.Rounded.Speed, stringResource(R.string.playback_speed)) { showSpeed = true }
+        }
+        // Speed, pitch, reverb and karaoke: shown for every song; the sheet says when this one cannot take them.
+        if (nowPlaying && !song.url.startsWith("episode:")) {
+            ImmersiveSheetRow(Icons.Rounded.Tune, stringResource(R.string.effects_title)) { showEffects = true }
         }
         // The app's own playback (extensions, downloads, files): its equalizer, speed and silences.
         if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {

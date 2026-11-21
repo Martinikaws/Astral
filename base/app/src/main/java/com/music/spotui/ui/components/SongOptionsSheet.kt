@@ -112,6 +112,7 @@ fun SongOptionsSheet(
     var showSleep by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
+    var showEffects by remember { mutableStateOf(false) }
     var showNerd by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     if (showNerd) {
@@ -128,6 +129,10 @@ fun SongOptionsSheet(
     }
     if (showSpeed) {
         SpeedSheet(onDismiss = { showSpeed = false; onDismiss() })
+        return
+    }
+    if (showEffects) {
+        AudioEffectsSheet(onDismiss = { showEffects = false; onDismiss() })
         return
     }
     if (showSavedIn) {
@@ -326,6 +331,10 @@ fun SongOptionsSheet(
             }
             if (nowPlaying && song.url.startsWith("episode:")) {
                 MenuRow(Icons.Outlined.Speed, stringResource(R.string.playback_speed)) { showSpeed = true }
+            }
+            // Speed, pitch, reverb and karaoke: shown for every song; the sheet says when this one cannot take them.
+            if (nowPlaying && !song.url.startsWith("episode:")) {
+                MenuRow(Icons.Outlined.Tune, stringResource(R.string.effects_title)) { showEffects = true }
             }
             // The app's own playback (extensions, downloads, files): its equalizer, speed and silences.
             if (nowPlaying && com.music.spotui.di.LocalPlayer.active.value) {

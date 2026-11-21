@@ -112,6 +112,7 @@ object EqualizerPref {
     fun setSpeed(c: Context, value: Float) {
         speed = value.coerceIn(0.5f, 2f)
         prefs(c).edit().putFloat("speed", speed).apply()
+        AudioEffectsPref.noteSpeed(speed)
         com.music.spotui.di.LocalPlayer.applyPlayback()
         // Spotify's page plays at 1× only: the listen sync stops off 1×, and starts again at 1×.
         com.music.spotui.di.AccountSync.listen.refresh()

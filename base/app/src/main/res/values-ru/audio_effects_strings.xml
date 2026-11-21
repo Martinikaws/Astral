@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="effects_title">Эффекты</string>
+    <string name="effects_unsupported">Эффекты работают для треков, которые приложение воспроизводит само (из расширений, загрузок и ваших файлов). Этот трек играет встроенный плеер Spotify, поэтому для него они отключены.</string>
+    <string name="effects_presets">Пресеты</string>
+    <string name="effects_preset_original">Оригинал</string>
+    <string name="effects_preset_slowed">Замедленно + реверб</string>
+    <string name="effects_preset_sped_up">Ускоренно</string>
+    <string name="effects_preset_default_name">Свой</string>
+    <string name="effects_preset_name">Название пресета</string>
+    <string name="effects_save_preset">Сохранить пресет</string>
+    <string name="effects_save">Сохранить</string>
+    <string name="effects_reset">Сбросить</string>
+    <string name="effects_delete_preset">Удалить пресет %1$s</string>
+    <string name="effects_speed">Скорость</string>
+    <string name="effects_pitch">Высота тона</string>
+    <string name="effects_off">Выкл.</string>
+    <string name="effects_reverb">Реверберация</string>
+    <string name="effects_karaoke">Караоке</string>
+    <string name="effects_karaoke_hint">Приглушает голос в центре стереомикса. Это не отдельная вокальная дорожка, поэтому часть пения может остаться, а некоторые инструменты в центре станут тише.</string>
+</resources>

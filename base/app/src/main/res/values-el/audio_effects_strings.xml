@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="effects_title">Εφέ</string>
+    <string name="effects_unsupported">Τα εφέ λειτουργούν στα τραγούδια που παίζει η ίδια η εφαρμογή (από επεκτάσεις, λήψεις και τα δικά σας αρχεία). Αυτό το τραγούδι παίζει το πρόγραμμα αναπαραγωγής του Spotify, οπότε είναι απενεργοποιημένα.</string>
+    <string name="effects_presets">Προρυθμίσεις</string>
+    <string name="effects_preset_original">Πρωτότυπο</string>
+    <string name="effects_preset_slowed">Αργό + Αντήχηση</string>
+    <string name="effects_preset_sped_up">Γρήγορο</string>
+    <string name="effects_preset_default_name">Προσαρμοσμένο</string>
+    <string name="effects_preset_name">Όνομα προρύθμισης</string>
+    <string name="effects_save_preset">Αποθήκευση προρύθμισης</string>
+    <string name="effects_save">Αποθήκευση</string>
+    <string name="effects_reset">Επαναφορά</string>
+    <string name="effects_delete_preset">Διαγραφή προρύθμισης %1$s</string>
+    <string name="effects_speed">Ταχύτητα</string>
+    <string name="effects_pitch">Τονικό ύψος</string>
+    <string name="effects_off">Ανενεργό</string>
+    <string name="effects_reverb">Αντήχηση</string>
+    <string name="effects_karaoke">Καραόκε</string>
+    <string name="effects_karaoke_hint">Χαμηλώνει τη φωνή στο κέντρο της στερεοφωνικής μίξης. Δεν είναι ξεχωριστό κομμάτι φωνής, οπότε μέρος του τραγουδιού μπορεί να μείνει και κάποια όργανα στο κέντρο να ακούγονται πιο σιγανά.</string>
+</resources>

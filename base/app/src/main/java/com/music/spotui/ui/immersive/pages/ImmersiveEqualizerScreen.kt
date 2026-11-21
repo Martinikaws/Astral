@@ -105,7 +105,8 @@ fun ImmersiveEqualizerScreen(navController: NavController) {
             row {
                 ImmersiveSegmentedControl(
                     options = EqualizerPref.SPEEDS.map(::speedText),
-                    selectedIndex = EqualizerPref.SPEEDS.indexOf(pref.speed).coerceAtLeast(0),
+                    // -1 (no pill) when the speed is not a chip value, e.g. 0.85 from a preset or the effects sheet.
+                    selectedIndex = EqualizerPref.SPEEDS.indexOf(pref.speed),
                     onSelect = { pref.setSpeed(ctx, EqualizerPref.SPEEDS[it]) },
                     modifier = Modifier.padding(12.dp),
                 )
