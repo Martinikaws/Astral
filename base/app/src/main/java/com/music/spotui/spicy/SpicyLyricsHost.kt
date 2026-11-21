@@ -48,11 +48,20 @@ import com.music.spotui.spicy.canvas.kawarp.MotionSource
 import com.music.spotui.spicy.canvas.kawarp.TrackMotion
 
 /** The renderer's look: Astral's own choices over upstream's defaults. */
-internal fun spicyRenderConfig(reduceMotion: Boolean): RenderConfig = RenderConfig(
-    glowEnabled = !reduceMotion,
-    distanceBlurEnabled = !reduceMotion,
-    scroll = ScrollConfig(smooth = !reduceMotion),
-)
+internal fun spicyRenderConfig(
+    reduceMotion: Boolean,
+    options: com.music.spotui.data.preferences.SpicyRenderSettings = com.music.spotui.data.preferences.SpicyRenderSettings(),
+): RenderConfig {
+    val simple = reduceMotion || options.lowEffects
+    return RenderConfig(
+        bloom = options.bloom && !simple,
+        glowEnabled = !simple,
+        distanceBlurEnabled = !simple,
+        lettersEnabled = !simple,
+        wordMotionBoost = if (simple) 0f else 1f,
+        scroll = ScrollConfig(smooth = !simple),
+    )
+}
 
 /**
  * The lyrics drawn by the ported Spicy Lyrics renderer. [currentTimeMs] is the song position in
@@ -75,9 +84,13 @@ fun SpicyLyricsLayer(
     maskBottomPx: () -> Float = { 0f },
     /** The colour of the notices under the lyrics (unsynced note, provider credit). */
     noticeColor: Color = Color.White,
+    translations: List<String>? = null,
 ) {
-    val doc = remember(lyrics, romanize, songDurationMs) { spicyDocument(lyrics, songDurationMs, romanize) }
-    val config = remember(reduceMotion) { spicyRenderConfig(reduceMotion) }
+    val options by com.music.spotui.data.preferences.SpicyRenderPref.state.collectAsState()
+    val doc = remember(lyrics, romanize, songDurationMs, translations) {
+        spicyDocument(lyrics, songDurationMs, romanize, translations = translations, romanizationAsNote = true)
+    }
+    val config = remember(reduceMotion, options) { spicyRenderConfig(reduceMotion, options) }
     // The notices sit over the bottom of the view: the lyrics fade out above them (and 12dp clear of
     // them) and scroll no further under them.
     var noticeHeightPx by remember { mutableIntStateOf(0) }
@@ -120,14 +133,16 @@ fun SpicyBackgroundLayer(
     reduceMotion: Boolean = false,
 ) {
     val saver by EnergySettings.state.collectAsState()
-    val animate = !settings.still && !reduceMotion && !saver.policy.saverEnabled
+    val options by com.music.spotui.data.preferences.SpicyRenderPref.state.collectAsState()
+    val animate = !settings.still && !options.stillBackground && !options.lowEffects && !reduceMotion && !saver.policy.saverEnabled
     val header = rememberArtistHeader(artist, settings.type.usesArtistHeader)
     val position by rememberUpdatedState(positionMs)
-    val motion = remember(settings.beatReactive) {
-        if (settings.beatReactive) beatMotionSource { position() / 1000f } else null
+    val reactive = settings.beatReactive && animate
+    val motion = remember(reactive) {
+        if (reactive) beatMotionSource { position() / 1000f } else null
     }
-    // One deliberate fetch per track, and only while beat-reactive is on.
-    if (settings.beatReactive) {
+    // Fetch beat data only when this view can use it.
+    if (reactive) {
         // Keyed on the track's uri: a remaster after the original (same title and artist) still fetches.
         LaunchedEffect(com.music.spotui.di.SongPlayer.nowPlaying.value.uri) { TrackAudioSync.requestAnalysis() }
     }

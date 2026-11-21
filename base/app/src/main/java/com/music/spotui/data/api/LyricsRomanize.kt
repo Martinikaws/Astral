@@ -13,6 +13,9 @@ object LyricsRomanize {
     fun wanted(lyrics: Lyrics): Map<Int, String> =
         Romanize.wanted(lyrics.lines, { it.text }, { !it.romanization.isNullOrBlank() })
 
+    internal fun offline(lyrics: Lyrics, candidates: Map<Int, String>): Map<Int, String> =
+        com.music.spotui.spicy.romanization.OfflineRomanization.fill(candidates, lyrics.lines.joinToString("\n") { it.text })
+
     /**
      * [lyrics] with [found] (index → romanization) on its lines that have none and need one; a
      * romanization that only repeats its line is left out, as a source's is. The same instance when

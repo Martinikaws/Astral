@@ -34,9 +34,7 @@ import com.music.spotui.spicy.parser.LetterSynthesizer
 
 internal object LyricsLayoutCalculator {
     /**
-     * The layouts of [display] (the lines as shown), measured from [originals]. Astral keeps neither
-     * the translation notes nor the romanization rows of the upstream renderer, so a line with
-     * `translationReplaces` is the only thing that differs from [calculateLineLayouts].
+     * The layouts of [display] (the lines as shown), measured from [originals].
      */
     fun calculatePresentationLayouts(
         originals: List<Line>,
@@ -87,7 +85,10 @@ internal object LyricsLayoutCalculator {
     /** The font for lyrics and the text around them (the song header, the controls' times). */
     internal val spicyFontFamily: FontFamily get() = fontOverride ?: bundledFontFamily
     /** Astral bundles no Arabic or Georgian face, so every script uses the system fallback chain. */
-    private fun fontFamilyFor(@Suppress("UNUSED_PARAMETER") text: String): FontFamily = fontOverride ?: spicyFontFamily
+    private fun fontFamilyFor(text: String): FontFamily {
+        val script = text.firstOrNull { it.isLetter() }?.let { Character.UnicodeScript.of(it.code) }
+        return if (script == null || script == Character.UnicodeScript.LATIN) spicyFontFamily else FontFamily.SansSerif
+    }
 
     internal fun isCjk(c: Char): Boolean = CjkDetector.isCjk(c)
 
@@ -466,11 +467,24 @@ internal object LyricsLayoutCalculator {
             val prevIsInterlude = layouts.lastOrNull()?.isInterlude ?: false
             val drawY = if (isBg && !prevIsInterlude) currentY - lineSpacing else currentY
 
-            layouts.add(LineLayout(line, wordLayouts, drawY, totalHeight, totalWidth, maxRowWidth, false, isBg,
-                line.oppositeAligned, line.isSongwriter, lineIsRtl, isRightAligned,
-                contentSlot.startPx, contentSlot.widthPx, gluedToPrevious = gluedToPrevious.toList()))
-            
-            val bottomY = drawY + totalHeight
+            var blockHeight = totalHeight
+            val supplements = listOfNotNull(line.romanizationNote, line.translation).map { note ->
+                val measured = textMeasurer.measure(
+                    text = AnnotatedString(note),
+                    style = TextStyle(fontFamily = fontFamilyFor(note), fontSize = fontSize * 0.56f, fontWeight = FontWeight.Medium),
+                    constraints = Constraints(maxWidth = contentSlot.widthPx.toInt().coerceAtLeast(1)),
+                )
+                blockHeight += fontSize.value * density * NOTE_GAP
+                val x = if (isRightAligned) totalWidth - measured.size.width else 0f
+                SupplementLayout(measured, Offset(x, blockHeight), isRtl = RtlDetector.isRtl(note)).also {
+                    blockHeight += measured.size.height
+                }
+            }
+            layouts.add(LineLayout(line, wordLayouts, drawY, blockHeight, totalWidth, maxRowWidth, false, isBg,
+                line.oppositeAligned, line.isSongwriter, lineIsRtl, isRightAligned, contentSlot.startPx, contentSlot.widthPx,
+                supplements = supplements, lyricHeight = totalHeight, gluedToPrevious = gluedToPrevious.toList()))
+
+            val bottomY = drawY + blockHeight
             currentY = maxOf(currentY, bottomY + lineSpacing)
         }
         return layouts

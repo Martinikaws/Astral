@@ -25,6 +25,7 @@ internal fun SpicyImmersiveLyrics(
     contentPadding: PaddingValues,
     romanizing: Boolean,
     modifier: Modifier = Modifier,
+    translations: List<String>? = null,
 ) {
     val playing = Graph.currentSongState.playingState.value
     // A source that calls itself synced with no real time on any line is static, as the list reads it.
@@ -48,5 +49,6 @@ internal fun SpicyImmersiveLyrics(
         songDurationMs = songDurationMs,
         reduceMotion = rememberReduceMotion(),
         noticeColor = Immersive.TextSecondary,
+        translations = translations,
     )
 }

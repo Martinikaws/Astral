@@ -340,6 +340,7 @@ fun ImmersiveLyricsPanel(
                             shown, trackKey, contentPadding,
                             romanizing = LyricsRomanizationPref.on && shown.hasRomanization,
                             modifier = Modifier.fillMaxSize(),
+                            translations = current.translations.takeIf { live && current.showTranslation },
                         ) else LyricsList(
                             shown, trackKey, Modifier.fillMaxSize(), contentPadding, vm,
                             translations = current.translations.takeIf { live && current.showTranslation },

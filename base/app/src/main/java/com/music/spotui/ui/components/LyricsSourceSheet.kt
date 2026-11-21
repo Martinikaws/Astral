@@ -88,6 +88,7 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                 stringResource(R.string.lyrics_other_source), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(20.dp, 8.dp),
             )
+            LyricsTimingControls(track.key)
             sources.forEach { s ->
                 val here = s.id == current
                 val detail = listOfNotNull(

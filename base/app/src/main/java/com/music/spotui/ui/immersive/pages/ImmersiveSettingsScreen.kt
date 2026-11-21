@@ -462,6 +462,9 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     var wordSync by remember { mutableStateOf(com.music.spotui.data.preferences.isLyricsWordSync(ctx)) }
     var lyricsExtra by remember { mutableStateOf(com.music.spotui.data.preferences.isLyricsExtraSources(ctx)) }
     ImmersivePage(title = stringResource(R.string.settings_section_lyrics), onBack = back) {
+        immersiveGroup("spicy-lyrics") {
+            row { com.music.spotui.ui.components.SpicyLyricsExtras() }
+        }
         immersiveGroup("lyrics") {
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
             row {

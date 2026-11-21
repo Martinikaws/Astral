@@ -296,14 +296,29 @@ internal fun rememberLyricsState(vm: LyricsViewModel, title: String, artist: Str
     // The lyrics extensions changed (one installed, removed…): the song is read again from the new set.
     val sources by com.music.spotui.data.api.LyricsApi.sourcesTick.collectAsState()
     var seen by remember { mutableStateOf(sources) }
-    LaunchedEffect(title, artist, playingUri, SongPlayer.currentTrackId, sources, hold) {
+    val folderState by com.music.spotui.lyrics.local.LocalLyricsFolder.changes.collectAsState()
+    var folderSeen by remember { mutableStateOf(folderState) }
+    var timingKey by remember(vm) { mutableStateOf("") }
+    val offsets by com.music.spotui.data.preferences.LyricsTimingPref.state.collectAsState()
+    LaunchedEffect(title, artist, playingUri, SongPlayer.currentTrackId, sources, hold, folderState) {
         // The first half of a mix: the words of the song going out stay, the new song's load after it.
         if (hold) return@LaunchedEffect
         val again = seen != sources
         seen = sources
-        SongPlayer.currentLyricsTrack()?.let { vm.load(it, force = again) }
+        val folderChanged = folderSeen != folderState
+        folderSeen = folderState
+        SongPlayer.currentLyricsTrack()?.let {
+            timingKey = it.key
+            vm.load(it, force = again, localChanged = folderChanged)
+        }
     }
-    return vm.state.collectAsState().value
+    val state = vm.state.collectAsState().value
+    val offset = offsets[timingKey] ?: 0
+    return remember(state, offset) {
+        if (state is LyricsViewModel.State.Loaded && offset != 0) {
+            state.copy(lyrics = com.music.spotui.data.preferences.LyricsTimingPref.apply(state.lyrics, offset))
+        } else state
+    }
 }
 
 /**
@@ -1271,6 +1286,7 @@ fun LyricsScreen(
                         songDurationMs = songDurationMs,
                         reduceMotion = reduceMotion,
                         noticeColor = palette.highlight,
+                        translations = state.translations.takeIf { l === state.lyrics && state.showTranslation },
                     )
                     return@Crossfade
                 }
