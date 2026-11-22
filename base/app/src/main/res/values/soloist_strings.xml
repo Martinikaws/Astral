@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soloist_playback">Spotify Soloist</string>
+    <string name="soloist_device_subtitle">Play through a separate Soloist device</string>
+    <string name="soloist_setup">Sign in to Spotify to get a personal API key. Use it to start Soloist on a supported computer or Raspberry Pi, then pair it in the Spotify app on the same network. Refresh this list and select the name you gave your Soloist device. Audio plays on that device.</string>
+    <string name="soloist_key_sign_in">Sign in to get a Soloist key</string>
+    <string name="soloist_instructions">Official setup guide</string>
+    <string name="soloist_refresh">Refresh devices</string>
+    <string name="soloist_browser_unavailable">No browser could open the Spotify page.</string>
+</resources>
