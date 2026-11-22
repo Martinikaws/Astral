@@ -2,6 +2,18 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.8
+
+- Fix Squared artist, album, and playlist song-row contrast, and add a Squared user profile layout.
+- Improve Canvas and animated covers during track changes, sheet transitions, and app backgrounding.
+- Add lyric source diagnostics, local LRC/TTML files, per-song timing and tap-to-resync, picture-in-picture, and offline romanization.
+- Add opt-in foreground music haptics, per-playlist Mix, 30-day snooze, and Squared sleep timer and lyric sharing.
+- Add built-in FLAC source setup and Spotify Soloist setup for a paired Connect receiver.
+- Add the new Jam controls and opt-in Bluetooth invitations for nearby listeners.
+
+---
+
+
 ## v1.0.7.1 — v1.0.7 patched (2026-11-21)
 
 ### Fixed

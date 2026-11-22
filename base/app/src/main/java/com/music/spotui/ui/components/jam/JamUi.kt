@@ -818,10 +818,7 @@ fun JamDetailsSheet(
                 )
             }
 
-            // TODO: Wire com.music.spotui.connect.nearby.NearbyJamToggle(inviteLink) after nearby-jam branch merges.
-            if (false) {
-                NearbyJamToggleSlot(inviteLink = inviteLink)
-            }
+            com.music.spotui.connect.nearby.NearbyJamToggle(inviteLink)
 
             Spacer(Modifier.height(18.dp))
 
@@ -985,11 +982,6 @@ fun JamDetailsSheet(
     }
 }
 
-@Suppress("UnusedPrivateMember")
-@Composable
-private fun NearbyJamToggleSlot(inviteLink: String?) {
-    // Reserved slot for com.music.spotui.connect.nearby.NearbyJamToggle(inviteLink)
-}
 
 /**
  * Bottom sheet for inviting friends to the active Jam via QR code (with full-screen zoom),
