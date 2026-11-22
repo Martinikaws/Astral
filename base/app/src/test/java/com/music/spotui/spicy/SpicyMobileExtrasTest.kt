@@ -7,9 +7,25 @@ import com.music.spotui.data.preferences.LyricsTimingPref
 import com.music.spotui.spicy.romanization.OfflineRomanization
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertNull
+import com.music.spotui.ui.immersive.squared.appleMotionUrl
 import org.junit.Test
 
 class SpicyMobileExtrasTest {
+    @Test fun calibrationUsesOriginalLineTimeAndClampsExtremeOffsets() {
+        assertEquals(450, LyricsTimingPref.calibrationOffset(10_450, 10_000))
+        assertEquals(-450, LyricsTimingPref.calibrationOffset(9_550, 10_000))
+        assertEquals(5_000, LyricsTimingPref.calibrationOffset(20_000, 10_000))
+    }
+
+    @Test fun appleMotionAcceptsAppleHlsOnly() {
+        val html = """<amp-ambient-video src="https://evil.example/cover.m3u8"></amp-ambient-video>
+            <amp-ambient-video src="https://a.mzstatic.com/cover.m3u8?a=1&amp;b=2"></amp-ambient-video>"""
+        assertEquals("https://a.mzstatic.com/cover.m3u8?a=1&b=2", appleMotionUrl(html))
+        assertEquals("https://a.mzstatic.com/tall.m3u8",
+            appleMotionUrl("""{"motionDetailTall":{"video":"https:\/\/a.mzstatic.com\/tall.m3u8"}}"""))
+        assertNull(appleMotionUrl("""<amp-ambient-video src="http://a.mzstatic.com/cover.m3u8">"""))
+    }
     @Test fun timingAdjustsLinesAndWordTimingsWithoutMovingUntimedLyrics() {
         val fixture = Lyrics(listOf(LyricLine(400, "word",
             words = listOf(LyricWord(400, 650, "word")),

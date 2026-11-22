@@ -53,6 +53,9 @@ object SongPip {
     /** A card a little taller than wide, like the one shared on Discord. */
     private val RATIO = Rational(2, 3)
 
+    fun supported(context: Context): Boolean =
+        context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
     fun wanted(): Boolean =
         com.music.spotui.data.preferences.SongPipPref.on && SongPlayer.isPlaying() && Graph.currentSongState.title.value.isNotBlank()
 
@@ -68,6 +71,7 @@ object SongPip {
                     action(c, 2, app.myspoti.host.android.R.drawable.msp_ic_next, R.string.pip_next, "next"),
                 ),
             )
+            .apply { if (android.os.Build.VERSION.SDK_INT >= 31) setSeamlessResizeEnabled(false) }
             .build()
     }
 

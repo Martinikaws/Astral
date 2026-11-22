@@ -21,4 +21,9 @@
     <string name="spicy_lookup_unknown">Source unreported</string>
     <string name="spicy_renderer_backgrounds">Spicy Lyrics backgrounds</string>
     <string name="spicy_provider_key_missing">Spicy Lyrics requires a publishable client key in this build.</string>
+    <string name="spicy_pip_open">Open lyrics in picture-in-picture</string>
+    <string name="spicy_pip_unavailable">Picture-in-picture is unavailable.</string>
+    <string name="spicy_delay_calibrate">Resync to a lyric line</string>
+    <string name="spicy_delay_calibrate_hint">Tap a line as you hear it start.</string>
+    <string name="spicy_music_haptics">Music haptics while Astral is open</string>
 </resources>

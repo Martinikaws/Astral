@@ -109,6 +109,8 @@ class LyricsViewModel constructor() : ViewModel() {
     /** The providers that can be asked for [track] by hand ([loadFrom]); [LyricsApi.sourceOf] names the one shown. */
     fun sources(track: LyricsApi.Track): List<LyricsApi.Source> = LyricsApi.sources(track)
 
+    internal fun isLoadedTrack(key: String): Boolean = loadedKey == key
+
     /**
      * Shows the lyrics of [track] from the provider [sourceId] ([LyricsApi.Source.id]). The lyrics
      * shown stay until the new ones arrive; when the provider has none they stay ([triedNothing]).

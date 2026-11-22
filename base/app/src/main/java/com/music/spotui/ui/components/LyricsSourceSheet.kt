@@ -89,7 +89,20 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                 stringResource(R.string.lyrics_other_source), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(20.dp, 8.dp),
             )
-            LyricsTimingControls(track.key)
+            val activity = remember(context) {
+                generateSequence(context) { current ->
+                    (current as? android.content.ContextWrapper)?.baseContext?.takeUnless { it === current }
+                }.filterIsInstance<app.myspoti.MainActivity>().firstOrNull()
+            }
+            if (activity != null && SongPip.supported(context)) {
+                TextButton(onClick = {
+                    if (activity.enterSongPictureInPicture()) onDismiss()
+                    else Toast.makeText(context, R.string.spicy_pip_unavailable, Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.spicy_pip_open)) }
+            }
+            LyricsTimingControls(track.key, (state as? LyricsViewModel.State.Loaded)?.lyrics?.takeIf {
+                vm.isLoadedTrack(track.key)
+            })
             sources.forEach { s ->
                 val here = s.id == current
                 val needsKey = s.id == "spicy" && !SpicyLyricsProvider.isConfigured(context)

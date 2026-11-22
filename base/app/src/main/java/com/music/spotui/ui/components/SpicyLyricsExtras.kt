@@ -2,6 +2,8 @@ package com.music.spotui.ui.components
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +37,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun LyricsTimingControls(trackKey: String) {
+internal fun LyricsTimingControls(trackKey: String, lyrics: com.music.spotui.data.entity.Lyrics?) {
+    var calibrating by remember(trackKey) { mutableStateOf(false) }
+    val timed = remember(lyrics) { lyrics?.takeIf { it.synced }?.lines.orEmpty().filter { it.text.isNotBlank() } }
     val offsets by LyricsTimingPref.state.collectAsState()
     val current = offsets[trackKey] ?: 0
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
@@ -51,8 +55,38 @@ internal fun LyricsTimingControls(trackKey: String) {
                 Text(stringResource(R.string.spicy_delay_reset))
             }
         }
+        if (timed.isNotEmpty()) {
+            TextButton(onClick = { calibrating = true }) { Text(stringResource(R.string.spicy_delay_calibrate)) }
+        }
+    }
+    if (calibrating && timed.isNotEmpty()) {
+        val position = remember(trackKey) { heardLyricPosition() }
+        val nearby = remember(timed, position) {
+            timed.sortedBy { kotlin.math.abs(it.timeMs - position) }.take(6).sortedBy { it.timeMs }
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { calibrating = false },
+            title = { Text(stringResource(R.string.spicy_delay_calibrate)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.spicy_delay_calibrate_hint))
+                    nearby.forEach { line ->
+                        TextButton(onClick = {
+                            if (com.music.spotui.di.SongPlayer.currentLyricsTrack()?.key == trackKey) {
+                                LyricsTimingPref.set(trackKey, LyricsTimingPref.calibrationOffset(heardLyricPosition(), line.timeMs))
+                            }
+                            calibrating = false
+                        }) { Text(line.text) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { calibrating = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
     }
 }
+
+private fun heardLyricPosition(): Long =
+    (com.music.spotui.di.SongPlayer.getCurrentPosition() - com.music.spotui.di.OutputLag.ms()).coerceAtLeast(0L)
 
 @Composable
 internal fun SpicyLyricsExtras() {
@@ -88,6 +122,9 @@ internal fun SpicyLyricsExtras() {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
         TextButton(onClick = { background = true }) { Text(stringResource(R.string.spicy_renderer_backgrounds)) }
         val controls = listOf(
+            Triple(R.string.spicy_music_haptics, options.musicHaptics) { checked: Boolean ->
+                SpicyRenderPref.update { it.copy(musicHaptics = checked) }
+            },
             Triple(R.string.spicy_bloom_renderer, options.bloom) { checked: Boolean ->
                 SpicyRenderPref.update { it.copy(bloom = checked) }
             },

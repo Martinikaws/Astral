@@ -222,6 +222,9 @@ class MainActivity : AppCompatActivity() {
                                 androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomEnd))
                         // Picture-in-picture: the clip alone, over the app (which stays composed underneath,
                         // so coming back finds the same screen).
+                        if (!tv && signedIn && !showingLogin && !inPip) {
+                            com.music.spotui.spicy.MusicHaptics()
+                        }
                         if (inPip) {
                             if (pipSong) com.music.spotui.ui.components.PipSong() else com.music.spotui.ui.components.PipVideo()
                         }
@@ -344,8 +347,7 @@ class MainActivity : AppCompatActivity() {
             // No clip: the song itself, when the Picture-in-picture setting is on.
             // Not on a TV: the app there is a full-screen player already.
             if (tv || !signedIn || !com.music.spotui.ui.components.SongPip.wanted()) return
-            pipSong = true
-            if (!runCatching { enterPictureInPictureMode(com.music.spotui.ui.components.SongPip.params(this)) }.getOrDefault(false)) pipSong = false
+            enterSongPictureInPicture()
             return
         }
         pipSong = false
@@ -357,6 +359,19 @@ class MainActivity : AppCompatActivity() {
                     .build(),
             )
         }
+    }
+
+    internal fun enterSongPictureInPicture(): Boolean {
+        if (tv || !signedIn || inPip || isInPictureInPictureMode ||
+            !com.music.spotui.ui.components.SongPip.supported(this) ||
+            com.music.spotui.di.Graph.currentSongState.title.value.isBlank()
+        ) return false
+        pipSong = true
+        val entered = runCatching {
+            enterPictureInPictureMode(com.music.spotui.ui.components.SongPip.params(this))
+        }.getOrDefault(false)
+        if (!entered) pipSong = false
+        return entered
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {

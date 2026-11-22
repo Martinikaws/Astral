@@ -10,6 +10,7 @@ internal data class SpicyRenderSettings(
     val bloom: Boolean = false,
     val lowEffects: Boolean = false,
     val stillBackground: Boolean = false,
+    val musicHaptics: Boolean = false,
 )
 
 internal object SpicyRenderPref {
@@ -20,6 +21,7 @@ internal object SpicyRenderPref {
                 bloom = prefs.getBoolean("bloom", false),
                 lowEffects = prefs.getBoolean("low_effects", false),
                 stillBackground = prefs.getBoolean("still", false),
+                musicHaptics = prefs.getBoolean("music_haptics", false),
             ),
         )
     }
@@ -28,7 +30,8 @@ internal object SpicyRenderPref {
     fun update(change: (SpicyRenderSettings) -> SpicyRenderSettings) {
         val next = change(values.value)
         prefs.edit().putBoolean("bloom", next.bloom).putBoolean("low_effects", next.lowEffects)
-            .putBoolean("still", next.stillBackground).apply()
+            .putBoolean("still", next.stillBackground)
+            .putBoolean("music_haptics", next.musicHaptics).apply()
         values.value = next
     }
 }
@@ -57,6 +60,9 @@ internal object LyricsTimingPref {
         }
         edit.apply()
     }
+
+    fun calibrationOffset(heardPositionMs: Long, lineStartMs: Long): Int =
+        (heardPositionMs - lineStartMs).coerceIn(-LIMIT.toLong(), LIMIT.toLong()).toInt()
 
     fun apply(lyrics: Lyrics, offsetMs: Int): Lyrics {
         if (!lyrics.synced || offsetMs == 0) return lyrics

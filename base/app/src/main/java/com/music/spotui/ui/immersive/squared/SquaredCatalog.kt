@@ -30,6 +30,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.concurrent.TimeUnit
 
 /**
@@ -67,6 +68,46 @@ object SquaredCatalog {
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+    private val publicArtworkClient by lazy {
+        client.newBuilder().callTimeout(4, TimeUnit.SECONDS).build()
+    }
+    private val motionFallback = object : LinkedHashMap<String, String?>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String?>?): Boolean = size > 48
+    }
+
+    /** Search public iTunes metadata for an album page when its editorial catalogue row has no motion cover. */
+    internal suspend fun itunesMotionCover(album: String, artist: String): String? = withContext(Dispatchers.IO) {
+        if (album.isBlank() || artist.isBlank() || !mayAsk()) return@withContext null
+        val key = "${storefront()}/${artist.lowercase()}/${album.lowercase()}"
+        synchronized(motionFallback) {
+            if (motionFallback.containsKey(key)) return@withContext motionFallback[key]
+        }
+        val cover = try {
+            val query = java.net.URLEncoder.encode("$artist $album", "UTF-8")
+            val request = "https://itunes.apple.com/search?entity=album&limit=8&country=${storefront()}&term=$query"
+            val response = json.parseToJsonElement(publicArtwork(request)).jsonObject
+            val pages = response["results"]?.jsonArray.orEmpty().mapNotNull { entry ->
+                val row = entry as? JsonObject ?: return@mapNotNull null
+                if (!row["artistName"]?.jsonPrimitive?.content.orEmpty().equals(artist, true) ||
+                    !row["collectionName"]?.jsonPrimitive?.content.orEmpty().equals(album, true)
+                ) return@mapNotNull null
+                row["collectionViewUrl"]?.jsonPrimitive?.content?.takeIf(::isAppleAlbumPage)
+            }.distinct().take(2)
+            pages.firstNotNullOfOrNull { page -> appleMotionUrl(publicArtwork(page)) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return@withContext null
+        }
+        synchronized(motionFallback) { motionFallback[key] = cover }
+        cover
+    }
+
+    private fun publicArtwork(url: String): String = publicArtworkClient.newCall(Request.Builder().url(url).build())
+        .execute().use { response ->
+            if (!response.isSuccessful) throw java.io.IOException("Artwork lookup returned HTTP ${response.code}")
+            response.body.string()
+        }
 
     /** The token, and the lock that keeps a burst of pages from fetching five. */
     @Volatile private var token: String? = null
@@ -978,4 +1019,26 @@ object SquaredCatalog {
      */
     private const val DETAIL_W = 1600
     private const val DETAIL_H = 2134
+}
+
+// Adapted from Spicy Lyrics Mobile (https://github.com/spicylyrics/mobile,
+// core/src/main/kotlin/com/tx24/spicyplayer/network/motion/MotionCoverFinder.kt)
+// by TheX24 and contributors, AGPL-3.0. Modified for Astral.
+private val appleTallMotion = Regex(""""motionDetailTall"\s*:\s*\{.{0,3000}?"video"\s*:\s*"([^"]+\.m3u8(?:\?[^"]*)?)"""")
+private val appleAmbientMotion = Regex("""<amp-ambient-video[^>]+src="([^"]+\.m3u8(?:\?[^"]*)?)"""")
+
+private fun isAppleAlbumPage(value: String): Boolean {
+    val url = value.toHttpUrlOrNull() ?: return false
+    return url.isHttps && url.host == "music.apple.com" && "album" in url.pathSegments
+}
+
+internal fun appleMotionUrl(html: String): String? {
+    val normalized = html.replace("\\/", "/").replace("&amp;", "&")
+    return sequenceOf(appleTallMotion, appleAmbientMotion)
+        .flatMap { it.findAll(normalized) }
+        .map { it.groupValues[1] }
+        .firstOrNull {
+            val url = it.toHttpUrlOrNull() ?: return@firstOrNull false
+            url.isHttps && url.host.endsWith(".mzstatic.com")
+        }
 }

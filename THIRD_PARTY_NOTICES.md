@@ -550,6 +550,14 @@ The MIT licence text:
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
 
+## Animated cover lookup
+
+The iTunes metadata and Apple Music album-page fallback in Astral's Squared player follows
+Spicy Lyrics Mobile's cover lookup. The page patterns in
+`core/src/main/kotlin/com/tx24/spicyplayer/network/motion/MotionCoverFinder.kt` are by TheX24
+and contributors and are licensed under AGPL-3.0. Astral uses its own catalogue matching, cache,
+and player lifecycle.
+
 ## Lyrics sources ported from Spicy Lyrics Mobile
 
 The fetch and parse code for these lyrics sources is ported from Spicy Lyrics Mobile

@@ -72,7 +72,7 @@ fun rememberSquaredPlayer(navController: NavController): SquaredPlayerModel {
     val (queue, queueActions) = rememberSquaredQueue(s)
     val lyrics = rememberSquaredLyrics()
     val canvas = rememberSquaredCanvas(s)
-    val art = rememberSquaredArt(s, motionAllowed = rememberSquaredMotionAllowed())
+    val art = rememberSquaredArt(s, motionAllowed = rememberSquaredMotionAllowed(), hasCanvas = canvas != null)
 
     return SquaredPlayerModel(
         playback = playback,
@@ -282,7 +282,11 @@ private class SquaredArtState(val album: SquaredCatalog.Album?, val pending: Boo
  * "Animated covers & artist artwork" setting (on by default).
  */
 @Composable
-private fun rememberSquaredArt(state: ImmersivePlayerState, motionAllowed: Boolean): SquaredArtState {
+private fun rememberSquaredArt(
+    state: ImmersivePlayerState,
+    motionAllowed: Boolean,
+    hasCanvas: Boolean,
+): SquaredArtState {
     val context = LocalContext.current
     val enabled by SquaredPrefs.of(context).animatedCovers.collectAsState()
     var album by remember { mutableStateOf<SquaredCatalog.Album?>(null) }
@@ -308,7 +312,21 @@ private fun rememberSquaredArt(state: ImmersivePlayerState, motionAllowed: Boole
         if (isActive) album = found
         pending = false
     }
+    val playerOpen = PlayerSheet.open.value
+    val shouldFindMotion = enabled && motionAllowed && !saver && playerOpen && !pending &&
+        album?.motionUrl == null && !state.isEpisode && !hasCanvas
+    val fallbackMotion = if (shouldFindMotion) {
+        androidx.compose.runtime.key(name, artist, state.title) {
+            androidx.compose.runtime.produceState<String?>(null) {
+                value = SquaredCatalog.itunesMotionCover(name.ifBlank { state.title }, artist)
+            }.value
+        }
+    } else null
     // The moving cover is a video: held to the same data and battery rules as the Canvas.
-    val shown = if (motionAllowed) album else album?.copy(motionUrl = null)
+    val shown = when {
+        !motionAllowed -> album?.copy(motionUrl = null)
+        !playerOpen || album?.motionUrl != null || fallbackMotion == null -> album
+        else -> album?.copy(motionUrl = fallbackMotion) ?: SquaredCatalog.Album(heroUrl = null, coverUrl = null, motionUrl = fallbackMotion)
+    }
     return SquaredArtState(shown, pending)
 }
