@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.myspoti.engine.R
 import com.music.spotui.data.api.LyricsApi
-import com.music.spotui.data.api.SpicyLyricsProvider
 import com.music.spotui.data.preferences.LyricsSourcePref
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.theme.AppMuted
@@ -105,10 +104,8 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
             })
             sources.forEach { s ->
                 val here = s.id == current
-                val needsKey = s.id == "spicy" && !SpicyLyricsProvider.isConfigured(context)
                 val detail = listOfNotNull(
                     if (here) stringResource(R.string.lyrics_source_shown) else null,
-                    if (needsKey) stringResource(R.string.spicy_provider_key_missing) else null,
                     if (s.words) stringResource(R.string.lyrics_source_words) else null,
                     if (s.setAside != null && s.enabled) stringResource(R.string.lyrics_source_aside) else null,
                     if (!s.enabled) stringResource(R.string.lyrics_source_off) else null,
@@ -119,9 +116,9 @@ fun LyricsSourceSheet(onDismiss: () -> Unit, vm: LyricsViewModel = viewModel()) 
                     modifier = Modifier
                         .fillMaxWidth()
                         // Set aside: dimmed, still tappable (asking by hand ignores the break).
-                        .alpha(if (s.setAside != null || !s.enabled || needsKey) 0.45f else 1f)
+                        .alpha(if (s.setAside != null || !s.enabled) 0.45f else 1f)
                         // A source that is off is switched on by a tap (after its notice), not asked.
-                        .clickable(enabled = trying == null && !needsKey) { if (s.enabled) vm.loadFrom(track, s.id) else switchSource(s) }
+                        .clickable(enabled = trying == null) { if (s.enabled) vm.loadFrom(track, s.id) else switchSource(s) }
                         .padding(20.dp, 12.dp),
                 ) {
                     Column(Modifier.weight(1f)) {

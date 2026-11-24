@@ -225,11 +225,10 @@ object LyricsApi {
 
     private fun allSetAside(vararg ids: String): String? = ids.map { health.reason(it) }.takeIf { r -> r.all { it != null } }?.first()
 
-    private val WORD_SOURCES = setOf("spicy", "amll", "lyricsplus", "lrcred", "netease", "kugou", "unison", "lrcmux", "kuwo", "rmm")
+    private val WORD_SOURCES = setOf("amll", "lyricsplus", "lrcred", "netease", "kugou", "unison", "lrcmux", "kuwo", "rmm")
 
     /** The providers that can be tried for [track], in the order the resolver prefers them; the extensions giving lyrics come last (`ext:<id>`). */
     fun sources(track: Track): List<Source> = buildList {
-        if (track.trackId.isNotBlank()) add(Source("spicy", "Spicy Lyrics", true, allSetAside("spicy")))
         if (track.trackId.isNotBlank()) add(Source("spotify", "Spotify", words = true))
         if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
         add(Source("lyricsplus", "LyricsPlus", true, allSetAside(*LYRICS_PLUS.toTypedArray())))
@@ -285,7 +284,6 @@ object LyricsApi {
 
         val found = try {
             when {
-                sourceId == "spicy" -> byHand { SpicyLyricsProvider.fetch(runCatching { com.music.spotui.di.Graph.app }.getOrNull(), track.trackId, durationMs) }
                 sourceId == "spotify" -> fromSpotify(track)
                 sourceId.startsWith("ext:") -> com.music.spotui.extensions.Extensions.lyricsFromExtension(
                     sourceId.removePrefix("ext:"), track.trackId, track.title, track.artist, track.album, durationMs, track.coverUrl)
@@ -396,7 +394,7 @@ object LyricsApi {
                 val files = com.music.spotui.di.Graph.app.filesDir
                 // lyrics_cache1 kept word timings moved by a wrong pairing (God's Plan off by 74 s): dropped once.
                 java.io.File(files, "lyrics_cache1").takeIf { it.exists() }?.deleteRecursively()
-                java.io.File(files, "lyrics_cache2").also { it.mkdirs() }
+                java.io.File(files, "lyrics_cache3").also { it.mkdirs() }
             }.getOrNull()
         }
         private var writes = 0
@@ -565,7 +563,6 @@ object LyricsApi {
         val artist = track.artist.substringBefore(",").trim()
         val durationMs = track.durationMs
         val spotify = async { fromSpotify(track) }
-        val spicy = async { within(WORD_WAIT_MS) { asking("spicy", track) { SpicyLyricsProvider.fetch(runCatching { com.music.spotui.di.Graph.app }.getOrNull(), track.trackId, durationMs) } } }
         val plus = async { within(WORD_WAIT_MS) { asking("lyricsplus", track) { fromLyricsPlus(asked, title, artist, durationMs) } } }
         val red = async { within(WORD_WAIT_MS) { asking("lrcred", track) { fromLrcRed(asked, title, artist, durationMs) } } }
         val kugou = async { within(WORD_WAIT_MS) { asking("kugou", track) { fromKugou(title, artist, durationMs) } } }
@@ -579,19 +576,17 @@ object LyricsApi {
         if (sp != null) showEarly(track, sp)
         if (sp != null && sp.wordSynced && sp.uncapped) {
             kugou.cancel(); netease.cancel(); more.forEach { it.cancel() }
-            return@coroutineScope withBacks(sp, spicy, amll, plus, red)
+            return@coroutineScope withBacks(sp, amll, plus, red)
         }
         // Without Spotify's own (no account, or none for the song) every catalogue still answers.
-        val spicyResult = spicy.await()
-        val ownWords = (spicyResult?.takeIf { it.wordSynced } ?: amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
+        val ownWords = (amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
             ?: netease.await()?.takeIf { it.wordSynced } ?: kugou.await())?.takeIf { it.wordSynced }
         val words = ownWords ?: more.firstNotNullOfOrNull { d -> d.await()?.takeIf { it.wordSynced } }
         // Nobody had words: what these answered (line-synced or nothing) goes on to the line pass, which does not ask them again.
         val alreadyAsked = if (words == null) EXTRA_WORD_SOURCES.zip(more.map { it.await() }).toMap() else emptyMap()
         more.forEach { it.cancel() }
         when {
-            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, spicy, amll, plus, red) } ?: sp
-            spicyResult != null -> spicyResult.copy(colors = sp?.colors)
+            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, amll, plus, red) } ?: sp
             sp != null -> sp
             else -> lineFallbacks(track, alreadyAsked)
         }

@@ -28,14 +28,6 @@ val ABI_NAMES = mapOf("arm64-v8a" to "ARMv8", "armeabi-v7a" to "ARMv7")
  */
 val APK_NAME = "Astral"
 
-val spicyLyricsClientKey = providers.gradleProperty("SPICY_LYRICS_CLIENT_KEY")
-    .orElse(providers.environmentVariable("SPICY_LYRICS_CLIENT_KEY"))
-    .map { it.trim() }
-    .getOrElse("")
-require(spicyLyricsClientKey.isEmpty() || spicyLyricsClientKey.matches(Regex("sl_pk_[A-Za-z0-9_-]+"))) {
-    "SPICY_LYRICS_CLIENT_KEY must be a publishable sl_pk_ key."
-}
-
 android {
     testOptions {
         unitTests {
@@ -68,7 +60,6 @@ android {
         // Not in the dev and Mix Lab builds (below): no release carries their app id.
         buildConfigField("String", "UPDATE_REPO", "\"${if (automixLab) "" else (findProperty("updateRepo") as String?) ?: System.getenv("MYSPOTI_UPDATE_REPO") ?: "Martinikaws/Astral"}\"")
         buildConfigField("String", "APK_NAME", "\"$APK_NAME\"")
-        buildConfigField("String", "SPICY_LYRICS_CLIENT_KEY", "\"$spicyLyricsClientKey\"")
         // -Pabis=arm64-v8a: one APK for one phone (the test builds). Without it, the ABI splits below.
         (findProperty("abis") as String?)?.let { ndk { abiFilters += it.split(",") } }
         // On-device tests (codecs): ./gradlew connectedDebugAndroidTest

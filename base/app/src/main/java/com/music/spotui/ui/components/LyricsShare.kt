@@ -3,6 +3,7 @@ package com.music.spotui.ui.components
 import android.content.Context
 import android.content.Intent
 import app.myspoti.engine.R
+import com.music.spotui.data.api.LyricsApi
 import com.music.spotui.data.entity.Lyrics
 import com.music.spotui.di.SongPlayer
 
@@ -12,6 +13,7 @@ import com.music.spotui.di.SongPlayer
  * Used by the selection mode of both looks' lyrics.
  */
 fun shareLyricLines(context: Context, lyrics: Lyrics, range: IntRange, title: String, artist: String) {
+    if (LyricsApi.sourceOf(lyrics) == "spicy") return
     val lines = range.mapNotNull { lyrics.lines.getOrNull(it)?.text?.trim() }.filter { it.isNotEmpty() && it != "♪" }
     if (lines.isEmpty()) return
     val id = SongPlayer.currentTrackId

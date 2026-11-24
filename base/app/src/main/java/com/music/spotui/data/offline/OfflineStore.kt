@@ -186,7 +186,7 @@ object OfflineStore {
     val audioDir: File get() = File(root, "audio")
     val coverDir: File get() = File(root, "covers")
     /** The lyrics kept with the downloaded songs (see LyricsApi.keepForOffline), one file each. */
-    private val lyricsDir: File get() = File(root, "lyrics")
+    private val lyricsDir: File get() = File(root, "lyrics-v2")
     private fun lyricsName(trackId: String) = "$trackId.json"
 
     /** Where [trackId]'s lyrics are kept with its download; null for no id, one unfit for a file name, or before [init]. */
