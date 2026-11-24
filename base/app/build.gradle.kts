@@ -54,7 +54,7 @@ android {
     // "-beta" as in UpdateChecker.isBeta, one predicate for the app id, the label and the log stripping.
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        applicationId = if (automixLab) "app.astral.automixlab" else if (beta) "app.astral.beta" else "app.astral"
+        applicationId = if (automixLab) "app.astral.automixlab" else if (findProperty("overDev") != null) "com.astral.beta" else if (beta) "app.astral.beta" else "app.astral"
         manifestPlaceholders["appLabel"] = if (automixLab) "Astral Mix Lab" else if (beta) "Astral Beta" else "Astral"
         // The adb command line (com.music.spotui.cli): betas and debug builds only.
         manifestPlaceholders["cliEnabled"] = beta.toString()
@@ -149,7 +149,13 @@ android {
             isUniversalApk = true
         }
     }
-    packaging { jniLibs { excludes += listOf("lib/x86/**", "lib/x86_64/**") } }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += "**/*.so"
+            excludes += listOf("lib/x86/**", "lib/x86_64/**")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

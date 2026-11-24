@@ -366,10 +366,6 @@ fun PlayerScreen(
     translationOn: Boolean = false,
     translating: Boolean = false,
     onTranslate: (Boolean) -> Unit = {},
-    /** Who made the track, for the credits panel (only shown behind SquaredFeatures.credits). */
-    credits: com.music.spotui.ui.immersive.squared.SquaredCredits? = null,
-    creditsLoading: Boolean = false,
-    onWantCredits: (String?) -> Unit = {},
     onPlayQueueItem: (Int) -> Unit,
     /** Reordering, removing and the rest of what the queue sheet does. */
     queueActions: QueueActions,
@@ -436,6 +432,7 @@ fun PlayerScreen(
     val connectAvailable = true
     val onSpeed: (Float) -> Unit = {}
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
+    val creditsUri = state.mediaId?.takeIf(spotifyCreditsTrack::matches)
     val sdkPlayback = false
 
     /** Bumped to open the karaoke control; see KaraokeDial. */
@@ -446,8 +443,8 @@ fun PlayerScreen(
     // The one panel whose contents are fetched rather than already here, and
     // the one nobody opens for most songs. Asking on open keeps a request per
     // track from being made for a page most listeners never see.
-    LaunchedEffect(panel, state.mediaId) {
-        if (panel == PlayerPanel.INFO) onWantCredits(state.mediaId)
+    LaunchedEffect(creditsUri, panel) {
+        if (panel == PlayerPanel.INFO && creditsUri == null) panel = PlayerPanel.NONE
     }
 
     // How far the track-change swipe has been dragged, when the clip stands in
@@ -1076,6 +1073,7 @@ fun PlayerScreen(
                     val tabsBlock: @Composable () -> Unit = {
                         PlayerPanelSection(
                             panel = panel,
+                            showCredits = creditsUri != null,
                             onSelect = { panel = it },
                             queue = queue,
                             lyrics = lyrics,
@@ -1363,11 +1361,11 @@ fun PlayerScreen(
                                 // controls. A panel that pushed the transport
                                 // around every time it opened was the reason
                                 // this screen never sat still.
-                                Stage.INFO -> CreditsView(
-                                    credits = credits,
-                                    loading = creditsLoading,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
+                                Stage.INFO -> creditsUri?.let { uri ->
+                                    androidx.compose.runtime.key(uri) {
+                                        TrackCreditsView(uri, Modifier.fillMaxSize())
+                                    }
+                                }
 
                                 Stage.EFFECTS -> EffectsPanel(backdrop = panelBackdrop)
 
@@ -1568,7 +1566,18 @@ fun PlayerScreen(
                                     Modifier.weight(1f),
                                     onOpenArtist = { uri, name ->
                                         onCollapse()
-                                        onOpenUri(uri, name)
+                                        if (uri.startsWith("spotify:track:")) {
+                                            com.music.spotui.ui.components.ArtistChooser.goForTrack(
+                                                uri.substringAfterLast(':'), name,
+                                            ) { route -> onOpenUri(route, name) }
+                                        } else if (uri.startsWith("spotify:artist:")) {
+                                            onOpenUri(
+                                                com.music.spotui.ui.navigation.artistRoute(
+                                                    name, uri.substringAfterLast(':'),
+                                                ),
+                                                name,
+                                            )
+                                        } else onOpenUri(uri, name)
                                     },
                                     onOpenAlbum = onOpenAlbum,
                                 )
@@ -2410,7 +2419,8 @@ internal fun Controls(
             // Ringed while a playlist plays as a Spotify Mix, as the official
             // player's button is; see Mixes.playing.
             val mixPlaying = com.music.spotui.di.LocalPlayer.mixCue.value?.mixing == true
-            Box(Modifier.mixRing(mixPlaying)) {
+            val animateMix = mixPlaying && state.isPlaying && !com.music.spotui.ui.look.rememberReduceMotion()
+            Box(Modifier.mixRing(mixPlaying && !animateMix)) {
             RoundGlassButton(backdrop = backdrop, size = 76.dp, onClick = onTogglePlay) {
                 // A ring around the icon while the track is still being fetched.
                 //
@@ -2422,6 +2432,7 @@ internal fun Controls(
                 // A Box, because the button lays its content out in a row and the
                 // ring belongs *around* the icon rather than beside it.
                 Box(contentAlignment = Alignment.Center) {
+                    if (animateMix) MixAurora(Modifier.size(76.dp))
                     if (state.isBuffering) {
                         CircularProgressIndicator(
                             color = LocalContentColor.current.copy(alpha = 0.5f),

@@ -68,6 +68,7 @@ fun AddToPlaylistSheet(
     context: Context,
     onDismiss: () -> Unit,
     excludePlaylistId: String? = null,
+    onMoved: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // The last list at once, read again behind it.
@@ -82,9 +83,20 @@ fun AddToPlaylistSheet(
         playlists.orEmpty().filter { it.id != excludePlaylistId && matchesFind(query, it.name) }
     }
 
+    var submitted by remember { mutableStateOf(false) }
     fun addTo(playlist: EditablePlaylist) {
+        if (submitted) return
+        submitted = true
         onDismiss()
         SpotifySync.addTrackToPlaylist(context, playlist.id, song.spotifyTrackId) { ok ->
+            if (ok && onMoved != null && excludePlaylistId != null) {
+                SpotifySync.removeRowFromPlaylist(context, excludePlaylistId, song.spotifyTrackId, song.rowUid) { removed ->
+                    if (removed) onMoved()
+                    val label = if (removed) R.string.playlist_moved_to else R.string.playlist_copied_only
+                    Toast.makeText(context, context.getString(label, playlist.name), Toast.LENGTH_LONG).show()
+                }
+                return@addTrackToPlaylist
+            }
             // The write runs on the main dispatcher already; posted anyway so the toast
             // survives the sheet's teardown.
             Handler(Looper.getMainLooper()).post {
@@ -102,7 +114,7 @@ fun AddToPlaylistSheet(
     ) {
         Column(modifier = Modifier.navigationBarsPadding().imePadding()) {
             Text(
-                stringResource(R.string.context_menu_add_to_another_playlist),
+                stringResource(if (onMoved != null) R.string.playlist_move_to_another else R.string.context_menu_add_to_another_playlist),
                 color = AppText,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,

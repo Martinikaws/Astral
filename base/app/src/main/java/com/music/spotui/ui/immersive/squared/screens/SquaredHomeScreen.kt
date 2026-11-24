@@ -97,6 +97,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.Icon
+import com.adamglin.PhosphorIcons
+import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.regular.Bell
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import java.util.Calendar
@@ -150,6 +153,7 @@ fun SquaredHomeScreen(
     feed: SquaredFeedState,
     onOpenItem: (SearchItem) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenNews: (() -> Unit)? = null,
     /** The page's title: Spotify's greeting where the feed carried one. */
     title: String,
     /** Friend activity, for the faces beside the account picture. */
@@ -273,6 +277,7 @@ fun SquaredHomeScreen(
                     chips = chips,
                     showFilters = chips.size > 1,
                     onOpenSettings = onOpenSettings,
+                    onOpenNews = onOpenNews,
                     friends = friends,
                     onOpenFriends = onOpenFriends,
                 )
@@ -573,6 +578,7 @@ private fun Header(
     onFilter: (Feed) -> Unit,
     chips: List<Feed> = Feed.entries.toList(),
     onOpenSettings: () -> Unit,
+    onOpenNews: (() -> Unit)? = null,
     /** Who the account follows and what they play; empty hides the control. */
     friends: List<com.music.spotui.ui.immersive.squared.model.FriendListen> = emptyList(),
     onOpenFriends: () -> Unit = {},
@@ -677,6 +683,12 @@ private fun Header(
             // control.
             if (friends.isNotEmpty()) {
                 FriendFaces(friends, onOpenFriends)
+            }
+
+            if (onOpenNews != null) {
+                LiquidButton(onClick = onOpenNews, backdrop = backdrop, contentHeight = 46.dp, contentPadding = 11.dp) {
+                    Icon(PhosphorIcons.Regular.Bell, stringResource(R.string.whats_new_title), tint = Ink)
+                }
             }
 
             com.music.spotui.ui.immersive.squared.components.ProfilePicture(

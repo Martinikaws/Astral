@@ -79,7 +79,7 @@ import com.music.spotui.ui.screens.shareDiagnosticReport
 import kotlinx.coroutines.launch
 
 /** Where the Immersive Settings are: the list of categories, one category, or a choice inside it. */
-private enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, SpicyTheme, Rotation, Language, LyricsLanguage, App, Accounts, Library }
+internal enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, SpicyTheme, Rotation, Language, LyricsLanguage, App, Accounts, Library }
 
 private val StreamingChoices = listOf(
     Triple(StreamingQuality.AUTO, R.string.quality_streaming_auto, R.string.quality_streaming_auto_detail),
@@ -105,7 +105,11 @@ private val DownloadChoices = listOf(
  * spring and back leaves it; with "reduce motion" they cross-fade.
  */
 @Composable
-fun ImmersiveSettingsScreen(navController: NavController, onBack: () -> Unit = { navController.popBackStack() }) {
+internal fun ImmersiveSettingsScreen(
+    navController: NavController,
+    initialPage: SettingsPage = SettingsPage.Root,
+    onBack: () -> Unit = { navController.popBackStack() },
+) {
     // The pages pushed so far, so back pops one before it leaves Settings.
     // Saved by name, so a recreation (a language change, say) keeps the page the user is on.
     val stack = rememberSaveable(
@@ -114,7 +118,7 @@ fun ImmersiveSettingsScreen(navController: NavController, onBack: () -> Unit = {
             restore = { names -> names.map { SettingsPage.valueOf(it) }.toMutableStateList() },
         ),
     ) { mutableStateListOf<SettingsPage>() }
-    val page = stack.lastOrNull() ?: SettingsPage.Root
+    val page = stack.lastOrNull() ?: initialPage
     val reduce = rememberReduceMotion()
     var pushing by remember { mutableStateOf(true) }
     val pop: () -> Unit = { pushing = false; stack.removeAt(stack.lastIndex) }
@@ -263,6 +267,15 @@ private fun SourcesPage(navController: NavController, back: () -> Unit) {
     val none = com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.AUDIO_SOURCE).isEmpty() &&
         com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.DOWNLOAD_SOURCE).isEmpty()
     ImmersivePage(title = stringResource(R.string.settings_sources_tab), onBack = back) {
+        immersiveGroup("receivers") {
+            row {
+                androidx.compose.foundation.layout.Column {
+                    com.music.spotui.ui.components.ReceiverSourceRows { title, detail, onClick ->
+                        ImmersiveGroupRow(title, detail = detail, chevron = true, onClick = onClick)
+                    }
+                }
+            }
+        }
         sourcesGroup(app.myspoti.extensions.Action.AUDIO_SOURCE, navController)
         sourcesGroup(app.myspoti.extensions.Action.DOWNLOAD_SOURCE, navController)
         // Where searches, albums and artists come from: the metadata providers, in their order.
@@ -464,6 +477,22 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     ImmersivePage(title = stringResource(R.string.settings_section_lyrics), onBack = back) {
         immersiveGroup("spicy-lyrics") {
             row { com.music.spotui.ui.components.SpicyLyricsExtras() }
+        }
+        if (com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.SQUARED) {
+            immersiveGroup("squared-lyrics", headerRes = R.string.squared_lyrics_style) {
+                row {
+                    val prefs = com.music.spotui.ui.immersive.squared.SquaredPrefs.of(ctx)
+                    val style by prefs.lyricsStyle.collectAsStateWithLifecycle()
+                    val animated = com.music.spotui.ui.immersive.squared.SquaredLyricsStyle.ANIMATED
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.squared_lyrics_style_animated),
+                        checked = style == animated,
+                        onChecked = { enabled ->
+                            prefs.setLyricsStyle(if (enabled) animated else com.music.spotui.ui.immersive.squared.SquaredLyricsStyle.CLASSIC)
+                        },
+                    )
+                }
+            }
         }
         immersiveGroup("lyrics") {
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
@@ -1360,7 +1389,7 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
 
 /** The Spotify accounts kept on the phone ([com.music.spotui.ui.components.AccountsList]), and signing this one out. */
 @Composable
-private fun AccountsPage(back: () -> Unit) {
+internal fun AccountsPage(back: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // Passing the setup to or from another of the user's devices (a QR code, the same Wi-Fi).
     var passSend by remember { mutableStateOf(false) }

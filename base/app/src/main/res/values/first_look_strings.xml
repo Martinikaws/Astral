@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="first_look_title">Choose your look</string>
+  <string name="first_look_astral">Astral Look</string>
+  <string name="first_look_square">Square Look</string>
+  <string name="square_setup_title">Set up playback</string>
+  <string name="square_setup_music_account">Use Astral’s music account setup and choose from your available sources.</string>
+  <string name="square_setup_spotify_sign_in">Continue to Spotify sign-in</string>
+  <string name="librespot_playback">librespot</string>
+  <string name="librespot_device_subtitle">Play through a separate librespot device</string>
+  <string name="librespot_setup">Start librespot on a device, then pair it with your Spotify account. Once you’re signed in to Spotify in Astral, choose the receiver in Listen On.</string>
+  <string name="receiver_browser_unavailable">No browser could open the setup page.</string>
+  <string name="square_receiver_help">To use librespot in Square, open its engine settings and pair the receiver. Then select it in Listen on.</string>
+  <string name="square_receiver_open">Open Square</string>
+  <string name="square_receiver_unavailable">Square could not be opened.</string>
+</resources>

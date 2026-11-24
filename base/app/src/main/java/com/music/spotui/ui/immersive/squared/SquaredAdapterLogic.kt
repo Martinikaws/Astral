@@ -37,6 +37,8 @@ internal fun ImmersivePlayerState.toPlaybackState(uri: String, contextUri: Strin
             else -> Player.REPEAT_MODE_OFF
         },
         source = contextName,
+        // Keep the line actionable while the catalog artist lookup is still in flight.
+        artistUri = uri.takeIf { it.startsWith("spotify:track:") },
         artists = artists.map { SquaredArtist(it, "") },
         contextUri = contextUri?.takeIf { it.isNotBlank() },
     )

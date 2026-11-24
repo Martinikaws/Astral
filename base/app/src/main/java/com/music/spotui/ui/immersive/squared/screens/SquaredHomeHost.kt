@@ -95,6 +95,7 @@ fun SquaredHomeHost(navController: NavController) {
         feed = SquaredFeedState(),
         onOpenItem = { navController.openSquared(it.uri, it.title, it.subtitle) },
         onOpenSettings = { showProfile = true },
+        onOpenNews = { navController.navigate(com.music.spotui.ui.navigation.Routes.WhatsNew.route) { launchSingleTop = true } },
         title = feed?.greeting?.takeIf { it.isNotBlank() }
             ?: stringResource(R.string.navigationbar_musicappitems_home_title),
         backdrop = LocalAppBackdrop.current,

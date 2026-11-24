@@ -297,6 +297,12 @@ https://github.com/google/material-design-icons, Copyright Google LLC. Apache Li
 ### Square — GPL-3.0
 https://github.com/Lelonio/Square (v2.10.4, commit `139441f`)
 
+The v1.0.9 first-run setup also adapts the engine cards and aurora from the
+Square 2.11.0-beta1 `soloist-android` branch, in
+`app/src/main/java/dev/lelonio/square/ui/onboarding/{OnboardingScreen,SetupPieces}.kt`.
+The adapted code is in `base/app/src/main/java/com/music/spotui/ui/screens/FirstLookScreen.kt`.
+
+
 Copyright (C) Lelonio. The Squared look is a port of Square's UI onto Astral's own session, data
 and playback. These files in `base/app/src/main/java/com/music/spotui/ui/immersive/squared/` are
 adapted from `app/src/main/java/dev/lelonio/square/` (Square's theme, glass, player and

@@ -513,6 +513,12 @@ fun SettingsScreen(navController: NavController) {
             LanguageRow()
             }
             if (tab == TAB_SOURCES) {
+            com.music.spotui.ui.components.ReceiverSourceRows { title, detail, onClick ->
+                Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    Text(title, color = AppText, fontSize = 16.sp)
+                    Text(detail, color = AppMuted, fontSize = 12.sp)
+                }
+            }
             val anySource = com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.AUDIO_SOURCE).isNotEmpty() ||
                 com.music.spotui.extensions.Extensions.sources(app.myspoti.extensions.Action.DOWNLOAD_SOURCE).isNotEmpty()
             if (!anySource) Text(stringResource(R.string.settings_sources_none), color = AppMuted, fontSize = 13.sp,

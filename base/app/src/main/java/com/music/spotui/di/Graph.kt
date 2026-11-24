@@ -15,6 +15,7 @@ object Graph {
         app = application
         // The audio effects (speed, pitch, reverb, karaoke), read before anything can write them.
         com.music.spotui.data.preferences.AudioEffectsPref.load()
+        AudioEffectsState.install(application)
         // The data saver first: on a metered network with it on, nothing may go out, not even the page.
         com.music.spotui.data.DataSaver.init(application)
         // The Spotify session: hidden Web Player + API (operation hashes refresh themselves). The page

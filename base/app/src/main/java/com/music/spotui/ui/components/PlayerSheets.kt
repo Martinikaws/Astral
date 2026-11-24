@@ -198,19 +198,8 @@ fun DevicesSheet(onDismiss: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var devices by remember { mutableStateOf<List<SongPlayer.ConnectDevice>?>(null) }
     var quality by remember { mutableStateOf(false) }
-    var showSoloist by remember { mutableStateOf(false) }
-    var deviceRefresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    LaunchedEffect(deviceRefresh) { devices = SongPlayer.devices() }
-    if (showSoloist) {
-        SoloistSetupDialog(
-            onDismiss = { showSoloist = false },
-            onRefresh = {
-                showSoloist = false
-                devices = null
-                deviceRefresh++
-            },
-        )
-    }
+    var scan by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(scan) { devices = SongPlayer.devices() }
     val remote = SongPlayer.activeDevice.value
     val route = rememberAudioRoute()
     val headphones = remote == null && route.kind != AudioRoute.Kind.SPEAKER
@@ -287,11 +276,10 @@ fun DevicesSheet(onDismiss: () -> Unit) {
                     com.music.spotui.connect.LanDiscovery.devices.isEmpty() && com.music.spotui.cast.CastPlayback.device.value == null)
                     Text(stringResource(R.string.no_devices), color = AppText.copy(alpha = 0.7f), modifier = Modifier.padding(20.dp))
             }
-            DeviceRow(
-                Icons.Default.Computer,
-                stringResource(R.string.soloist_playback),
-                stringResource(R.string.soloist_device_subtitle),
-            ) { showSoloist = true }
+            androidx.compose.material3.TextButton(
+                enabled = devices != null,
+                onClick = { devices = null; scan++ },
+            ) { Text(stringResource(R.string.soloist_refresh)) }
             // Spotify Connect devices of the network that are not logged in to the account yet.
             com.music.spotui.connect.LanDeviceRows()
             // Cast devices, for Myspoti's own songs (Spotify's go through Spotify Connect above).
@@ -310,43 +298,6 @@ fun DevicesSheet(onDismiss: () -> Unit) {
             }
         }
     }
-}
-
-@Composable
-private fun SoloistSetupDialog(onDismiss: () -> Unit, onRefresh: () -> Unit) {
-    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    val context = androidx.compose.ui.platform.LocalContext.current
-    fun open(url: String) {
-        try {
-            uriHandler.openUri(url)
-        } catch (_: IllegalArgumentException) {
-            android.widget.Toast.makeText(context, R.string.soloist_browser_unavailable, android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.soloist_playback)) },
-        text = {
-            Column {
-                Text(stringResource(R.string.soloist_setup))
-                androidx.compose.material3.TextButton(onClick = { open("https://developer.spotify.com/dashboard/soloist") }) {
-                    Text(stringResource(R.string.soloist_key_sign_in))
-                }
-                androidx.compose.material3.TextButton(onClick = { open("https://developer.spotify.com/documentation/soloist/tutorials/getting-started") }) {
-                    Text(stringResource(R.string.soloist_instructions))
-                }
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onRefresh) {
-                Text(stringResource(R.string.soloist_refresh))
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
-        },
-    )
 }
 
 @Composable

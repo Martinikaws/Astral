@@ -812,4 +812,9 @@
     <string name="settings_ytm_sync_note">Gli ascolti sono contati dal player web di YouTube Music, senza audio. Le app di YouTube Music non possono controllarlo.</string>
     <string name="settings_sign_in_close">Chiudi</string>
     <string name="connect_after_ad">Passa a %1$s al termine della pubblicità</string>
+    <string name="playlist_move_to_another">Sposta in un’altra playlist</string>
+    <string name="playlist_moved_to">Spostato in %1$s</string>
+    <string name="playlist_copied_only">Copiato in %1$s. Non è stato possibile rimuovere il brano dalla playlist originale.</string>
+    <string name="playlist_move_to_top">Sposta in cima</string>
+    <string name="playlist_move_to_bottom">Sposta in fondo</string>
 </resources>

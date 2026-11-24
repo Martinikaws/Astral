@@ -158,7 +158,10 @@ fun SquaredTheme(
         }
     }
 
-    CompositionLocalProvider(LocalLightTheme provides !darkTheme) {
+    CompositionLocalProvider(
+        LocalLightTheme provides !darkTheme,
+        androidx.compose.material3.LocalContentColor provides scheme.onBackground,
+    ) {
         // The listener's choice of face; see PreferencesStore.systemFont.
         val systemFont = com.music.spotui.data.preferences.AppFontPref.system
         MaterialTheme(

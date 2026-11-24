@@ -24,6 +24,7 @@ app/google-services.json
 *.keystore
 *.p12
 *.pem
+!app/src/main/assets/cacert.pem
 keystore/
 
 # OS files

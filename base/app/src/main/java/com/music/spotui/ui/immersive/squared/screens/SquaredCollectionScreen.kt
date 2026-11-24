@@ -74,6 +74,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DragHandle
+import com.music.spotui.data.entity.SongsModel
+import com.music.spotui.ui.screens.PlaylistReorder
+import com.music.spotui.ui.screens.movableRow
+import com.music.spotui.ui.screens.rememberPlaylistDrag
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -250,6 +256,8 @@ fun SquaredCollectionScreen(
     /** And which way round it runs; see the same menu. */
     storedSortDescending: Boolean = false,
     onSortDescendingChange: (Boolean) -> Unit = {},
+    movableRows: List<SongsModel> = emptyList(),
+    onMoveRow: (PlaylistReorder.RowMove) -> Boolean = { false },
 ) {
     var query by remember(state.uri) { mutableStateOf("") }
     var searching by remember(state.uri) { mutableStateOf(false) }
@@ -466,6 +474,17 @@ fun SquaredCollectionScreen(
 
     val density = LocalDensity.current
     val listState = rememberLazyListState()
+    val canMove = asContext && movableRows.isNotEmpty()
+    var moving by remember(state.uri, canMove) { mutableStateOf(false) }
+    val drag = rememberPlaylistDrag(listState)
+    drag.rows = movableRows
+    drag.onDrop = onMoveRow
+    LaunchedEffect(movableRows, moving) { drag.settle() }
+    val rowsByUid = remember(movableRows) { movableRows.associateBy { it.rowUid } }
+    val tracksByUid = remember(state.tracks, moving) {
+        if (moving) state.tracks.associateBy { it.rowUid } else emptyMap()
+    }
+    val listed = if (moving) drag.order?.mapNotNull { tracksByUid[it.rowUid] } ?: visible else visible
 
     val topPadding = contentPadding.calculateTopPadding()
     val collapsedHeight = topPadding + COLLAPSED_BAR_HEIGHT
@@ -892,16 +911,22 @@ fun SquaredCollectionScreen(
                     items = if (isArtist && !topSongsOpen && query.isBlank()) {
                         visible.take(TOP_SONGS)
                     } else {
-                        visible
+                        listed
                     },
                     // Index in the key as well as the URI: a playlist may hold
                     // the same track twice, and duplicate keys crash the list.
-                    key = { index, track -> "$index ${track.uri}" },
+                    key = { index, track -> if (moving) "row:${track.rowUid}" else "$index ${track.uri}" },
                     contentType = { _, _ -> "track" },
                 ) { index, track ->
                     // Faded in as the list arrives; nothing moves after that.
                     // A column, so a mix's transition can sit under the row.
-                    Column(Modifier.animateItem(fadeInSpec = tween(260), placementSpec = null, fadeOutSpec = null)) {
+                    val row = if (moving) rowsByUid[track.rowUid] else null
+                    Row(
+                        modifier = if (row != null) movableRow(drag, row, pageColor)
+                            else Modifier.animateItem(fadeInSpec = tween(260), placementSpec = null, fadeOutSpec = null),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                    Box(Modifier.weight(1f)) {
                     SwipeToQueue(onQueue = { onEnqueue(track) }) {
                         if (track.isEpisode) {
                             val current = track.uri == nowPlayingUri
@@ -947,6 +972,13 @@ fun SquaredCollectionScreen(
                             onClick = { onPlay(visible, index, asContext) },
                             onMenu = { onTrackMenu(track) },
                         )
+                    }
+                    }
+                    if (row != null) Box(
+                        Modifier.size(48.dp).then(drag.handle(row.rowUid)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Rounded.DragHandle, stringResource(R.string.edit_playlist_items_move_chip), tint = pageInk)
                     }
                     }
                 }
@@ -1392,6 +1424,13 @@ fun SquaredCollectionScreen(
             backdrop = rememberCombinedBackdrop(pageBackdrop, listBackdrop),
             onDismiss = { sortOpen = false },
         ) {
+            if (canMove) {
+                com.music.spotui.ui.immersive.squared.components.GlassMenuItem(
+                    stringResource(if (moving) R.string.done else R.string.edit_playlist_items_move_chip),
+                    selected = moving,
+                    onClick = { moving = !moving; sortOpen = false },
+                )
+            }
             TrackSort.entries.forEach { option ->
                 com.music.spotui.ui.immersive.squared.components.GlassMenuItem(
                     stringResource(option.label),

@@ -449,6 +449,7 @@ fun SquaredShell(
                                     onOpenDevices = { showDevices = true },
                                     onAddToPlaylist = { if (model.song != null) showPlaylists = true },
                                     onOpenSongMenu = if (model.song != null) ({ showSongMenu = true }) else null,
+                                    onOpenUri = { route, _ -> navController.navigate(route) { launchSingleTop = true } },
                                     onOpenAlbum = if (playback.album.isNotBlank()) model.actions.openAlbum else null,
                                     alreadySaved = model.liked,
                                     inLikedSongs = model.liked,

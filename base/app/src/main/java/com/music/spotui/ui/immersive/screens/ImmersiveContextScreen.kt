@@ -326,7 +326,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     fun removeFromThisPlaylist(song: SongsModel) {
         val playlistId = p.uri.substringAfterLast(':')
         vm.dropTrack(song)
-        com.music.spotui.data.api.SpotifySync.removeTrackFromPlaylist(context, playlistId, song.spotifyTrackId) { ok ->
+        com.music.spotui.data.api.SpotifySync.removeRowFromPlaylist(context, playlistId, song.spotifyTrackId, song.rowUid) { ok ->
             if (!ok) {
                 vm.reload()
                 Toast.makeText(context, context.getString(R.string.playlist_change_refused), Toast.LENGTH_SHORT).show()
@@ -386,6 +386,7 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
             onDismiss = { menuSong = null },
             // The removal entry only exists on a playlist page the user may change: nowhere else
             // is there a list to take the track out of.
+            onMovedFromPlaylist = if (canRemove) ({ vm.dropTrack(sel) }) else null,
             onRemoveFromPlaylist = if (canRemove) ({ removeFromThisPlaylist(sel) }) else null,
             currentPlaylistId = if (inPlaylist) p.uri.substringAfterLast(':') else null,
         )

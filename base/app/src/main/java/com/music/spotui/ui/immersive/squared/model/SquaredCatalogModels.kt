@@ -97,6 +97,7 @@ data class CatalogTrack(
     val hasVideo: Boolean = false,
     /** For an episode: what the show says it is about, as plain text. */
     val summary: String = "",
+    val rowUid: String = "",
 ) {
     /**
      * A podcast episode rather than a song, on either source.

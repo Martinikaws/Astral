@@ -46,8 +46,16 @@ class OnboardingTest {
 
     private fun entry(
         signedIn: Boolean, chosen: Boolean, provider: String, setup: Boolean = true,
-        connecting: Boolean = false, choosing: Boolean = false, tv: Boolean = false,
-    ) = Onboarding.entry(signedIn, chosen, provider, setup, connecting, choosing, tv)
+        connecting: Boolean = false, choosing: Boolean = false, tv: Boolean = false, lookNeeded: Boolean = false,
+    ) = Onboarding.entry(signedIn, chosen, provider, setup, connecting, choosing, tv, lookNeeded)
+
+    @Test fun `a fresh phone picks a look before the account`() {
+        assertEquals(Entry.LOOK, entry(false, false, AccountProviders.SPOTIFY, lookNeeded = true))
+        assertEquals(Entry.WELCOME, entry(false, false, AccountProviders.SPOTIFY, tv = true, lookNeeded = true))
+        assertEquals(Entry.APP, entry(true, true, AccountProviders.SPOTIFY, setup = false, lookNeeded = true))
+        LookPref.setChosen(app)
+        assertFalse(STEP_LOOK in Setup.steps(app))
+    }
 
     @Test fun `a new install chooses its account before Spotify's sign-in`() {
         // Welcome first; its button leads to the account choice, not to Spotify's sign-in page.

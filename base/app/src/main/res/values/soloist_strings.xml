@@ -1,10 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="soloist_playback">Spotify Soloist</string>
-    <string name="soloist_device_subtitle">Play through a separate Soloist device</string>
-    <string name="soloist_setup">Sign in to Spotify to get a personal API key. Use it to start Soloist on a supported computer or Raspberry Pi, then pair it in the Spotify app on the same network. Refresh this list and select the name you gave your Soloist device. Audio plays on that device.</string>
-    <string name="soloist_key_sign_in">Sign in to get a Soloist key</string>
-    <string name="soloist_instructions">Official setup guide</string>
-    <string name="soloist_refresh">Refresh devices</string>
-    <string name="soloist_browser_unavailable">No browser could open the Spotify page.</string>
+  <string name="soloist_playback">Spotify Soloist</string>
+  <string name="soloist_device_subtitle">Play on this phone with Spotify Connect</string>
+  <string name="soloist_setup">Enter your personal Spotify Soloist API key to pair this phone.</string>
+  <string name="square_receiver_missing">Square is unavailable on this phone.</string>
+  <string name="soloist_key_sign_in">Sign in to get a Soloist key</string>
+  <string name="soloist_instructions">Official setup guide</string>
+  <string name="soloist_refresh">Refresh devices</string>
+  <string name="soloist_browser_unavailable">No browser could open the Spotify page.</string>
+  <string name="soloist_key_label">Soloist API key</string>
+  <string name="soloist_pair_instruction">On the same Wi-Fi network, open Spotify, play a song, and select Astral in the device picker.</string>
+  <string name="soloist_starting">Starting the receiver…</string>
+  <string name="soloist_running">Astral is ready for Spotify Connect playback.</string>
+  <string name="soloist_paired">This phone is paired. Start the receiver to play here.</string>
+  <string name="soloist_key_ready">Your key is saved. Start pairing to connect this phone.</string>
+  <string name="soloist_change_key">Replace API key</string>
+  <string name="soloist_stop">Stop receiver</string>
+  <string name="soloist_key_error">Could not save the key. Check it and try again.</string>
+  <string name="soloist_start_error">Could not start the receiver. Try again.</string>
+  <string name="soloist_start">Start receiver</string>
+  <string name="soloist_pair">Start pairing</string>
+  <string name="soloist_save_start">Save key and start</string>
+  <string name="soloist_open_spotify">Open Spotify</string>
+  <string name="soloist_spotify_missing">Open Spotify on another device on the same Wi-Fi network.</string>
+  <string name="soloist_unavailable">On-device Soloist playback requires the ARM64 edition of Astral on a compatible phone.</string>
 </resources>

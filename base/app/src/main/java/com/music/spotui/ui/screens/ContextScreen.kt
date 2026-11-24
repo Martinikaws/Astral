@@ -747,6 +747,7 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
             onDismiss = { menuSong = null },
             // The removal entry only exists on a playlist page the user may change: nowhere else
             // is there a list to take the track out of.
+            onMovedFromPlaylist = if (canRemove) ({ vm.dropTrack(sel) }) else null,
             onRemoveFromPlaylist = if (canRemove) ({ removeFromThisPlaylist(sel) }) else null,
             currentPlaylistId = if (inPlaylist) p.uri.substringAfterLast(':') else null,
         )

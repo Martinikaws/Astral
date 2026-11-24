@@ -122,6 +122,7 @@ fun PlayerPanelSection(
     modifier: Modifier = Modifier,
     /** False on a phone held sideways, where the cover is beside the views already. */
     showCover: Boolean = true,
+    showCredits: Boolean = false,
 ) {
     Column(
         modifier.fillMaxWidth(),
@@ -143,13 +144,13 @@ fun PlayerPanelSection(
         val karaokeOn = effectsSupported && effectsKaraoke > 0f
         val effectsOn = effectsSupported && (effectsSpeed != 1f || effectsPitch != 1f || effectsReverb > 0f || karaokeOn)
 
-        val views = remember(showCover) {
+        val views = remember(showCover, showCredits) {
             listOfNotNull(
                 PlayerPanel.NONE.takeIf { showCover },
                 PlayerPanel.LYRICS,
                 PlayerPanel.QUEUE,
                 PlayerPanel.EFFECTS.takeIf { SquaredFeatures.effects },
-                PlayerPanel.INFO.takeIf { SquaredFeatures.credits },
+                PlayerPanel.INFO.takeIf { showCredits },
             )
         }
         val selected = views.indexOf(panel).coerceAtLeast(0)
@@ -208,7 +209,7 @@ fun PlayerPanelSection(
                 selected = selected == views.indexOf(PlayerPanel.EFFECTS),
                 marked = effectsOn,
             ) { onSelect(PlayerPanel.EFFECTS) }
-            if (SquaredFeatures.credits) PanelTab(
+            if (showCredits) PanelTab(
                 icon = PhosphorIcons.Regular.Info,
                 activeIcon = PhosphorIcons.Fill.Info,
                 label = stringResource(R.string.squared_credits),

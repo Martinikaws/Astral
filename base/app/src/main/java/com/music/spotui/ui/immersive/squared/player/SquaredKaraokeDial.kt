@@ -207,7 +207,8 @@ fun KaraokeDial(
                     pressed = true
                     lastTouch = System.currentTimeMillis()
                     var moved = 0f
-                    var level = latest.value
+                    var rawLevel = latest.value
+                    var level = rawLevel
                     openNow.value = open
 
                     try { while (true) {
@@ -229,18 +230,18 @@ fun KaraokeDial(
                             if (!openNow.value && moved >= viewConfiguration.touchSlop) {
                                 openNow.value = true
                                 open = true
-                                level = latest.value
+                                rawLevel = latest.value
                             }
                             if (openNow.value) {
                                 dragging = true
                                 // Up is more, which is how a level reads. Kept
                                 // here as it is dragged, so the finger and the
                                 // fill move together.
-                                level = (level - step / travelPx).coerceIn(0f, 1f)
+                                rawLevel = (rawLevel - step / travelPx).coerceIn(0f, 1f)
                                 // Off is a place you have to mean: without a
                                 // step down to it, easing the level towards
                                 // quiet turned the effect off altogether.
-                                if (level < OFF_BELOW) level = 0f
+                                level = if (rawLevel < OFF_BELOW) 0f else rawLevel
                                 change(level)
                                 dragLevel = level
                                 lastTouch = System.currentTimeMillis()

@@ -5,6 +5,8 @@ import app.myspoti.api.account.AccountProviders
 
 /** What the main activity puts on screen. */
 enum class Entry {
+    /** The first choice on a fresh phone install. */
+    LOOK,
     /** The one-time steps after the account is in place ([SetupScreen]). */
     SETUP,
     /** The app's pages. */
@@ -49,13 +51,14 @@ object Onboarding {
 
     fun entry(
         spotifySignedIn: Boolean, accountChosen: Boolean, provider: String, setupNeeded: Boolean,
-        connecting: Boolean, choosingAccount: Boolean, tv: Boolean,
+        connecting: Boolean, choosingAccount: Boolean, tv: Boolean, lookNeeded: Boolean = false,
     ): Entry {
         val open = open(spotifySignedIn, accountChosen, provider, tv)
         return when {
             open && setupNeeded -> Entry.SETUP
             open -> Entry.APP
             connecting -> Entry.CONNECTING
+            lookNeeded && !tv -> Entry.LOOK
             choosingAccount && !tv -> Entry.ACCOUNT
             else -> Entry.WELCOME
         }

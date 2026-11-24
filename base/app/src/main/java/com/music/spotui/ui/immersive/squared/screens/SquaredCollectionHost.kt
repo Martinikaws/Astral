@@ -40,6 +40,7 @@ import com.music.spotui.ui.immersive.squared.model.SquaredPlaylistState
 import com.music.spotui.ui.immersive.squared.model.indexedByTrack
 import com.music.spotui.ui.immersive.squared.model.toCatalogTrack
 import com.music.spotui.ui.immersive.squared.model.toSearchItem
+import com.music.spotui.ui.immersive.squared.model.trackKey
 import com.music.spotui.ui.immersive.squared.model.toState
 import com.music.spotui.ui.immersive.squared.rememberSquaredMotionAllowed
 import com.music.spotui.ui.navigation.profileRoute
@@ -79,12 +80,38 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
         }
     }
 
+    val movableRows = remember(page, editable) {
+        page?.takeIf { p -> com.music.spotui.ui.screens.PlaylistReorder.allowed(
+            p.type, editable, p.isBlend, true, p.complete, "", p.tracks.map { it.rowUid },
+        ) }?.tracks.orEmpty()
+    }
+    fun moveRow(move: com.music.spotui.ui.screens.PlaylistReorder.RowMove): Boolean {
+        return vm.moveRow(move) { ok ->
+            if (!ok) android.widget.Toast.makeText(context, app.myspoti.engine.R.string.playlist_change_refused, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     var pageMenu by remember { mutableStateOf(false) }
     menuSong?.let { song ->
+        val rowIndex = movableRows.indexOfFirst { it.rowUid == song.rowUid }
         ImmersiveSongOptionsSheet(
+            onMoveToTop = if (rowIndex > 0) ({
+                moveRow(com.music.spotui.ui.screens.PlaylistReorder.RowMove(song.rowUid, movableRows.first().rowUid))
+            }) else null,
+            onMoveToBottom = if (rowIndex >= 0 && rowIndex < movableRows.lastIndex) ({
+                moveRow(com.music.spotui.ui.screens.PlaylistReorder.RowMove(song.rowUid, null))
+            }) else null,
             song = song, navController = navController, context = context, onDismiss = { menuSong = null },
-            onRemoveFromPlaylist = if (editable) ({ vm.dropTrack(song); menuSong = null }) else null,
+            onMovedFromPlaylist = if (editable && page?.type == "playlist") ({ vm.dropTrack(song) }) else null,
+            onRemoveFromPlaylist = if (editable && page?.type == "playlist") ({
+                vm.dropTrack(song)
+                com.music.spotui.data.api.SpotifySync.removeRowFromPlaylist(context, page.uri.substringAfterLast(':'), song.spotifyTrackId, song.rowUid) { ok ->
+                    if (!ok) {
+                        vm.reload()
+                        android.widget.Toast.makeText(context, app.myspoti.engine.R.string.playlist_change_refused, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) else null,
             currentPlaylistId = page?.uri?.substringAfterLast(':')?.takeIf { type == "playlist" },
         )
     }
@@ -107,10 +134,13 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
         if (page != null && editable && page.type == "playlist") vm.loadRecs(page)
     }
     val nowPlaying by SongPlayer.nowPlaying
-    val songOf: (CatalogTrack) -> SongsModel? = { byTrack[it.uri] ?: byRec[it.uri] }
-
+    val songOf: (CatalogTrack) -> SongsModel? = { track ->
+        byTrack[trackKey(track.uri, track.rowUid)] ?: byRec[trackKey(track.uri, track.rowUid)]
+    }
     SquaredCollectionScreen(
         state = state,
+        movableRows = movableRows,
+        onMoveRow = ::moveRow,
         contentPadding = rememberSquaredContentPadding(),
         nowPlayingUri = nowPlaying.uri,
         nowPlaying = Graph.currentSongState.playingState.value,

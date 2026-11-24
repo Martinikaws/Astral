@@ -43,7 +43,12 @@ import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.SessionWait
 import com.music.spotui.App
+import com.music.spotui.data.preferences.AccountProviderPref
+import com.music.spotui.data.preferences.Look
+import com.music.spotui.data.preferences.LookPref
 import com.music.spotui.di.AutoBrowser
+import com.music.spotui.ui.screens.FirstLookScreen
+import com.music.spotui.ui.screens.SquarePlaybackSetup
 import com.music.spotui.ui.screens.WelcomeScreen
 import com.music.spotui.ui.theme.SpotuiTheme
 import kotlinx.coroutines.flow.combine
@@ -95,6 +100,7 @@ class MainActivity : AppCompatActivity() {
     private var accountChosen by mutableStateOf(false)
     /** On the account choice, between the welcome screen and any sign-in. */
     private var choosingAccount by mutableStateOf(false)
+    private var choosingLook by mutableStateOf(false)
     /** In the picture-in-picture window: only the music video (or, with [pipSong], the song card) is drawn. */
     private var inPip by mutableStateOf(false)
     /** The window holds the song ([com.music.spotui.ui.components.SongPip]), not the music video. */
@@ -126,6 +132,7 @@ class MainActivity : AppCompatActivity() {
         signedIn = prefs.getBoolean("LoggedIn", false)
         setupNeeded = com.music.spotui.ui.screens.Setup.needed(this)
         accountChosen = com.music.spotui.ui.screens.Setup.accountSeen(this)
+        choosingLook = !tv && !LookPref.isChosen(this) && !signedIn && !accountChosen
         // A TV has one look of its own and no setup to go through (no battery or file prompts there).
         if (tv) setupNeeded = false
         root = FrameLayout(this)
@@ -143,7 +150,7 @@ class MainActivity : AppCompatActivity() {
                         // The music account first, Spotify's sign-in only when Spotify is the one chosen.
                         val entry = com.music.spotui.ui.screens.Onboarding.entry(
                             signedIn, accountChosen, com.music.spotui.data.preferences.AccountProviderPref.id,
-                            setupNeeded, connecting, choosingAccount, tv,
+                            setupNeeded, connecting, choosingAccount, tv, lookNeeded = choosingLook,
                         )
                         if (entry != com.music.spotui.ui.screens.Entry.APP || showLook) {
                             com.music.spotui.ui.components.StarryNightBackdrop(androidx.compose.ui.Modifier.fillMaxSize())
@@ -153,6 +160,11 @@ class MainActivity : AppCompatActivity() {
                                 com.music.spotui.data.preferences.LookPref.setChosen(this@MainActivity); showLook = false
                                 setupNeeded = com.music.spotui.ui.screens.Setup.needed(this@MainActivity)
                             })
+                            entry == com.music.spotui.ui.screens.Entry.LOOK -> FirstLookScreen { look ->
+                                LookPref.set(this@MainActivity, look)
+                                LookPref.setChosen(this@MainActivity)
+                                choosingLook = false
+                            }
                             entry == com.music.spotui.ui.screens.Entry.SETUP -> com.music.spotui.ui.screens.SetupScreen(
                                 onDone = { setupNeeded = false },
                             )
@@ -161,6 +173,11 @@ class MainActivity : AppCompatActivity() {
                             entry == com.music.spotui.ui.screens.Entry.ACCOUNT -> com.music.spotui.ui.screens.AccountChoiceScreen(
                                 onBack = { choosingAccount = false },
                                 onDone = { accountDone() },
+                            )
+                            LookPref.look == Look.SQUARED && !tv -> SquarePlaybackSetup(
+                                spotifySignIn = { startSpotifySetup() },
+                                musicAccount = { choosingAccount = true },
+                                back = { choosingLook = true },
                             )
                             else -> WelcomeScreen(onLogin = {
                                 if (com.music.spotui.ui.screens.Onboarding.welcomeChoosesAccount(tv)) choosingAccount = true else showLogin()
@@ -456,6 +473,11 @@ class MainActivity : AppCompatActivity() {
         Logbook.log("onboarding: music account $provider chosen before any sign-in")
         if (com.music.spotui.ui.screens.Onboarding.afterChoice(provider, com.music.spotui.di.YtmRuntime.signedIn) ==
             com.music.spotui.ui.screens.AfterChoice.SPOTIFY_SIGN_IN) showLogin()
+    }
+
+    private fun startSpotifySetup() {
+        AccountProviderPref.set(this, app.myspoti.api.account.AccountProviders.SPOTIFY)
+        accountDone()
     }
 
     /** Spotify's login page, full screen, until the Web Player comes back signed in. */

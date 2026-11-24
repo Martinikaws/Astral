@@ -101,6 +101,7 @@ fun SongsModel.toCatalogTrack(): CatalogTrack {
     }
     val names = singer.split(',').map { it.trim() }.filter { it.isNotEmpty() }
     return CatalogTrack(
+        rowUid = rowUid,
         uri = uri,
         name = title,
         artist = singer,

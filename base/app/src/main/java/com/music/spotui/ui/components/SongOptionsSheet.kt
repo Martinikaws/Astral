@@ -101,6 +101,7 @@ fun SongOptionsSheet(
     onRemoveFromPlaylist: (() -> Unit)? = null,
     // The playlist the track is shown in, so the "Add to another playlist" picker can hide it.
     currentPlaylistId: String? = null,
+    onMovedFromPlaylist: (() -> Unit)? = null,
     extraRows: (@Composable () -> Unit)? = null,
 ) {
     val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel =
@@ -109,6 +110,7 @@ fun SongOptionsSheet(
     val liked = com.music.spotui.di.rememberTrackSaved(song.spotifyTrackId)
     var showSavedIn by remember { mutableStateOf(false) }
     var showAddTo by remember { mutableStateOf(false) }
+    var moveTo by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
@@ -140,7 +142,8 @@ fun SongOptionsSheet(
         return
     }
     if (showAddTo) {
-        AddToPlaylistSheet(song = song, context = context, onDismiss = { showAddTo = false; onDismiss() }, excludePlaylistId = currentPlaylistId)
+        AddToPlaylistSheet(song = song, context = context, onDismiss = { showAddTo = false; onDismiss() },
+            excludePlaylistId = currentPlaylistId, onMoved = onMovedFromPlaylist.takeIf { moveTo })
         return
     }
     if (showSleep) {
@@ -197,7 +200,10 @@ fun SongOptionsSheet(
             MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
             // Only where a playlist is on screen (A11): the row disappears at once, the
             // screen tells the user and offers Undo.
-            if (onRemoveFromPlaylist != null) {
+            if (onMovedFromPlaylist != null && currentPlaylistId != null && song.rowUid.isNotBlank()) {
+            MenuRow(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.playlist_move_to_another), enabled = hasId) { moveTo = true; showAddTo = true }
+        }
+        if (onRemoveFromPlaylist != null) {
                 MenuRow(Icons.Outlined.Delete, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
                     onDismiss()
                     onRemoveFromPlaylist()

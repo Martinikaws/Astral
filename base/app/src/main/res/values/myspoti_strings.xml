@@ -852,4 +852,9 @@
     <string name="video_fullscreen_exit">Leave full screen</string>
     <string name="settings_automix_orpheon">New transition planner</string>
     <string name="settings_automix_orpheon_detail">Smoother blends: both songs ease into a shared tempo and back. Off: the earlier planner.</string>
+    <string name="playlist_move_to_another">Move to another playlist</string>
+    <string name="playlist_moved_to">Moved to %1$s</string>
+    <string name="playlist_copied_only">Copied to %1$s. The original row could not be removed.</string>
+    <string name="playlist_move_to_top">Move to top</string>
+    <string name="playlist_move_to_bottom">Move to bottom</string>
 </resources>

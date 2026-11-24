@@ -2,7 +2,7 @@
 <!-- The effects sheet (speed, pitch, reverb, karaoke, presets). -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="effects_title">Effects</string>
-    <string name="effects_unsupported">Effects work on songs the app plays itself (from extensions, downloads and your own files). This song is played by Spotify\'s own player, so they are switched off for it.</string>
+    <string name="effects_unsupported">Audio effects are unavailable on the current playback output. Use built-in Soloist or play a track through Astral’s local player.</string>
     <string name="effects_presets">Presets</string>
     <string name="effects_preset_original">Original</string>
     <string name="effects_preset_slowed">Slowed + Reverb</string>

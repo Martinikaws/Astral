@@ -28,6 +28,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,6 +38,31 @@ import androidx.compose.ui.unit.dp
 import app.myspoti.engine.R
 import com.music.spotui.ui.immersive.squared.Ink
 import com.music.spotui.ui.immersive.squared.InkDim
+
+internal val spotifyCreditsTrack = Regex("spotify:track:[A-Za-z0-9]{22}")
+
+@Composable
+internal fun TrackCreditsView(uri: String, modifier: Modifier) {
+    val credits by produceState<com.music.spotui.ui.immersive.squared.SquaredCredits?>(null, uri) {
+        value = try {
+            val response = app.myspoti.host.android.MyspotiRuntime.api.extras.credits(uri)
+            val roles = response.roles.mapNotNull { role ->
+                val people = role.artists.mapNotNull { artist ->
+                    artist.name.takeIf { it.isNotBlank() }?.let {
+                        com.music.spotui.ui.immersive.squared.SquaredCredits.Person(it)
+                    }
+                }
+                if (people.isEmpty()) null else com.music.spotui.ui.immersive.squared.SquaredCredits.Role(role.role, people)
+            }
+            com.music.spotui.ui.immersive.squared.SquaredCredits(roles)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            com.music.spotui.ui.immersive.squared.SquaredCredits(emptyList())
+        }
+    }
+    CreditsView(credits, loading = credits == null, modifier = modifier)
+}
 
 /**
  * Who made the song, in the player's own slot.

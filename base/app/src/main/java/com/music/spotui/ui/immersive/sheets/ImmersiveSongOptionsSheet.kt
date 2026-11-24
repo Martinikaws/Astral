@@ -16,6 +16,8 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowCircleDown
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Block
@@ -81,6 +83,9 @@ fun ImmersiveSongOptionsSheet(
     onOpenQueue: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
     currentPlaylistId: String? = null,
+    onMovedFromPlaylist: (() -> Unit)? = null,
+    onMoveToTop: (() -> Unit)? = null,
+    onMoveToBottom: (() -> Unit)? = null,
     /** The player's lyrics panel is open: the translation row works on the lyrics it shows. */
     lyricsOpen: Boolean = false,
     /** Extra rows drawn with the now-playing group (the player's Canvas settings). */
@@ -91,6 +96,7 @@ fun ImmersiveSongOptionsSheet(
     val liked = com.music.spotui.di.rememberTrackSaved(song.spotifyTrackId)
     var showSavedIn by remember { mutableStateOf(false) }
     var showAddTo by remember { mutableStateOf(false) }
+    var moveTo by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
@@ -113,7 +119,8 @@ fun ImmersiveSongOptionsSheet(
     if (showEffects) { com.music.spotui.ui.components.AudioEffectsSheet(onDismiss = { showEffects = false; onDismiss() }); return }
     if (showSavedIn) { SavedInSheet(song = song, context = context, onDismiss = { showSavedIn = false; onDismiss() }); return }
     if (showAddTo) {
-        AddToPlaylistSheet(song = song, context = context, onDismiss = { showAddTo = false; onDismiss() }, excludePlaylistId = currentPlaylistId)
+        AddToPlaylistSheet(song = song, context = context, onDismiss = { showAddTo = false; onDismiss() },
+            excludePlaylistId = currentPlaylistId, onMoved = onMovedFromPlaylist.takeIf { moveTo })
         return
     }
     if (showSleep) { SleepTimerSheet(onDismiss = { showSleep = false; onDismiss() }); return }
@@ -142,6 +149,15 @@ fun ImmersiveSongOptionsSheet(
         }
         ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_playlist), enabled = hasId) { showSavedIn = true }
         ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.context_menu_add_to_another_playlist), enabled = hasId) { showAddTo = true }
+        if (onMoveToTop != null) {
+            ImmersiveSheetRow(Icons.Rounded.ArrowUpward, stringResource(R.string.playlist_move_to_top)) { onDismiss(); onMoveToTop() }
+        }
+        if (onMoveToBottom != null) {
+            ImmersiveSheetRow(Icons.Rounded.ArrowDownward, stringResource(R.string.playlist_move_to_bottom)) { onDismiss(); onMoveToBottom() }
+        }
+        if (onMovedFromPlaylist != null && currentPlaylistId != null && song.rowUid.isNotBlank()) {
+            ImmersiveSheetRow(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.playlist_move_to_another), enabled = hasId) { moveTo = true; showAddTo = true }
+        }
         if (onRemoveFromPlaylist != null) {
             ImmersiveSheetRow(Icons.Rounded.DeleteOutline, stringResource(R.string.context_menu_remove_from_playlist), enabled = hasId) {
                 onDismiss()

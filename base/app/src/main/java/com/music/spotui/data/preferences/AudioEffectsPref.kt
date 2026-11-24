@@ -236,11 +236,19 @@ object AudioEffectsPref {
     fun setSpeed(value: Float) = model.setSpeed(value)
     fun setPitch(value: Float) = model.setPitch(value)
     fun setReverb(value: Float) { model.setReverb(value); AudioFx.reverb = model.reverb.value }
-    fun setKaraoke(value: Float) { model.setKaraoke(value); AudioFx.karaoke = model.karaoke.value }
+    fun setKaraoke(value: Float) {
+        model.setKaraoke(value)
+        previewKaraoke(model.karaoke.value)
+    }
 
     /** While a slider is dragged: the stage follows at once, nothing is written or applied (the release calls [setReverb]). */
     fun previewReverb(value: Float) { AudioFx.reverb = value.coerceIn(0f, 1f) }
-    fun previewKaraoke(value: Float) { AudioFx.karaoke = value.coerceIn(0f, 1f) }
+    fun previewKaraoke(value: Float) {
+        val bounded = value.coerceIn(0f, 1f)
+        val changesOffload = (AudioFx.karaoke == 0f) != (bounded == 0f)
+        AudioFx.karaoke = bounded
+        if (changesOffload) com.music.spotui.di.LocalPlayer.applyOffload()
+    }
     fun applyPreset(preset: EffectPreset) = model.applyPreset(preset)
     fun applyPreset(id: String): Boolean = model.applyPreset(id)
     fun savePreset(name: String): EffectPreset = model.savePreset(name)

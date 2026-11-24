@@ -8,7 +8,4 @@ package com.music.spotui.ui.immersive.squared
  */
 object SquaredFeatures {
     const val effects: Boolean = true
-
-    /** The credits panel; Astral has no credits source in this phase. */
-    const val credits: Boolean = false
 }

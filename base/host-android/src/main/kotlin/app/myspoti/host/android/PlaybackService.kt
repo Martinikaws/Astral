@@ -214,6 +214,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
         // foreground after PAUSE_GRACE_MS, as after any pause.
         val info = current
         startForegroundSafely(build(info), always = true)
+        com.soloist.android.service.SoloistRuntime.serviceStarted()
         MediaButtonReceiver.handleIntent(session, intent)
         if (intent?.action == ACTION_LIKE && info != null && info.id != NowPlayingInfo.AD_ID) {
             val nextLiked = !info.liked
@@ -242,6 +243,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 ?.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_STOP
 
     override fun onDestroy() {
+        com.soloist.android.service.SoloistRuntime.serviceDestroyed()
         instance = null
         sessionListener?.invoke()
         releaseLocks()
@@ -574,7 +576,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
      */
     private val leaveForeground = Runnable {
         inPauseGrace = false
-        if (current?.makesSound == true) return@Runnable
+        if (current?.makesSound == true || com.soloist.android.service.SoloistRuntime.active) return@Runnable
         releaseLocks()
         if (foreground) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
@@ -958,6 +960,13 @@ class PlaybackService : MediaBrowserServiceCompat() {
         private val COVER_RETRY_MS = longArrayOf(2_000L, 6_000L, 15_000L)
 
         @Volatile private var instance: PlaybackService? = null
+        internal fun soloistIdle() {
+            val service = instance ?: return
+            service.handler.post {
+                if (instance === service && !service.inPauseGrace && current?.makesSound != true &&
+                    !com.soloist.android.service.SoloistRuntime.active) service.leaveForeground.run()
+            }
+        }
         @Volatile private var current: NowPlayingInfo? = null
         /** The queue the car shows, kept like [current] until the session exists (see [updateQueue]). */
         @Volatile private var queue: List<QueueEntry> = emptyList()

@@ -2,13 +2,7 @@
  * Adapted from Square (https://github.com/Lelonio/Square), GPL-3.0, Copyright (C) Lelonio,
  * app/src/main/java/dev/lelonio/square/ui/settings/SettingsScreen.kt. Modified for Astral, 2026-11.
  *
- * Changes: Square's index of tiles and its folding groups are kept, but every row is bound to an
- * Astral preference (playback, lyrics, covers, downloads, storage, language, energy and data,
- * licences) rather than Square's own; Square's account, about, Spotify Web API, YouTube, DJ,
- * updater and support pages are dropped (Astral's own settings cover them) and an "Astral
- * settings" tile opens Astral's full settings screen inside this one, with its own back stack;
- * the glass page and the equalizer page are ported alongside (SquaredGlassSettings.kt,
- * SquaredEqualizerPage.kt); the page draws its own header and does not sit on the shell's glass.
+ * Adapted to Astral's accounts, playback preferences and sources.
  *
  * This file is part of Astral. It is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free Software
@@ -22,6 +16,8 @@ package com.music.spotui.ui.immersive.squared.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,11 +37,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,13 +60,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import app.myspoti.engine.R
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.regular.UserCircle
+import com.adamglin.phosphoricons.regular.Info
 import com.adamglin.phosphoricons.regular.CaretLeft
 import com.adamglin.phosphoricons.regular.CaretRight
 import com.adamglin.phosphoricons.regular.DownloadSimple
@@ -77,70 +74,68 @@ import com.adamglin.phosphoricons.regular.GearSix
 import com.adamglin.phosphoricons.regular.Palette
 import com.adamglin.phosphoricons.regular.PlayCircle
 import com.adamglin.phosphoricons.regular.Scroll
+import com.adamglin.phosphoricons.regular.MicrophoneStage
 import com.adamglin.phosphoricons.regular.SlidersHorizontal
 import com.adamglin.phosphoricons.regular.Trash
-import com.music.spotui.data.AppLanguage
 import com.music.spotui.data.AppStorage
-import com.music.spotui.data.DataSaver
 import com.music.spotui.data.offline.OfflineDownloader
 import com.music.spotui.data.offline.OfflineStore
 import com.music.spotui.data.preferences.AppShufflePref
 import com.music.spotui.data.preferences.AutoplayPref
-import com.music.spotui.data.preferences.CanvasPref
 import com.music.spotui.data.preferences.CrossfadePref
 import com.music.spotui.data.preferences.DownloadQuality
 import com.music.spotui.data.preferences.EqualizerPref
-import com.music.spotui.data.preferences.GeniusPref
-import com.music.spotui.data.preferences.LyricsKeepAwakePref
 import com.music.spotui.data.preferences.LyricsOfflinePref
-import com.music.spotui.data.preferences.LyricsRomanizationPref
 import com.music.spotui.data.preferences.StreamingQuality
 import com.music.spotui.data.preferences.TransitionPref
 import com.music.spotui.data.preferences.getDownloadQuality
 import com.music.spotui.data.preferences.getStreamingQuality
-import com.music.spotui.data.preferences.isCanvasWifiOnly
-import com.music.spotui.data.preferences.isLyricsExtraSources
-import com.music.spotui.data.preferences.isLyricsWordSync
-import com.music.spotui.data.preferences.setCanvasWifiOnly
 import com.music.spotui.data.preferences.setDownloadQuality
-import com.music.spotui.data.preferences.setLyricsExtraSources
-import com.music.spotui.data.preferences.setLyricsWordSync
 import com.music.spotui.data.preferences.setStreamingQuality
 import com.music.spotui.ui.immersive.Immersive
 import com.music.spotui.ui.immersive.pages.ImmersiveSettingsScreen
+import com.music.spotui.ui.immersive.pages.SettingsPage
 import com.music.spotui.ui.immersive.squared.Ink
 import com.music.spotui.ui.immersive.squared.InkDim
-import com.music.spotui.ui.immersive.squared.SquaredLyricsStyle
-import com.music.spotui.ui.immersive.squared.SquaredPrefs
 import com.music.spotui.ui.immersive.squared.SquaredTheme
 import com.music.spotui.ui.screens.cacheSizeLabel
 import com.music.spotui.ui.screens.eqPresetLabel
+import app.myspoti.extensions.Action
+import com.music.spotui.extensions.Extensions
+import com.music.spotui.ui.components.ReceiverSourceRows
+import com.music.spotui.ui.navigation.Routes
+import com.music.spotui.ui.screens.MetadataOrderList
+import com.music.spotui.ui.screens.SourceLook
+import com.music.spotui.ui.screens.SourceOrderList
+import com.music.spotui.ui.screens.installedRoute
 import kotlinx.coroutines.launch
 
 /** The pages of the Squared look's settings; the index is the first. */
-private enum class Page { Index, Playback, Equalizer, Glass, Downloads, App, Astral }
+private enum class Page { Index, Account, About, Playback, Sources, Equalizer, Glass, Downloads, App, Library, Lyrics, Data }
 
-/**
- * Settings of the Squared look. An index of tiles opens a page each: the playback page (sound,
- * listening, lyrics, covers), the equalizer (a curve for each output), the glass, downloads and
- * storage, and the app (language, appearance, energy). The last tile opens Astral's own settings
- * in full, for everything this look does not draw itself (accounts, sources, AutoMix, extensions).
- * Everything here writes through the same preferences as the other looks.
- */
+/** Settings tabs for the Squared look. */
 @Composable
 fun SquaredSettingsScreen(navController: NavController) {
     var page by rememberSaveable { mutableStateOf(Page.Index) }
+    var astralTab by rememberSaveable { mutableStateOf(false) }
     // Registered before the inner screen's own handler, which therefore pops its pages first.
     BackHandler(enabled = page != Page.Index) { page = Page.Index }
     BackHandler(enabled = page == Page.Index) { navController.popBackStack() }
 
     val store = SquaredGlassStore.of(LocalContext.current)
     val config by store.config.collectAsStateWithLifecycle()
-    if (page == Page.Astral) {
-        ImmersiveSettingsScreen(navController, onBack = { page = Page.Index })
+    val sharedPage = when (page) {
+        Page.About -> SettingsPage.App
+        Page.App -> SettingsPage.Display
+        Page.Library -> SettingsPage.Library
+        Page.Lyrics -> SettingsPage.Lyrics
+        Page.Data -> SettingsPage.Data
+        else -> null
+    }
+    if (sharedPage != null) {
+        ImmersiveSettingsScreen(navController, initialPage = sharedPage, onBack = { page = Page.Index })
         return
     }
-
     SquaredTheme(seed = null, darkTheme = true) {
         val accent = rememberSettingsAccent(config)
         CompositionLocalProvider(LocalSettingsAccent provides accent) {
@@ -154,13 +149,16 @@ fun SquaredSettingsScreen(navController: NavController) {
                         padding = padding,
                         header = { header(R.string.squared_settings_title) },
                         open = { page = it },
+                        astral = astralTab,
+                        onTab = { astralTab = it },
                     )
+                    Page.Account -> com.music.spotui.ui.immersive.pages.AccountsPage(back)
                     Page.Playback -> PlaybackPage(padding) { header(R.string.settings_section_playback) }
                     Page.Equalizer -> SquaredEqualizerPage(statusPadding(padding)) { header(R.string.equalizer_title) }
                     Page.Glass -> SquaredGlassPage(store, statusPadding(padding)) { header(R.string.squared_page_glass) }
                     Page.Downloads -> DownloadsPage(padding) { header(R.string.settings_section_downloads) }
-                    Page.App -> AppPage(padding, openGlass = { page = Page.Glass }) { header(R.string.settings_section_app) }
-                    Page.Astral -> Unit
+                    Page.Sources -> SourcesPage(padding, navController) { header(R.string.settings_sources_tab) }
+                    Page.About, Page.App, Page.Library, Page.Lyrics, Page.Data -> Unit
                 }
             }
         }
@@ -204,40 +202,67 @@ private fun PageHeader(title: String, onBack: () -> Unit) {
 // ---------------------------------------------------------------- index
 
 @Composable
-private fun Index(padding: PaddingValues, header: @Composable () -> Unit, open: (Page) -> Unit) {
+private fun Index(
+    padding: PaddingValues,
+    header: @Composable () -> Unit,
+    open: (Page) -> Unit,
+    astral: Boolean,
+    onTab: (Boolean) -> Unit,
+) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
         item { header() }
         item {
+            TabRow(selectedTabIndex = if (astral) 1 else 0) {
+                Tab(selected = !astral, onClick = { onTab(false) }, text = { Text(stringResource(R.string.first_look_square)) })
+                Tab(selected = astral, onClick = { onTab(true) }, text = { Text(stringResource(R.string.squared_tile_astral)) })
+            }
+        }
+        item {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tile(PhosphorIcons.Regular.PlayCircle, R.string.settings_section_playback, R.string.squared_tile_playback_note) { open(Page.Playback) }
-                Tile(PhosphorIcons.Regular.SlidersHorizontal, R.string.equalizer_title, R.string.squared_tile_equalizer_note) { open(Page.Equalizer) }
-                Tile(PhosphorIcons.Regular.Palette, R.string.squared_page_glass, R.string.squared_tile_glass_note) { open(Page.Glass) }
-                Tile(PhosphorIcons.Regular.DownloadSimple, R.string.settings_section_downloads, R.string.squared_tile_downloads_note) { open(Page.Downloads) }
-                Tile(PhosphorIcons.Regular.GearSix, R.string.settings_section_app, R.string.squared_tile_app_note) { open(Page.App) }
-                Tile(PhosphorIcons.Regular.Scroll, R.string.squared_tile_astral, R.string.squared_tile_astral_note) { open(Page.Astral) }
+                if (!astral) {
+                    Tile(MenuTile(Page.Account, PhosphorIcons.Regular.UserCircle, R.string.settings_account_provider_title,
+                        R.string.settings_account_provider_detail), Modifier.fillMaxWidth(), open)
+                }
+                val pages = if (astral) listOf(
+                    MenuTile(Page.Sources, PhosphorIcons.Regular.DownloadSimple, R.string.settings_sources_tab, R.string.settings_sources_detail),
+                    MenuTile(Page.Library, PhosphorIcons.Regular.Scroll, R.string.settings_section_library),
+                    MenuTile(Page.Lyrics, PhosphorIcons.Regular.MicrophoneStage, R.string.settings_section_lyrics),
+                    MenuTile(Page.Data, PhosphorIcons.Regular.GearSix, R.string.settings_section_data),
+                ) else listOf(
+                    MenuTile(Page.Playback, PhosphorIcons.Regular.PlayCircle, R.string.settings_section_playback),
+                    MenuTile(Page.Equalizer, PhosphorIcons.Regular.SlidersHorizontal, R.string.equalizer_title, R.string.squared_tile_equalizer_note),
+                    MenuTile(Page.Glass, PhosphorIcons.Regular.Palette, R.string.squared_page_glass, R.string.squared_tile_glass_note),
+                    MenuTile(Page.Downloads, PhosphorIcons.Regular.DownloadSimple, R.string.settings_section_downloads, R.string.squared_tile_downloads_note),
+                    MenuTile(Page.App, PhosphorIcons.Regular.GearSix, R.string.settings_section_display),
+                    MenuTile(Page.About, PhosphorIcons.Regular.Info, R.string.settings_tab_about),
+                )
+                pages.chunked(2).forEach { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        pair.forEach { tile -> Tile(tile, Modifier.weight(1f), open) }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
 }
 
+private data class MenuTile(val page: Page, val icon: ImageVector, val title: Int, val note: Int? = null)
+
+// Adapted from Lelonio/Square's settings index and Tile (GPL-3.0).
 @Composable
-private fun Tile(icon: ImageVector, title: Int, note: Int, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+private fun Tile(tile: MenuTile, modifier: Modifier, open: (Page) -> Unit) {
+    Column(
+        modifier.heightIn(min = 132.dp)
+            .clip(RoundedCornerShape(24.dp))
             .background(Ink.copy(alpha = 0.07f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .clickable { open(tile.page) }
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        RowIcon(icon)
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(stringResource(note), style = MaterialTheme.typography.bodySmall, color = InkDim)
-        }
-        Icon(PhosphorIcons.Regular.CaretRight, contentDescription = null, tint = InkDim, modifier = Modifier.size(18.dp))
+        RowIcon(tile.icon)
+        Text(stringResource(tile.title), style = MaterialTheme.typography.titleMedium, color = Ink)
+        tile.note?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = InkDim) }
     }
 }
 
@@ -275,6 +300,58 @@ private fun LazyListScope.settingsGroup(
     }
 }
 
+// ---------------------------------------------------------------- sources
+
+@Composable
+private fun SourcesPage(padding: PaddingValues, navController: NavController, header: @Composable () -> Unit) {
+    val registry by Extensions.registry.collectAsStateWithLifecycle()
+    val look = SourceLook(Ink, InkDim, settingsAccent(), MaterialTheme.typography.bodyLarge, MaterialTheme.typography.bodySmall)
+    val openExtension: (String) -> Unit = { navController.navigate(installedRoute(it)) }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { header() }
+        item {
+            SettingsSection(stringResource(R.string.listen_on)) {
+                ReceiverSourceRows { title, detail, onClick ->
+                    SettingsActionRow(title, detail = detail, onClick = onClick)
+                }
+            }
+        }
+        for (action in listOf(Action.AUDIO_SOURCE, Action.DOWNLOAD_SOURCE)) {
+            if (Extensions.sources(action).isEmpty()) continue
+            val audio = action == Action.AUDIO_SOURCE
+            item(action.key) {
+                SettingsSection(stringResource(if (audio) R.string.sources_audio_title else R.string.sources_download_title)) {
+                    SourceOrderList(action, withAccount = audio, look = look, onOpen = openExtension)
+                }
+            }
+        }
+        item {
+            SettingsSection(stringResource(R.string.metadata_title)) {
+                MetadataOrderList(look)
+            }
+        }
+        item {
+            SettingsSection(title = null) {
+                com.music.spotui.ui.screens.BundledFlacSources(navController)
+            }
+        }
+        item {
+            SettingsSection(stringResource(R.string.extensions_title)) {
+                registry.extensions.forEach { extension ->
+                    val settings = Extensions.manifest(extension.id)?.settings.orEmpty()
+                    if (settings.isNotEmpty()) SettingsActionRow(extension.name, detail = settings.joinToString { it.label }) {
+                        openExtension(extension.id)
+                    }
+                }
+                SettingsActionRow(stringResource(R.string.extensions_title), detail = stringResource(R.string.extensions_row_detail)) {
+                    navController.navigate(Routes.Extensions.route)
+                }
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- playback
 
 private val StreamingChoices = listOf(
@@ -296,7 +373,6 @@ private val DownloadChoices = listOf(
 @Composable
 private fun PlaybackPage(padding: PaddingValues, header: @Composable () -> Unit) {
     val ctx = LocalContext.current
-    val squared = remember { SquaredPrefs.of(ctx) }
     GroupedPage(padding, header) { isOpen, toggle ->
         settingsGroup(SettingsGroup.SOUND, isOpen, toggle) {
             groupItem("quality-wifi", SettingsGroup.SOUND) { StreamingSection(cellular = false) }
@@ -394,102 +470,14 @@ private fun PlaybackPage(padding: PaddingValues, header: @Composable () -> Unit)
                 }
             }
         }
-
-        settingsGroup(SettingsGroup.LYRICS, isOpen, toggle) {
-            groupItem("lyrics", SettingsGroup.LYRICS) {
-                var wordSync by remember { mutableStateOf(isLyricsWordSync(ctx)) }
-                var extra by remember { mutableStateOf(isLyricsExtraSources(ctx)) }
-                val style by squared.lyricsStyle.collectAsState()
-                SettingsSection(null) {
-                    SettingsChoiceRow(
-                        stringResource(R.string.squared_lyrics_style_animated), style == SquaredLyricsStyle.ANIMATED,
-                        detail = stringResource(R.string.squared_lyrics_style),
-                    ) { squared.setLyricsStyle(SquaredLyricsStyle.ANIMATED) }
-                    SettingsDivider()
-                    SettingsChoiceRow(stringResource(R.string.squared_lyrics_style_classic), style == SquaredLyricsStyle.CLASSIC) {
-                        squared.setLyricsStyle(SquaredLyricsStyle.CLASSIC)
-                    }
-                    SettingsDivider()
-                    com.music.spotui.ui.components.SpicyLyricsExtras()
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.lyrics_word_sync_title), wordSync,
-                        detail = stringResource(if (wordSync) R.string.lyrics_word_sync_on else R.string.lyrics_word_sync_off),
-                        onChange = {
-                            wordSync = it
-                            setLyricsWordSync(ctx, it)
-                            com.music.spotui.data.api.LyricsApi.wordSync = it
-                            com.music.spotui.data.api.LyricsApi.forgetAll()
-                        },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.lyrics_extra_title), extra,
-                        detail = stringResource(R.string.lyrics_extra_summary),
-                        onChange = {
-                            extra = it
-                            setLyricsExtraSources(ctx, it)
-                            com.music.spotui.data.api.LyricsApi.extraSources = it
-                            com.music.spotui.data.api.LyricsApi.extraSourcesOff = !it
-                            com.music.spotui.data.api.LyricsApi.forgetAll()
-                        },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.settings_genius_title), GeniusPref.on,
-                        detail = stringResource(R.string.settings_genius_detail),
-                        onChange = { GeniusPref.set(ctx, it) },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.settings_lyrics_keep_awake_title), LyricsKeepAwakePref.on,
-                        detail = stringResource(R.string.settings_lyrics_keep_awake_detail),
-                        onChange = { LyricsKeepAwakePref.set(ctx, it) },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.lyrics_romanization), LyricsRomanizationPref.on,
-                        detail = stringResource(R.string.settings_lyrics_romanization_detail),
-                        onChange = { LyricsRomanizationPref.set(ctx, it) },
-                    )
-                }
-            }
-        }
-
-        settingsGroup(SettingsGroup.COVERS, isOpen, toggle) {
-            groupItem("covers", SettingsGroup.COVERS) {
-                val animated by squared.animatedCovers.collectAsState()
-                var wifiOnly by remember { mutableStateOf(isCanvasWifiOnly(ctx)) }
-                SettingsSection(null) {
-                    SettingsSwitchRow(
-                        stringResource(R.string.squared_animated_covers), animated,
-                        detail = stringResource(R.string.squared_animated_covers_note),
-                        onChange = squared::setAnimatedCovers,
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.canvas_wifi_only), wifiOnly,
-                        detail = stringResource(R.string.canvas_wifi_only_detail),
-                        onChange = { wifiOnly = it; setCanvasWifiOnly(ctx, it) },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.canvas_behind_lyrics), CanvasPref.behindLyrics,
-                        detail = stringResource(R.string.canvas_behind_lyrics_detail),
-                        onChange = { CanvasPref.setBehindLyrics(ctx, it) },
-                    )
-                }
-            }
-        }
     }
 }
 
-/** The streaming quality of one network: Premium's top step only for an account that has it, or one that chose it. */
 @Composable
 private fun StreamingSection(cellular: Boolean) {
     val ctx = LocalContext.current
     var current by remember(cellular) { mutableStateOf(getStreamingQuality(ctx, cellular)) }
-    val premium by app.myspoti.spotify.AccountPlan.premium.collectAsState()
+    val premium by app.myspoti.spotify.AccountPlan.premium.collectAsStateWithLifecycle()
     val choices = StreamingChoices.filter { it.first != StreamingQuality.VERY_HIGH || premium == true || current == StreamingQuality.VERY_HIGH }
     SettingsSection(stringResource(if (cellular) R.string.quality_streaming_cell_title else R.string.quality_streaming_wifi_title)) {
         choices.forEachIndexed { i, (value, title, detail) ->
@@ -600,94 +588,4 @@ private fun DownloadsPage(padding: PaddingValues, header: @Composable () -> Unit
         },
         dismissButton = { TextButton(onClick = { ask = false }) { Text(stringResource(R.string.cancel)) } },
     )
-}
-
-// ---------------------------------------------------------------- app
-
-@Composable
-private fun AppPage(padding: PaddingValues, openGlass: () -> Unit, header: @Composable () -> Unit) {
-    val ctx = LocalContext.current
-    val store = remember { SquaredGlassStore.of(ctx) }
-    val barFolds by store.barFolds.collectAsStateWithLifecycle()
-    val energy by app.myspoti.power.EnergySettings.state.collectAsStateWithLifecycle()
-    var exempt by remember { mutableStateOf(app.myspoti.power.BatteryExemption.isExempt(ctx)) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { exempt = app.myspoti.power.BatteryExemption.isExempt(ctx) }
-    var licensesOpen by remember { mutableStateOf(false) }
-    if (licensesOpen) com.music.spotui.ui.components.LicensesSheet(onDismiss = { licensesOpen = false })
-
-    GroupedPage(padding, header) { isOpen, toggle ->
-        settingsGroup(SettingsGroup.LANGUAGE, isOpen, toggle) {
-            groupItem("language", SettingsGroup.LANGUAGE) {
-                val current = remember { AppLanguage.current(ctx) }
-                val auto = stringResource(R.string.language_auto)
-                SettingsSection(stringResource(R.string.settings_item_app_language_title)) {
-                    AppLanguage.AVAILABLE.forEachIndexed { i, tag ->
-                        if (i > 0) SettingsDivider()
-                        SettingsChoiceRow(
-                            label = if (tag == AppLanguage.SYSTEM) auto else AppLanguage.nativeName(tag),
-                            selected = tag == current,
-                            detail = if (tag == AppLanguage.SYSTEM) stringResource(R.string.language_auto_detail) else null,
-                        ) {
-                            if (tag != current) {
-                                AppLanguage.apply(ctx, tag)
-                                // Screens take the new language when the activity is rebuilt.
-                                generateSequence(ctx) { (it as? android.content.ContextWrapper)?.baseContext }
-                                    .filterIsInstance<android.app.Activity>().firstOrNull()?.recreate()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        settingsGroup(SettingsGroup.APPEARANCE, isOpen, toggle) {
-            groupItem("appearance", SettingsGroup.APPEARANCE) {
-                SettingsSection(null) {
-                    SettingsSwitchRow(
-                        stringResource(R.string.squared_glass_bar_folds), barFolds,
-                        detail = stringResource(R.string.squared_glass_bar_folds_note),
-                        onChange = store::setBarFolds,
-                    )
-                    SettingsDivider()
-                    SettingsActionRow(
-                        label = stringResource(R.string.squared_open_glass),
-                        icon = PhosphorIcons.Regular.Palette,
-                        onClick = openGlass,
-                    )
-                }
-            }
-        }
-        settingsGroup(SettingsGroup.SYSTEM, isOpen, toggle) {
-            groupItem("system", SettingsGroup.SYSTEM) {
-                SettingsSection(null) {
-                    SettingsSwitchRow(
-                        stringResource(R.string.energy_saver_title), energy.manualSaver,
-                        detail = stringResource(R.string.energy_saver_summary),
-                        onChange = app.myspoti.power.EnergySettings::setSaver,
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.data_saver_title), DataSaver.enabled,
-                        detail = stringResource(R.string.data_saver_summary),
-                        onChange = DataSaver::set,
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        stringResource(R.string.background_playback_title), exempt,
-                        detail = stringResource(if (exempt) R.string.background_playback_on else R.string.background_playback_off),
-                        onChange = {
-                            if (exempt) ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                            else app.myspoti.power.BatteryExemption.request(ctx)
-                        },
-                    )
-                    SettingsDivider()
-                    SettingsInfoRow(stringResource(R.string.settings_section_app), app.myspoti.engine.BuildConfig.VERSION_NAME)
-                    SettingsDivider()
-                    SettingsActionRow(
-                        label = stringResource(R.string.licenses_title),
-                        detail = stringResource(R.string.licenses_detail),
-                    ) { licensesOpen = true }
-                }
-            }
-        }
-    }
 }
