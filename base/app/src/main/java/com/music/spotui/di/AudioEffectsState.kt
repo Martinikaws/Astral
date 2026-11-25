@@ -28,6 +28,7 @@ object AudioEffectsState {
     fun install(context: Context) {
         val speed = AudioEffectsPref.speed
         val pitch = AudioEffectsPref.pitch
+        if (!SoloistRuntime.isAvailable(context)) return
         SoloistRuntime.get(context).setAudioEffects(
             SoloistAudioEffects(
                 rate = { speed.value to pitch.value },
@@ -56,6 +57,9 @@ object AudioEffectsState {
     }
 
     val supported: StateFlow<Boolean> by lazy {
+        if (!SoloistRuntime.isAvailable(Graph.app)) {
+            return@lazy snapshotFlow { LocalPlayer.active.value }.stateIn(scope, SharingStarted.Eagerly, LocalPlayer.active.value)
+        }
         val soloist = SoloistRuntime.get(Graph.app)
         combine(snapshotFlow { LocalPlayer.active.value }, soloist.playbackState, soloist.audioStats) { local, playback, audio ->
             local || (playback.connected && playback.active && audio.effectsAvailable)
