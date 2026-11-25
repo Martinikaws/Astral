@@ -85,12 +85,12 @@ class OfflineIndexTest {
 
     @Test fun lyricsKeptWithDownloadsFollowTheIndex() {
         val root = folder(JSONArray().put(entry("a")).toString(), "a")
-        File(root, "lyrics").mkdirs()
-        File(root, "lyrics/a.json").writeText("{}"); File(root, "lyrics/gone.json").writeText("{}")
+        File(root, "lyrics-v2").mkdirs()
+        File(root, "lyrics-v2/a.json").writeText("{}"); File(root, "lyrics-v2/gone.json").writeText("{}")
         OfflineStore.load(root)
-        assertEquals(File(root, "lyrics/a.json"), OfflineStore.lyricsFile("a"))
-        assertTrue(File(root, "lyrics/a.json").exists())
-        assertFalse(File(root, "lyrics/gone.json").exists())
+        assertEquals(File(root, "lyrics-v2/a.json"), OfflineStore.lyricsFile("a"))
+        assertTrue(File(root, "lyrics-v2/a.json").exists())
+        assertFalse(File(root, "lyrics-v2/gone.json").exists())
         // No file for an id unfit for a name (an episode's "episode:<id>", a path).
         assertEquals(null, OfflineStore.lyricsFile("episode:x"))
         assertEquals(null, OfflineStore.lyricsFile("../a"))
