@@ -1,6 +1,7 @@
 package com.soloist.android.service
 
 import android.content.Context
+import app.myspoti.host.android.Logbook
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -46,7 +47,8 @@ object SoloistRuntime {
     /** Every service start, also a cold one with no Activity: bring a set-up Soloist up, off the main thread. */
     internal fun serviceStarted(context: Context) {
         instance?.launchPending()
-        if (!isAvailable(context)) return
+        if (!isAvailable(context)) { Logbook.log("soloist: service started, Soloist not shipped in this build"); return }
+        Logbook.log("soloist: service started, resuming")
         boot.launch {
             val controller = get(context)
             controller.resumeSelected()
@@ -173,9 +175,15 @@ class SoloistController internal constructor(private val context: Context) {
     /** Resume the saved choice when Astral comes to the foreground. Never enter pairing here. */
     suspend fun resumeSelected() = withContext(Dispatchers.IO) {
         // A paired install without this setting already selected Soloist in an earlier Astral.
-        if (active || !preferences.getBoolean(AUTO_START, true)) return@withContext
+        if (active || !preferences.getBoolean(AUTO_START, true)) {
+            Logbook.log("soloist: resume skipped: active=$active autoStart=${preferences.getBoolean(AUTO_START, true)}")
+            return@withContext
+        }
         restarted = false
-        if (manager.hasSavedApiKey() && manager.hasStoredCredentials()) requestStart(pairMode = false)
+        val key = manager.hasSavedApiKey()
+        val creds = manager.hasStoredCredentials()
+        if (key && creds) requestStart(pairMode = false)
+        else Logbook.log("soloist: resume skipped: savedKey=$key storedCredentials=$creds")
     }
 
     /** The user opened Soloist setup. Reuse a saved key and only pair if needed. */
@@ -197,7 +205,11 @@ class SoloistController internal constructor(private val context: Context) {
 
     private fun requestStart(pairMode: Boolean) {
         val request = StartRequest(pairMode)
-        if (active || !pending.compareAndSet(null, request)) return
+        if (active || !pending.compareAndSet(null, request)) {
+            Logbook.log("soloist: start request dropped: active=$active")
+            return
+        }
+        Logbook.log("soloist: start requested (pair=$pairMode), starting service")
         try {
             ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
         } catch (e: RuntimeException) {
@@ -207,6 +219,7 @@ class SoloistController internal constructor(private val context: Context) {
 
     internal fun launchPending() {
         if (pending.get() == null) return
+        Logbook.log("soloist: launching pending start")
         scope.launch {
             changes.withLock {
                 val request = pending.get() ?: return@withLock
@@ -214,7 +227,7 @@ class SoloistController internal constructor(private val context: Context) {
                     val state = daemonState.value
                     if (state !is DaemonState.Starting && state !is DaemonState.Running) {
                         startLocked(request.pairMode)
-                    }
+                    } else Logbook.log("soloist: pending start ignored, daemon already $state")
                 } finally {
                     pending.compareAndSet(request, null)
                 }
@@ -225,6 +238,7 @@ class SoloistController internal constructor(private val context: Context) {
     private suspend fun startLocked(pairMode: Boolean) {
         pairing = pairMode
         stopRequested = false
+        Logbook.log("soloist: starting daemon (pair=$pairMode)")
         try {
             val wifi = context.getSystemService(WifiManager::class.java)
             if (multicast == null) {
