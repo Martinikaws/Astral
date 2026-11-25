@@ -54,6 +54,14 @@ class ZeroConf(
         }
     }
 
+    /** The same announcement again, after a network change that left the old one unreachable. No-op when nothing is announced. */
+    @Synchronized
+    fun refresh() {
+        val k = key ?: return
+        withdraw()
+        announce(k.name, k.port, k.cpath)
+    }
+
     @Synchronized
     fun withdraw() {
         val h = handle

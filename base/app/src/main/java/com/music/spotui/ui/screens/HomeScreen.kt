@@ -616,7 +616,8 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                     com.music.spotui.ui.components.SupporterBadge(Modifier.padding(start = 10.dp))
             }
             if (myId != null) Text(stringResource(R.string.view_profile), color = AppMuted, fontSize = 13.sp,
-                modifier = Modifier.padding(start = 82.dp, bottom = 4.dp))
+                modifier = Modifier.clickable { onOpen(com.music.spotui.ui.navigation.profileRoute(myId, name)) }
+                    .padding(start = 82.dp, bottom = 4.dp, top = 4.dp, end = 16.dp))
             androidx.compose.material3.HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 8.dp))
             // Sound quality, downloads, data, battery, display: one page.
             androidx.compose.foundation.layout.Column(

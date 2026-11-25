@@ -154,8 +154,8 @@ fun SquaredSettingsScreen(navController: NavController) {
                     )
                     Page.Account -> com.music.spotui.ui.immersive.pages.AccountsPage(back)
                     Page.Playback -> PlaybackPage(padding) { header(R.string.settings_section_playback) }
-                    Page.Equalizer -> SquaredEqualizerPage(statusPadding(padding)) { header(R.string.equalizer_title) }
-                    Page.Glass -> SquaredGlassPage(store, statusPadding(padding)) { header(R.string.squared_page_glass) }
+                    Page.Equalizer -> SquaredEqualizerPage(padding) { header(R.string.equalizer_title) }
+                    Page.Glass -> SquaredGlassPage(store, padding) { header(R.string.squared_page_glass) }
                     Page.Downloads -> DownloadsPage(padding) { header(R.string.settings_section_downloads) }
                     Page.Sources -> SourcesPage(padding, navController) { header(R.string.settings_sources_tab) }
                     Page.About, Page.App, Page.Library, Page.Lyrics, Page.Data -> Unit
@@ -164,11 +164,6 @@ fun SquaredSettingsScreen(navController: NavController) {
         }
     }
 }
-
-/** The status bar's height on top, for the pages whose own list is not the scroller. */
-@Composable
-private fun statusPadding(bottom: PaddingValues): PaddingValues =
-    PaddingValues(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), bottom = bottom.calculateBottomPadding())
 
 @Composable
 private fun PageHeader(title: String, onBack: () -> Unit) {

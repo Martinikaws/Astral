@@ -127,6 +127,10 @@ fun SquaredLibraryHost(navController: NavController) {
         podcasts = remember(showsLoad) {
             (showsLoad as? Response.Success)?.data.orEmpty().map { it.toShowTile() }
         },
+        songs = remember(all) {
+            val ids = setOf(Api.HomeCache.LIKED_SONGS_ID, Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.DOWNLOADS_ID)
+            all.filter { it.spotifyId in ids }.map { it.toCatalogPlaylist() }
+        },
         listeningEvents = events,
         backdrop = LocalAppBackdrop.current,
     )

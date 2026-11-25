@@ -1,5 +1,7 @@
 package com.music.spotui.ui.components
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import com.music.spotui.ui.theme.tone
 import com.music.spotui.ui.theme.AppText
 import com.music.spotui.ui.theme.AppMuted
@@ -970,11 +972,13 @@ private fun QueueSheetRow(
 
 @Composable
 private fun QueueAction(icon: ImageVector, label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val state = stringResource(if (active) R.string.toggle_state_on else R.string.toggle_state_off)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(tone(0xFF3E3E3E))
+            .semantics { stateDescription = state }
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
     ) {

@@ -125,6 +125,7 @@ private enum class Filter(@StringRes val label: Int, @StringRes val count: Int) 
     ARTISTS(R.string.squared_artists, R.string.squared_artist_count),
     ALBUMS(R.string.squared_albums, R.string.squared_album_count),
     PODCASTS(R.string.squared_podcasts, R.string.squared_podcast_count),
+    SONGS(R.string.library_chip_songs, R.string.squared_item_count),
 }
 
 /**
@@ -158,6 +159,8 @@ fun SquaredLibraryScreen(
     albums: List<CatalogPlaylist> = emptyList(),
     /** The podcasts the account follows; none leaves their chip out. */
     podcasts: List<CatalogPlaylist> = emptyList(),
+    /** The shelves that hold songs: Liked Songs, the phone's files and downloads (the Songs chip). */
+    songs: List<CatalogPlaylist> = emptyList(),
     listeningEvents: List<com.music.spotui.ui.immersive.squared.model.ListeningEvent>? = null,
     backdrop: Backdrop,
 ) {
@@ -218,11 +221,12 @@ fun SquaredLibraryScreen(
             }
 
             // What the chips are asking for, before any sorting.
-            val shown = remember(state.playlists, albums, artistItems, podcasts, filter) {
+            val shown = remember(state.playlists, albums, artistItems, podcasts, songs, filter) {
                 when (filter) {
                     Filter.ALL -> (state.playlists + albums + podcasts).distinctBy { it.uri }
                     Filter.PODCASTS -> podcasts.distinctBy { it.uri }
-                    Filter.PLAYLISTS -> state.playlists.distinctBy { it.uri }
+                    Filter.SONGS -> songs.distinctBy { it.uri }
+                    Filter.PLAYLISTS -> state.playlists.filter { p -> songs.none { it.uri == p.uri } }.distinctBy { it.uri }
                     Filter.ALBUMS -> albums.distinctBy { it.uri }
                     Filter.ARTISTS -> artistItems.distinctBy { it.uri }
                 }
@@ -314,7 +318,6 @@ fun SquaredLibraryScreen(
                         layout = layout,
                         order = order,
                         filter = filter,
-                        hasPodcasts = podcasts.isNotEmpty(),
                         backdrop = backdrop,
                         topPadding = contentPadding.calculateTopPadding(),
                         onLayout = {
@@ -511,8 +514,6 @@ private fun Header(
     layout: Layout,
     order: Order,
     filter: Filter,
-    /** Whether the podcast chip has anything under it. */
-    hasPodcasts: Boolean = false,
     backdrop: Backdrop,
     topPadding: Dp,
     onLayout: (Layout) -> Unit,
@@ -642,7 +643,7 @@ private fun Header(
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-            Filter.entries.filter { it != Filter.PODCASTS || hasPodcasts }.forEach { entry ->
+            Filter.entries.forEach { entry ->
                 com.music.spotui.ui.immersive.squared.components.FilterChip(
                 backdrop = backdrop,
                     label = stringResource(entry.label),

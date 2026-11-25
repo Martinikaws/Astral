@@ -19,6 +19,8 @@
  */
 package com.music.spotui.ui.immersive.squared.player
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import com.music.spotui.ui.immersive.squared.*
 import com.music.spotui.ui.immersive.squared.components.copyFrame
 import androidx.compose.animation.AnimatedContent
@@ -2596,7 +2598,8 @@ private fun ToggleIcon(
     smart: Boolean = false,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick) {
+    val state = stringResource(if (active) R.string.toggle_state_on else R.string.toggle_state_off)
+    IconButton(onClick = onClick, modifier = Modifier.semantics { stateDescription = state }) {
         Box(Modifier.size(if (smart) 28.dp else 22.dp)) {
         Icon(
             icon,

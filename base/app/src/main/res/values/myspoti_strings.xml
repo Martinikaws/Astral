@@ -329,7 +329,7 @@
     <string name="update_retry">Try again</string>
     <!-- A18: the automatic update check can be turned off; the manual check stays. -->
     <string name="settings_auto_update_title">Check for updates at launch</string>
-    <string name="settings_auto_update_detail">Off: no check when the app starts. The manual check below still works.</string>
+    <string name="settings_auto_update_detail">Off: no check when the app starts. The manual check still works.</string>
     <string name="settings_update_refresh">Check for updates</string>
     <string name="settings_update_uptodate_now">Up to date (checked just now)</string>
     <string name="settings_update_last_checked">Last checked: %1$s</string>

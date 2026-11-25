@@ -20,6 +20,10 @@
  */
 package com.music.spotui.ui.immersive.squared.screens
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import app.myspoti.engine.R
 import com.music.spotui.ui.immersive.squared.*
 import com.music.spotui.ui.immersive.squared.components.*
@@ -691,6 +695,7 @@ private fun Header(
                 }
             }
 
+            val profileLabel = stringResource(R.string.recently_played_user_profile)
             com.music.spotui.ui.immersive.squared.components.ProfilePicture(
                 url = avatarUrl,
                 name = name,
@@ -706,6 +711,10 @@ private fun Header(
                     }
                     .clip(CircleShape)
                     .pressable(onOpenSettings, pressedScale = 0.90f)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = profileLabel
+                        role = Role.Button
+                    }
                     .softShadow(CircleShape, elevation = 10.dp),
                 decodeSize = 46.dp,
             )

@@ -170,7 +170,7 @@ internal class DashLive(
                     plan.segmentUrls,
                     segmentSizes,
                     fetched = { i, bytes, ms ->
-                        android.util.Log.d(LOG, "dash: segment ${i + 1}/$n fetched, $bytes bytes in $ms ms")
+                        app.myspoti.host.android.Logbook.logEvery("dash-segment", 5_000L, "dash: segment ${i + 1}/$n fetched, $bytes bytes in $ms ms")
                     },
                     initialSeg0 = seg0Bytes,
                     fetch = get,

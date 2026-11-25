@@ -14,6 +14,10 @@
  */
 package com.music.spotui.ui.immersive.squared.components
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import app.myspoti.engine.R
 import com.music.spotui.ui.immersive.squared.*
 import com.music.spotui.ui.immersive.squared.components.*
@@ -121,6 +125,7 @@ fun TabHeader(
                     trailing()
                 } else if (account != null) {
                     // The way into the settings, as on the home page.
+                    val profileLabel = androidx.compose.ui.res.stringResource(app.myspoti.engine.R.string.recently_played_user_profile)
                     ProfilePicture(
                         url = account.avatarUrl,
                         name = account.name,
@@ -128,7 +133,11 @@ fun TabHeader(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
-                            .pressable(account.onOpenSettings, pressedScale = 0.90f),
+                            .pressable(account.onOpenSettings, pressedScale = 0.90f)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = profileLabel
+                                role = Role.Button
+                            },
                         decodeSize = 46.dp,
                     )
                 }

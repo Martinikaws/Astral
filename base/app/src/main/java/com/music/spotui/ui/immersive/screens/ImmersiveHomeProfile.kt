@@ -5,6 +5,8 @@
  */
 package com.music.spotui.ui.immersive.screens
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.music.spotui.ui.immersive.sheets.ImmersiveGlassSheet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -86,6 +88,7 @@ internal fun AvatarDisc(
         modifier = modifier
             .size(size)
             .let { if (onClick != null) it.immersiveClickable(onClick = onClick) else it }
+            .let { if (contentDescription != null) it.semantics(mergeDescendants = true) { this.contentDescription = contentDescription } else it }
             .clip(CircleShape)
             .background(Immersive.Accent),
     ) {
@@ -152,7 +155,9 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
                 Text(
                     text = stringResource(R.string.view_profile),
                     style = Immersive.Caption,
-                    modifier = Modifier.padding(start = 82.dp, bottom = 4.dp),
+                    modifier = Modifier
+                        .clickable(role = Role.Button) { onOpen(profileRoute(myId, name)) }
+                        .padding(start = 82.dp, bottom = 4.dp, top = 4.dp, end = 16.dp),
                 )
             }
             HorizontalDivider(color = Immersive.Separator, modifier = Modifier.padding(vertical = 8.dp))

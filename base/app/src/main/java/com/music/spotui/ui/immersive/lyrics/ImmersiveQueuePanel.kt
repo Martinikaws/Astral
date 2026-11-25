@@ -12,6 +12,8 @@
  */
 package com.music.spotui.ui.immersive.lyrics
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
@@ -651,12 +653,14 @@ private fun QueueHeader(
 /** A round toggle: lit white when on, a quiet disc when off. */
 @Composable
 private fun QueueToggle(icon: ImageVector, description: String, on: Boolean, onClick: () -> Unit) {
+    val state = stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
             .background(if (on) Color.White else Color.White.copy(alpha = 0.14f))
+            .semantics { stateDescription = state }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
     ) {
         Icon(icon, contentDescription = description, tint = if (on) Color.Black else Color.White, modifier = Modifier.size(20.dp))

@@ -3,6 +3,8 @@ package com.soloist.android.service
 import android.content.Context
 import app.myspoti.host.android.Logbook
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -57,6 +59,8 @@ object SoloistRuntime {
     }
     internal fun serviceDestroyed() = instance?.stopDaemon()
     internal val active get() = instance?.active == true
+    /** Soloist is playing right now: closing the app must not take its service (and so Soloist) down. */
+    internal val playing get() = instance?.playbackState?.value?.let { it.connected && it.active && !it.paused } == true
 }
 
 class SoloistController internal constructor(private val context: Context) {
@@ -156,7 +160,26 @@ class SoloistController internal constructor(private val context: Context) {
         credentials.value = manager.hasStoredCredentials()
     }
 
+    private var network: ConnectivityManager.NetworkCallback? = null
+
+    /** A network that comes (back) makes the NSD announcement stale: announce again, Soloist keeps running. */
+    private fun watchNetwork() {
+        if (network != null) return
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        var first = true
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(n: Network) {
+                if (first) { first = false; return }
+                Logbook.log("soloist: network changed, announcing again")
+                manager.reannounce()
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(cb); network = cb }
+    }
+
     private fun releaseMulticast() {
+        network?.let { cb -> runCatching { context.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } }
+        network = null
         multicast?.let { if (it.isHeld) it.release() }
         multicast = null
     }
@@ -248,6 +271,7 @@ class SoloistController internal constructor(private val context: Context) {
                 }
             }
             client.disconnect()
+            watchNetwork()
             manager.startDaemon(DEVICE_NAME, 50, pairMode, client::connect)
         } catch (e: Exception) {
             manager.stopDaemon()

@@ -1359,6 +1359,17 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
                     onClick = { licensesOpen = true },
                 )
             }
+            row {
+                ImmersiveGroupRow(
+                    stringResource(R.string.about_github), detail = stringResource(R.string.about_github_detail),
+                    onClick = {
+                        runCatching {
+                            ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(com.music.spotui.ui.components.SOURCE_CODE_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    },
+                )
+            }
         }
         immersiveGroup("repair") {
             // The hidden Web Player stuck or crashed: rebuild it without leaving the app.

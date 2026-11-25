@@ -259,8 +259,9 @@ class PlaybackService : MediaBrowserServiceCompat() {
      * notification goes with the service.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (playingRemote || keepsPlayingOnClose(this)) {
-            if (current?.makesSound != true) stopSelf()
+        val soloistPlays = com.soloist.android.service.SoloistRuntime.playing
+        if (playingRemote || soloistPlays || keepsPlayingOnClose(this)) {
+            if (current?.makesSound != true && !soloistPlays) stopSelf()
             return
         }
         // An ad or a song loading counts as playing: closing the app then stopped the service under it.

@@ -45,6 +45,9 @@ import com.music.spotui.ui.theme.AppAccent
 const val DISCORD_URL = "https://discord.gg/jXKnGVFnGS"
 private val repo get() = BuildConfig.UPDATE_REPO.ifBlank { "Martinikaws/Astral" }
 
+/** The project's source code and releases. */
+val SOURCE_CODE_URL: String get() = "https://github.com/$repo"
+
 private fun openUrl(context: Context, url: String) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -80,7 +83,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
             Text(stringResource(R.string.about_free), color = AppMuted, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp))
             AboutRow(stringResource(R.string.about_discord), stringResource(R.string.about_discord_detail)) { openUrl(context, DISCORD_URL) }
-            AboutRow(stringResource(R.string.about_github), stringResource(R.string.about_github_detail)) { openUrl(context, "https://github.com/$repo") }
+            AboutRow(stringResource(R.string.about_github), stringResource(R.string.about_github_detail)) { openUrl(context, SOURCE_CODE_URL) }
             AboutRow(stringResource(R.string.licenses_title), stringResource(R.string.licenses_detail)) { licenses = true }
             Text(stringResource(R.string.support_body), color = AppMuted, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp))

@@ -67,7 +67,7 @@ fun HiddenSongsScreen(navController: NavController) {
         if (songs.isEmpty()) Text(
             stringResource(R.string.hidden_songs_empty), color = AppMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(32.dp),
-        ) else LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Top) {
+        ) else LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Top, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.spotui.ui.components.bottomBarsSpace())) {
             items(songs, key = { it.id }) { s ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlideImage(

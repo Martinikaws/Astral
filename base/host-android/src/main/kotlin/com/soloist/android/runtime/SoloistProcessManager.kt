@@ -540,7 +540,7 @@ class SoloistProcessManager(
                         // Keep verbose daemon output inside the app.
                         lastLineAt.set(System.currentTimeMillis())
                         appendLog(text)
-                        app.myspoti.host.android.Logbook.log("soloist: $text")
+                        app.myspoti.host.android.Logbook.logEvery("soloist:" + text.filterNot { it.isDigit() }.take(40), 5_000L, "soloist: $text")
                         WS_PORT_REGEX.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { port ->
                             notifyPortOnce(port)
                         }
@@ -612,6 +612,9 @@ class SoloistProcessManager(
             }
         }
     }
+
+    /** Announces the Connect service again (after the network changed). */
+    fun reannounce() = zeroConf.refresh()
 
     /** Every 10 s into Logbook: is Soloist alive, how much has it said, what files and sockets it holds. */
     private suspend fun runDiagnostics(process: Process, bytes: AtomicLong, lastLineAt: AtomicLong) {

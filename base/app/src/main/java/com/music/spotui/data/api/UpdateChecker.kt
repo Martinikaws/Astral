@@ -66,8 +66,9 @@ object UpdateChecker {
      */
     suspend fun refresh(context: Context): Outcome = withContext(Dispatchers.IO) {
         val repo = BuildConfig.UPDATE_REPO
-        if (!checksUpdates) return@withContext Outcome.UpToDate
         val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
+        // A build that is not updated from here has nothing to ask, but a check was still done: "last checked" moves.
+        if (!checksUpdates) { prefs.edit().putLong("checked_at", System.currentTimeMillis()).apply(); return@withContext Outcome.UpToDate }
         val result = fetch(repo, force = true)
         store(prefs, result, System.currentTimeMillis())
         when (result) {

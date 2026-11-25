@@ -31,6 +31,13 @@ class ZeroConfTest {
         assertEquals(listOf("reg Astral 1000 /a 1.0 SP", "unreg 1", "reg Astral 2000 /a 1.0 SP"), f.events)
     }
 
+    @Test fun refreshAnnouncesTheSameServiceAgainOnlyWhenLive() {
+        val f = Fake(); val z = ZeroConf(f) {}
+        z.refresh(); assertEquals(emptyList<String>(), f.events)
+        z.announce("Astral", 1000, "/a"); z.refresh()
+        assertEquals(listOf("reg Astral 1000 /a 1.0 SP", "unreg 1", "reg Astral 1000 /a 1.0 SP"), f.events)
+    }
+
     @Test fun withdrawOnlyWhenLiveAndFailureIsLogged() {
         val f = Fake(); val logs = mutableListOf<String>(); val z = ZeroConf(f) { logs += it }
         z.withdraw(); assertEquals(emptyList<String>(), f.events)

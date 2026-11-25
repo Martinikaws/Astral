@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 
@@ -202,6 +203,13 @@ object SongPlayer {
     fun engineIntended(): Boolean =
         SystemClock.elapsedRealtime() < wantPlayingUntil || pendingTrackId != null || resumeWhenReady
 
+    private var lastPageState: PlayerState? = null
+
+    private fun soloistPlays(): Boolean = runCatching {
+        val st = com.soloist.android.service.SoloistRuntime.get(Graph.app).playbackState.value
+        SoloistRemote.plays(_activeDevice.value?.id, st.deviceId, st.connected, st.active, st.paused)
+    }.getOrDefault(false)
+
     private fun resolvePlaying(paused: Boolean): Boolean {
         val now = SystemClock.elapsedRealtime()
         if (now < wantPlayingUntil) {
@@ -306,6 +314,12 @@ object SongPlayer {
                 // The queue only with a new song: it is tens of KB of JSON, and it moves with the song.
                 runCatching { MyspotiRuntime.spotify.player.refreshState() }
             }
+        }
+        // Soloist starting or stopping to play is reflected at once, not at the account's next state.
+        if (com.soloist.android.service.SoloistRuntime.isAvailable(Graph.app)) scope.launch {
+            com.soloist.android.service.SoloistRuntime.get(Graph.app).playbackState
+                .map { it.connected && it.active && !it.paused }.distinctUntilChanged()
+                .collect { main.post { lastPageState?.let { s -> if (_activeDevice.value != null && acceptsSessionUpdates()) applyState(s) } } }
         }
         scope.launch { api.player.queue.collect { q -> if (acceptsSessionUpdates()) applyQueue(q) } }
         // Android Auto's queue follows the one on screen (Spotify's or the local player's), sent
@@ -757,7 +771,8 @@ object SongPlayer {
         val wasPlaying = playing
         val wasBuffering = isBuffering
         val predicted = getCurrentPosition()
-        playing = resolvePlaying(s.isPaused)
+        lastPageState = s
+        playing = resolvePlaying(s.isPaused && !soloistPlays())
         bufferingState.value = waiting(s)
         SpeakerKeepAlive.set(playing && _activeDevice.value == null)
         val lengthBefore = durationMs
