@@ -68,6 +68,7 @@ class SpotifyApi(
     init { player.inJam = { jam.member }; player.inJamSession = { jam.session.value != null } }
     override val blends = SpotifyBlends(this.http)
     override val recents = SpotifyRecents(gql)
+    override val mix = SpotifyMix(this.http)
 
     /** Escape hatch to the 179 GraphQL operations and 89 page services, for what is not typed yet. */
     val raw = Raw()

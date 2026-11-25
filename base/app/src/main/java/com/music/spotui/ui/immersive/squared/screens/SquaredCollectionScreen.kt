@@ -213,6 +213,9 @@ fun SquaredCollectionScreen(
     nowPlaying: Boolean = false,
     /** Pauses or resumes what is current, for that card's button. */
     onTogglePlay: () -> Unit = {},
+    /** The page's Spotify Mix, on or off; null where the page is not mixed. */
+    mix: Boolean? = null,
+    onToggleMix: () -> Unit = {},
     onBack: () -> Unit,
     /**
      * Plays the list. The flag says whether what is being played is the context
@@ -728,6 +731,7 @@ fun SquaredCollectionScreen(
             collapsedHeight = collapsedHeight,
             topPadding = topPadding,
             onBack = onBack,
+            mixOn = mix == true,
             onPlay = {
                 visible.takeIf { it.isNotEmpty() }?.let { onPlayInOrder(it, asContext) }
             },
@@ -848,6 +852,8 @@ fun SquaredCollectionScreen(
                         onAnchor = { sortAnchor = it },
                         sortTrigger = sortTrigger,
                         backdrop = pageBackdrop,
+                        mix = mix,
+                        onToggleMix = onToggleMix,
                         // Only where there is more than what is shown.
                         expandable = isArtist &&
                             query.isBlank() &&
@@ -1525,6 +1531,8 @@ private fun DetailHeader(
     onToggleSearch: () -> Unit,
     /** What the header opens at, which the artist page makes taller. */
     heroHeight: Dp = HERO_HEIGHT,
+    /** The page plays as a Spotify Mix: its Play button wears the Mix's light. */
+    mixOn: Boolean = false,
 ) {
     val density = LocalDensity.current
     val heroPx = with(density) { heroHeight.roundToPx() }
@@ -1676,7 +1684,7 @@ private fun DetailHeader(
                 // A mixed page plays as a mix, and its button says so: the
                 // page's glass instead of the solid slab, lit by the ring the
                 // official app turns round its own.
-                Row(
+                if (mixOn) MixPlayButton(onPlay = onPlay, backdrop = backdrop, ink = ink, under = pageColor) else Row(
                     Modifier
                         .softShadow(ContinuousCapsule, elevation = 20.dp, spot = 0.32f)
                         .clip(ContinuousCapsule)
@@ -2640,6 +2648,9 @@ private fun SectionHeader(
     expandable: Boolean = false,
     expanded: Boolean = false,
     onToggle: () -> Unit = {},
+    /** The page's Spotify Mix, on or off; null where it is not mixed. */
+    mix: Boolean? = null,
+    onToggleMix: () -> Unit = {},
 ) {
     Row(
         Modifier
@@ -2696,6 +2707,8 @@ private fun SectionHeader(
         }
         }
 
+        if (mix != null && backdrop != null) MixPill(on = mix, onClick = onToggleMix, backdrop = backdrop)
+
         if (backdrop != null) {
             // Upstream's GlassPullDownButton, which the sort menu grows out of.
             com.music.spotui.ui.immersive.squared.components.GlassPullDownButton(
@@ -2711,6 +2724,55 @@ private fun SectionHeader(
                     MaterialTheme.colorScheme.primary
                 },
             )
+        }
+    }
+}
+
+/** Square's Mix chip: its icon and label in the accent while the Mix is on. */
+@Composable
+private fun MixPill(on: Boolean, onClick: () -> Unit, backdrop: Backdrop) {
+    com.music.spotui.ui.immersive.squared.components.FilterChip(
+        label = stringResource(R.string.squared_mix),
+        selected = on,
+        onClick = onClick,
+        backdrop = backdrop,
+        icon = PhosphorIcons.Regular.SlidersHorizontal,
+        ink = if (on) MaterialTheme.colorScheme.primary else Color.Unspecified,
+        modifier = Modifier
+            .padding(end = 4.dp)
+            .semantics {
+                role = androidx.compose.ui.semantics.Role.Switch
+                stateDescription = if (on) "on" else "off"
+            },
+    )
+}
+
+/** The Play button of a page playing as a Mix: glass with the Mix's light turning inside it. */
+@Composable
+private fun MixPlayButton(onPlay: () -> Unit, backdrop: Backdrop, ink: Color, under: Color) {
+    LiquidButton(
+        onClick = onPlay,
+        backdrop = backdrop,
+        surfaceColor = Color.White.copy(alpha = 0.17f),
+        contentHeight = 50.dp,
+        contentPadding = 0.dp,
+    ) {
+        Box(Modifier.height(50.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.music.spotui.ui.immersive.squared.player.LocalMixColors provides listOf(under),
+            ) {
+                com.music.spotui.ui.immersive.squared.player.MixAurora(Modifier.matchParentSize(), shape = ContinuousCapsule)
+            }
+            Row(Modifier.padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(PhosphorIcons.Fill.Play, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+                Text(
+                    stringResource(R.string.squared_play),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ink,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
         }
     }
 }

@@ -20,6 +20,8 @@ interface MyspotiApi {
     val blends: Blends
     /** The account's "Recently played", as Spotify's own list has it. */
     val recents: Recents
+    /** Whether a playlist is mixed in Spotify's own app (its Mix). */
+    val mix: MixStates
 
     /** False until the playback engine is ready to take commands. */
     val ready: StateFlow<Boolean>
@@ -337,6 +339,12 @@ interface Blends {
     suspend fun rename(playlist: Uri, name: String)
     /** Leaves the Blend: it goes from the library, the others keep it. */
     suspend fun leave(playlist: Uri)
+}
+
+/** Spotify's Mix: a playlist mixed in its app plays with transitions between its songs. */
+interface MixStates {
+    /** True when [playlistUri] is mixed in Spotify's app; every failure answers false. */
+    suspend fun isMixed(playlistUri: String): Boolean
 }
 
 interface Recents {

@@ -512,6 +512,14 @@ class ContextViewModel(
 
     fun play(p: ContextPageModel, song: SongsModel, sort: TrackOrder = TrackOrder()) {
         playedSort = sort
+        // A mixed playlist (Mix on, Soloist playing): its own Connect context, in the playlist's order, so Soloist mixes it.
+        if (p.type == "playlist" && com.music.spotui.automix.SpotifyMixChoice.asContext(p.uri)) {
+            state.updateQueue(p.tracks)
+            SongPlayer.registerContextName(p.uri, p.name)
+            SongPlayer.playSong(song.url, contextUri = p.uri, order = null, askExtensions = false)
+            state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+            return
+        }
         // Local files of the playlist (Spotify holds their tags only): one found on this device
         // plays from there, with the other such files of the list; one not found cannot play,
         // the next song that can does.

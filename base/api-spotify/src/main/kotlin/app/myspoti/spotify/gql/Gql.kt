@@ -319,7 +319,7 @@ class SpotifyHttp(
      * A protobuf call on a spclient service (the mobile client's friend feed): the account's
      * credentials and headers as in [send], bytes in and out. Returns the status and the body bytes.
      */
-    suspend fun sendProto(method: String, url: String, body: ByteArray?): Pair<Int, ByteArray> {
+    suspend fun sendProto(method: String, url: String, body: ByteArray?, extraHeaders: Map<String, String> = emptyMap()): Pair<Int, ByteArray> {
         val host = url.toHttpUrl().host
         require(host == "spotify.com" || host.endsWith(".spotify.com")) { "not a Spotify host: $host" }
         val (w, c) = tokens()
@@ -333,6 +333,7 @@ class SpotifyHttp(
             .header("origin", "https://open.spotify.com")
             .header("referer", "https://open.spotify.com/")
             .header("user-agent", browserUserAgent ?: USER_AGENT)
+            .apply { extraHeaders.forEach { (k, v) -> header(k, v) } }
             .method(method, body?.toRequestBody("application/x-protobuf".toMediaType()) ?: if (method == "GET" || method == "DELETE") null else ByteArray(0).toRequestBody(null))
             .build()
         val result = withContext(Dispatchers.IO) { http.newCall(request).execute().use { it.code to it.body.bytes() } }

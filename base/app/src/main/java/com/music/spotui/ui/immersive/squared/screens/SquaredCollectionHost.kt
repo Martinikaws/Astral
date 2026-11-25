@@ -28,6 +28,7 @@ import com.music.spotui.data.api.Response
 import com.music.spotui.data.entity.ContextPageModel
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.di.Graph
+import com.music.spotui.automix.SpotifyMixChoice
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.components.AlbumOptionsSheet
 import com.music.spotui.ui.components.PlaylistOptionsSheet
@@ -130,6 +131,7 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
         }
     }
 
+    LaunchedEffect(page?.uri) { page?.uri?.let(SpotifyMixChoice::load) }
     LaunchedEffect(page?.uri, editable) {
         if (page != null && editable && page.type == "playlist") vm.loadRecs(page)
     }
@@ -145,6 +147,8 @@ fun SquaredCollectionHost(navController: NavController, type: String, id: String
         nowPlayingUri = nowPlaying.uri,
         nowPlaying = Graph.currentSongState.playingState.value,
         onTogglePlay = { if (Graph.currentSongState.playingState.value) SongPlayer.pause() else SongPlayer.play() },
+        mix = page?.uri?.takeIf { it.startsWith("spotify:playlist:") && SpotifyMixChoice.isMixed(it) }?.let(SpotifyMixChoice::on),
+        onToggleMix = { page?.let { SpotifyMixChoice.toggle(it.uri) } },
         onBack = { navController.navigateUp() },
         onPlay = { list, index, inOrder ->
             val song = list.getOrNull(index)?.let(songOf)

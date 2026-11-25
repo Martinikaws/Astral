@@ -54,6 +54,9 @@ object AutoMix {
 
     fun enabledFor(contextUri: String): Boolean = playlistMix.value[contextUri] ?: on
 
+    /** The playlist's own choice, null while it has none. */
+    fun playlistChoice(uri: String): Boolean? = playlistMix.value[uri]
+
     fun setPlaylistMix(uri: String, enabled: Boolean) {
         if (!uri.startsWith("spotify:playlist:") || uri.substringAfterLast(':').isBlank()) return
         playlistMix.value = playlistMix.value + (uri to enabled)
