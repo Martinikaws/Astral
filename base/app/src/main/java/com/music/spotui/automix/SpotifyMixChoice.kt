@@ -31,13 +31,17 @@ object SpotifyMixChoice {
     /** Mixed in Spotify's app and not switched off here. */
     fun on(uri: String): Boolean = isMixed(uri) && (AutoMix.playlistChoice(uri) ?: true)
 
-    fun toggle(uri: String) = AutoMix.setPlaylistMix(uri, !on(uri))
+    fun toggle(uri: String) {
+        val next = !on(uri)
+        // An override only where it differs from the global AutoMix setting.
+        if (next == AutoMix.on) AutoMix.clearPlaylistMix(uri) else AutoMix.setPlaylistMix(uri, next)
+    }
 
     /** The Connect device playing is Soloist (the app's own, named "Astral"). */
     fun soloistOutput(): Boolean {
         val device = SongPlayer.activeDevice.value ?: return false
         val own = runCatching { com.soloist.android.service.SoloistRuntime.get(Graph.app).playbackState.value.deviceId }.getOrDefault("")
-        return device.name == "Astral" || (own.isNotBlank() && device.id == own)
+        return if (own.isNotBlank()) device.id == own else device.name == "Astral"
     }
 
     /** Played as its own Connect context, so Soloist mixes it itself. */

@@ -513,7 +513,8 @@ class ContextViewModel(
     fun play(p: ContextPageModel, song: SongsModel, sort: TrackOrder = TrackOrder()) {
         playedSort = sort
         // A mixed playlist (Mix on, Soloist playing): its own Connect context, in the playlist's order, so Soloist mixes it.
-        if (p.type == "playlist" && com.music.spotui.automix.SpotifyMixChoice.asContext(p.uri)) {
+        // AppShuffle is skipped on purpose: Spotify's Mix keeps the playlist order. Local files fall through to the checks below.
+        if (p.type == "playlist" && !with(com.music.spotui.data.local.LocalFileMatch) { song.isUnmatchedLocal || song.isDeviceFile } && com.music.spotui.automix.SpotifyMixChoice.asContext(p.uri)) {
             state.updateQueue(p.tracks)
             SongPlayer.registerContextName(p.uri, p.name)
             SongPlayer.playSong(song.url, contextUri = p.uri, order = null, askExtensions = false)

@@ -65,6 +65,13 @@ object AutoMix {
         if (player.active.value && player.contextUri == uri) player.autoMixChanged()
     }
 
+    fun clearPlaylistMix(uri: String) {
+        playlistMix.value = playlistMix.value - uri
+        playlists.edit().remove(uri).apply()
+        val player = com.music.spotui.di.LocalPlayer
+        if (player.active.value && player.contextUri == uri) player.autoMixChanged()
+    }
+
     fun set(value: Boolean) {
         on = value
         if (!value) cancelRequests()

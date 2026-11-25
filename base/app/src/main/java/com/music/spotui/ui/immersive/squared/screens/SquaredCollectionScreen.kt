@@ -3,10 +3,11 @@
  * app/src/main/java/dev/lelonio/square/ui/library/PlaylistScreen.kt at 139441f.
  * Modified for Astral, 2026-11.
  *
- * Changes: no frost/blur (Astral's clear glass); package renamed and the screen renamed SquaredCollectionScreen; it serves albums,
+ * Changes: the Mix chip (MixPill) and the glass Mix play button (MixPlayButton) are ported back from Square's PlaylistScreen,
+ * driven by the host's Spotify Mix state; no frost/blur (Astral's clear glass); package renamed and the screen renamed SquaredCollectionScreen; it serves albums,
  * playlists, artists and podcasts from state handed in by SquaredCollectionHost. Coil is replaced
  * by Glide (the image loader Astral uses). Removed because Astral has no counterpart: the
- * download and offline controls, the local-files permission card, the Mix and transition UI, the
+ * download and offline controls, the local-files permission card, the per-row Mix tags and transition UI, the
  * YouTube station check and the serif artist-name preference (fixed off). The sheets the screen
  * asked the app shell for (track menu, add to playlist, page menu) are callbacks that the host
  * answers with Astral's own sheets. Not otherwise functionally changed.
