@@ -159,6 +159,8 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         commandAtMs = System.currentTimeMillis()
         if (tapAtMs > 0) log("tap -> engine command: ${commandAtMs - tapAtMs} ms")
         val since = e.clockMs()
+        // The song's file, urls and licence are fetched while the command is on its way: the load then finds them ready.
+        (trackUri ?: order?.firstOrNull() ?: contextUri).let { warm(it, forPlay = true) }
         // A song played alone is its own context.
         if (trackUri != null && trackUri != contextUri) e.play(contextUri, trackUri, index, order = order?.takeIf { it.isNotEmpty() }, shuffle = shuffle)
         else e.play(contextUri, shuffle = shuffle)
@@ -266,7 +268,8 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
             eventsJob = scope.launch {
                 e.events.collect { ev ->
                     lastEvent = ev.toString().take(120)
-                    log("event $ev")
+                    if (ev !is EngineEvent.Dealer) log("event $ev")
+                    if (ev is EngineEvent.Dealer) log("dealer ${ev.line}")
                     if (ev is EngineEvent.CommandAcked && tapAtMs > 0) log("tap -> state push: ${System.currentTimeMillis() - tapAtMs} ms (POST ${ev.postMs} ms, push ${ev.pushMs} ms after its start)")
                     if (ev is EngineEvent.Failure || ev is EngineEvent.Unauthorized) log("attention: $ev")
                     // The player itself failed (the licence refused, the file unreadable): the page takes over.
@@ -344,11 +347,12 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
      * Nothing for episodes, local files, offline, a stopped engine or another device playing; at most [WARM_MAX] songs kept
      * (the oldest is freed in the player), and one is warmed again once [REWARM_MS] old (its CDN entry may have expired).
      */
-    fun warm(uri: String) {
+    fun warm(uri: String, forPlay: Boolean = false) {
         val e = engine ?: return
         if (!on || mirrors || !uri.startsWith("spotify:track:") || !com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)) return
         if (com.music.spotui.data.DataSaver.active || com.music.spotui.extensions.Extensions.hasAudioSource() || SongPlayer.chosenRemoteId != null) return
-        if (remoteActiveId(holdsPlayback, e.cluster.value?.activeDeviceId, e.deviceId) != null) return
+        // A play makes this device the active one, so another device holding playback does not matter then.
+        if (!forPlay && remoteActiveId(holdsPlayback, e.cluster.value?.activeDeviceId, e.deviceId) != null) return
         val now = System.currentTimeMillis()
         synchronized(warming) {
             warming[uri]?.let { if (now - it.atMs < REWARM_MS) return }

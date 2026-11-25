@@ -10,6 +10,7 @@ import java.security.SecureRandom
 object AndroidEnvironment : Environment {
     private val random = SecureRandom()
     override fun nowMs(): Long = System.currentTimeMillis()
+    override fun gunzip(data: ByteArray): ByteArray = java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
     override fun randomHex(chars: Int): String {
         val bytes = ByteArray((chars + 1) / 2)
         random.nextBytes(bytes)

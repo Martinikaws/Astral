@@ -179,6 +179,10 @@ internal class DealerFrame(
     val method: String? = null,
     val headers: Map<String, String>? = null,
     val payloads: List<kotlinx.serialization.json.JsonElement>? = null,
+    /** A request frame (type "request"): the key its reply carries, what it is for, and its compressed body. */
+    val key: String? = null,
+    @kotlinx.serialization.SerialName("message_ident") val messageIdent: String? = null,
+    val payload: JsonObject? = null,
 )
 
 internal fun JsonObject.str(key: String): String? =

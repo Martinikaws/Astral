@@ -18,6 +18,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -29,6 +30,8 @@ sealed class EngineEvent {
     data class TrackLoading(val uri: String, val stateId: String) : EngineEvent()
     data class StateReported(val debugSource: String, val position: Long?) : EngineEvent()
     data class Preloaded(val uri: String) : EngineEvent()
+    /** One dealer frame as it came (secrets masked), or what became of it: for the log. */
+    data class Dealer(val line: String) : EngineEvent()
     /** The server's push for our command arrived: [postMs] the POST took, [pushMs] from the POST's start to the push. */
     data class CommandAcked(val type: String, val postMs: Long, val pushMs: Long) : EngineEvent()
     /** A server-inserted ad is current. The engine fetches and reports nothing for it (ADS.md). */
@@ -310,15 +313,37 @@ class NativeEngine(
     // ---------------------------------------------------------------- dealer input
 
     internal suspend fun handleDealerFrame(text: String) {
-        val f = EngineJson.decodeFromString(DealerFrame.serializer(), text)
+        val f = runCatching { EngineJson.decodeFromString(DealerFrame.serializer(), text) }.getOrElse {
+            emit(EngineEvent.Dealer("frame not read (${it.message?.take(80)}): ${Dealer.mask(text)}"))
+            throw it
+        }
+        emit(EngineEvent.Dealer("${f.type} ${f.uri ?: f.messageIdent ?: "-"} payloads=${Dealer.kinds(f)} ${Dealer.mask(text)}"))
+        try {
+            when (f.type) {
+                "message" -> handleDealerMessage(f)
+                "request" -> handleDealerRequest(f)
+            }
+        } catch (t: Throwable) {
+            if (t is kotlinx.coroutines.CancellationException) throw t
+            emit(EngineEvent.Dealer("handler failed for ${f.uri ?: f.messageIdent}: ${t.message}"))
+            throw t
+        }
+    }
+
+    /** The payloads as JSON, whatever their form (see [Dealer.payload]); one that is none is logged and skipped. */
+    private fun dealerPayloads(f: DealerFrame): List<JsonElement> = f.payloads.orEmpty().mapNotNull { p ->
+        runCatching { Dealer.payload(p, f.headers, env::gunzip) }
+            .onFailure { emit(EngineEvent.Dealer("payload of ${f.uri} not read: ${it.message}")) }.getOrNull()
+    }
+
+    private suspend fun handleDealerMessage(f: DealerFrame) {
         // The account's cluster changed (a device came, went, took playback, paused): kept as it is now.
-        // A payload sent compressed (a string, not an object) is skipped: the next update brings it.
-        if (f.type == "message" && f.uri?.startsWith("hm://connect-state/v1/cluster") == true) {
-            (f.payloads?.firstOrNull() as? JsonObject)?.let(Cluster::parse)?.let { _cluster.value = it }
+        if (f.uri?.startsWith("hm://connect-state/v1/cluster") == true) {
+            (dealerPayloads(f).firstOrNull() as? JsonObject)?.let(Cluster::parse)?.let { _cluster.value = it }
             return
         }
-        if (f.type != "message" || f.uri != "hm://track-playback/v1/command") return
-        for (p in f.payloads.orEmpty()) {
+        if (f.uri != "hm://track-playback/v1/command") return
+        for (p in dealerPayloads(f)) {
             val cmd = EngineJson.decodeFromJsonElement(TrackPlaybackCommand.serializer(), p.jsonObject)
             lock.withLock {
                 when (cmd.type) {
@@ -327,6 +352,18 @@ class NativeEngine(
                 }
             }
         }
+    }
+
+    /**
+     * A request frame wants an answer (the server counts a device that gives none as unresponsive): sent first, then the
+     * body is logged. The engine acts on the state machine the server pushes after such a command, not on the request.
+     */
+    private suspend fun handleDealerRequest(f: DealerFrame) {
+        val key = f.key ?: return emit(EngineEvent.Dealer("request without key: ${f.messageIdent}"))
+        val ok = Dealer.requestSuccess(f.messageIdent)
+        socket?.send(Dealer.reply(key, ok))
+        val body = runCatching { Dealer.requestBody(f, env::gunzip) }.fold({ it.toString() }, { "not read: ${it.message}" })
+        emit(EngineEvent.Dealer("request ${f.messageIdent} answered $ok: ${Dealer.mask(body)}"))
     }
 
     private suspend fun replaceState(cmd: TrackPlaybackCommand) {
@@ -435,7 +472,12 @@ class NativeEngine(
         }
         ackCommand()
         // Options or queue changed around the same track (shuffle, repeat, add to queue).
-        if (!acted) putState(cur, "modify_current_state", cur.lastPosition, cur.lastPosition)
+        if (!acted) {
+            putState(cur, "modify_current_state", cur.lastPosition, cur.lastPosition)
+            // The queue may have changed: what plays next is resolved again.
+            cur.preloaded = false
+            scope.launch { preloadNext(cur) }
+        }
     }
 
     private suspend fun setVolume(cmd: TrackPlaybackCommand) {

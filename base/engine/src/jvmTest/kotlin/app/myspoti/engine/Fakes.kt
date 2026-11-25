@@ -34,6 +34,7 @@ fun keyPaths(e: JsonElement, prefix: String = ""): Set<String> = when (e) {
 class FakeEnv(var now: Long = 1_794_268_055_580L) : Environment {
     private var counter = 0
     override fun nowMs() = now
+    override fun gunzip(data: ByteArray): ByteArray = java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
     override fun randomHex(chars: Int): String {
         counter++
         return counter.toString(16).padStart(chars, 'a').take(chars)

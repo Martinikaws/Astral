@@ -84,6 +84,8 @@ fun interface WebSockets {
 interface Environment {
     fun nowMs(): Long
     fun randomHex(chars: Int): String
+    /** Gunzips a dealer payload sent with Transfer-Encoding gzip. */
+    fun gunzip(data: ByteArray): ByteArray = throw UnsupportedOperationException("gzip")
 }
 
 /**
