@@ -1188,13 +1188,14 @@ object SongPlayer {
         play()
         // The engine's command is answered by now: the next tap need not wait for the check below.
         if (NativeAudio.on) {
-            scope.launch { runCatching { verifyPlay(itemUri, isLatest, play) }.onFailure { Log.w(TAG, "play check failed: ${it.message}") } }
+            scope.launch { runCatching { verifyPlay(itemUri, isLatest, play, underLock = false) }.onFailure { Log.w(TAG, "play check failed: ${it.message}") } }
             return
         }
-        verifyPlay(itemUri, isLatest, play)
+        verifyPlay(itemUri, isLatest, play, underLock = true)
     }
 
-    private suspend fun verifyPlay(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit) {
+    /** [underLock]: the caller holds [transportLock]; else the resend takes it (and checks [isLatest] again inside). */
+    private suspend fun verifyPlay(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit, underLock: Boolean) {
         if (api.player.state.value?.item?.uri == itemUri || (NativeAudio.on && NativeAudio.now.value?.uri == itemUri) || !isLatest()) return
         repeat(2) { attempt ->
             val moved = kotlinx.coroutines.withTimeoutOrNull(PLAY_CHECK_MS) {
@@ -1203,7 +1204,7 @@ object SongPlayer {
                 }.first { it }
             }
             if (moved != null || !isLatest()) return
-            if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); play() }
+            if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); if (underLock) play() else transportLock.withLock { if (isLatest()) play() } }
         }
     }
 
@@ -2867,7 +2868,8 @@ object SongPlayer {
 
     private suspend fun takeBackPlayback() {
         // With the engine on, its own cluster says who plays: no device list read from the page.
-        val engineOn = NativeAudio.on
+        // Not started (nothing known of the account's devices): the device list is read as before.
+        val engineOn = NativeAudio.on && NativeAudio.current.value != null
         if (engineOn) {
             val cluster = NativeAudio.current.value?.cluster?.value
             val id = remoteActiveId(NativeAudio.holdsPlayback, cluster?.activeDeviceId, NativeAudio.deviceId)

@@ -585,7 +585,11 @@ class ContextViewModel(
         playOnSpotify(p, song, sort)
     }
 
+    /** Moved by every play: one still mapping its list off the main thread when a newer tap came is dropped. */
+    private var playGen = 0
+
     private fun playOnSpotify(p: ContextPageModel, song: SongsModel, sort: TrackOrder) {
+        val gen = ++playGen
         state.updateQueue(p.tracks)
         // B26: keep the list's own name — the player header falls back to it when Spotify's
         // context label comes back blank (it then showed the album's name).
@@ -594,6 +598,7 @@ class ContextViewModel(
         viewModelScope.launch {
             if (p.type == "liked" || p.type == "liked-artist") {
                 val urls = if (p.tracks.size > BIG_LIST) withContext(Dispatchers.Default) { p.tracks.map { it.url } } else p.tracks.map { it.url }
+                if (gen != playGen) return@launch
                 SongPlayer.registerLikedSongs(urls)
             }
             // Sorted by the user: Spotify plays the list in that order, not the playlist's. An
@@ -601,6 +606,7 @@ class ContextViewModel(
             val custom = sort.isCustom && p.type != "liked-artist"
             fun sortedOrder() = sort.apply(p.tracks).let { sorted -> sorted to sorted.filter { it.spotifyTrackId.isNotBlank() }.map { "spotify:track:${it.spotifyTrackId}" } }
             val (sorted, order) = if (custom) null to null else (if (p.tracks.size > BIG_LIST) withContext(Dispatchers.Default) { sortedOrder() } else sortedOrder())
+            if (gen != playGen) return@launch
             // Myspoti's shuffle (an option): with shuffle on, every song of the list once, in an order of its own.
             if (com.music.spotui.di.AppShuffle.play(p, song, order)) {
                 state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
@@ -1500,8 +1506,16 @@ private fun TrackRow(
             // The finger going down starts the song's resolve and licence (never consumed: the tap goes on as before).
             .pointerInput(song.spotifyTrackId) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                    warmSong(song)
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    // Only a finger that rests (100 ms, within the touch slop) warms: a scroll or a quick flick does not.
+                    val rested = withTimeoutOrNull(100) {
+                        var over = false
+                        while (!over) {
+                            val c = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id }
+                            over = c == null || !c.pressed || (c.position - down.position).getDistance() > viewConfiguration.touchSlop
+                        }
+                    } == null
+                    if (rested) warmSong(song)
                 }
             }
             .clickable {

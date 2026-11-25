@@ -77,6 +77,7 @@ class FakePlayer : DrmPlayer {
         this.licence = licence
     }
     override fun preload(media: PlayableMedia, licence: LicenceChannel) { calls += "preload ${media.trackUri}"; preloaded += media; this.licence = licence }
+    override fun cancelPreload(fileId: String) { calls += "cancelPreload $fileId" }
     override fun pause() { calls += "pause" }
     override fun resume() { calls += "resume" }
     override fun seekTo(positionMs: Long) { calls += "seek $positionMs" }

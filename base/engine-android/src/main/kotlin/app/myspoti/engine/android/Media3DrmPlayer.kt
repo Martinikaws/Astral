@@ -265,6 +265,7 @@ class Media3DrmPlayer(
             // The player acquires its own reference to the same session; the preload's is released
             // into the manager's keep-alive (5 min), which the held prepare() keeps across switches.
             preloads.remove(media.fileId)?.let { s -> releaseOnPlayback(s) }
+            synchronized(preloadOrder) { preloadOrder.remove(media.fileId) }
         }
     }
 
@@ -284,10 +285,27 @@ class Media3DrmPlayer(
             withContext(appDispatcher) {
                 if (preloads.containsKey(media.fileId)) return@withContext
                 val session = withContext(Handler(exo.playbackLooper).asCoroutineDispatcher()) { drm.acquireSession(null, format) }
-                if (session != null) preloads[media.fileId] = session
+                if (session != null) {
+                    preloads.put(media.fileId, session)?.let(::releaseOnPlayback)
+                    // Never more than MAX_PRELOADS sessions held: the oldest goes (a song warmed and never played).
+                    val evict = synchronized(preloadOrder) {
+                        preloadOrder.remove(media.fileId); preloadOrder.addLast(media.fileId)
+                        buildList { while (preloadOrder.size > MAX_PRELOADS) add(preloadOrder.removeFirst()) }
+                    }
+                    evict.forEach { id -> preloads.remove(id)?.let(::releaseOnPlayback); log("preload of $id dropped: over $MAX_PRELOADS held") }
+                }
                 log("preload ${media.trackUri}: first segment in memory, licence requested")
             }
         }
+    }
+
+    private val preloadOrder = ArrayDeque<String>()
+    private val MAX_PRELOADS = 4
+
+    override fun cancelPreload(fileId: String) = onPlayer {
+        synchronized(preloadOrder) { preloadOrder.remove(fileId) }
+        preloads.remove(fileId)?.let(::releaseOnPlayback)
+        items.entries.removeAll { it.value.media.fileId == fileId && it.key != currentUri }
     }
 
     private fun releaseOnPlayback(s: DrmSession) { Handler(exo.playbackLooper).post { s.release(null) } }
@@ -318,6 +336,7 @@ class Media3DrmPlayer(
         status = null
         preloads.values.forEach(::releaseOnPlayback)
         preloads.clear()
+        synchronized(preloadOrder) { preloadOrder.clear() }
         items.clear()
     }
 
@@ -363,6 +382,7 @@ class Media3DrmPlayer(
         withContext(appDispatcher) {
             preloads.values.forEach(::releaseOnPlayback)
             preloads.clear()
+            synchronized(preloadOrder) { preloadOrder.clear() }
             if (drmHeld) Handler(exo.playbackLooper).post { drm.release() }
             exo.release()
         }

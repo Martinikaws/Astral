@@ -352,6 +352,20 @@ class SessionTest {
     }
 
     /** A rig playing state 2 from 0, 10 s in (started_playing sent, next track preloaded). */
+    @Test
+    fun warm_preloads_a_track_and_unwarm_frees_it() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        rig.engine.warm("spotify:track:R3tHj8qrkVcHgHXlFFZCOG")
+        val media = rig.player.preloaded.single()
+        rig.engine.unwarm("spotify:track:R3tHj8qrkVcHgHXlFFZCOG")
+        assertEquals("cancelPreload ${media.fileId}", rig.player.calls.last())
+        // Freed once: a second unwarm of the same track does nothing.
+        val n = rig.player.calls.size
+        rig.engine.unwarm("spotify:track:R3tHj8qrkVcHgHXlFFZCOG")
+        assertEquals(n, rig.player.calls.size)
+    }
+
     private suspend fun playing(scope: kotlinx.coroutines.test.TestScope): Rig {
         val rig = Rig(scope.backgroundScope)
         rig.start()

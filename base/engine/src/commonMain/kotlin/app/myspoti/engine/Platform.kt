@@ -109,6 +109,9 @@ interface DrmPlayer {
     /** Prepares [media] ahead of time (licence and first segment) for a fast switch; it must stay silent. */
     fun preload(media: PlayableMedia, licence: LicenceChannel)
 
+    /** Drops the preload of [fileId] (its licence session and buffers) when it is not the song playing. */
+    fun cancelPreload(fileId: String) {}
+
     fun pause()
     fun resume()
     fun seekTo(positionMs: Long)

@@ -331,30 +331,35 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
 
     /** Logged in, the engine setting on and not left aside, nothing else holding playback: another device picked, the mirror, an extension. */
     private fun wantsEngine(): Boolean =
-        on && !mirrorHolds && MyspotiRuntime.isStarted && SongPlayer.accountPlays && SongPlayer.chosenRemoteId == null &&
+        on && !mirrorHolds && MyspotiRuntime.isStarted && !MyspotiRuntime.host.loginRequired.value && SongPlayer.accountPlays && SongPlayer.chosenRemoteId == null &&
             !com.music.spotui.extensions.Extensions.hasAudioSource() && !com.music.spotui.data.DataSaver.active &&
             Graph.app.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
 
     // ── Warming: the tapped song resolved and licensed before its play ──
-    private val warming = LinkedHashMap<String, kotlinx.coroutines.Job>()
+    private class Warm(val job: kotlinx.coroutines.Job, val atMs: Long)
+    private val warming = LinkedHashMap<String, Warm>()
 
     /**
      * A press or a screen opening on [uri]: its file, CDN urls and licence are fetched now, so the play starts from memory.
-     * Nothing for episodes, local files, offline, a stopped engine or another device playing; at most [WARM_MAX] songs kept.
+     * Nothing for episodes, local files, offline, a stopped engine or another device playing; at most [WARM_MAX] songs kept
+     * (the oldest is freed in the player), and one is warmed again once [REWARM_MS] old (its CDN entry may have expired).
      */
     fun warm(uri: String) {
         val e = engine ?: return
         if (!on || mirrors || !uri.startsWith("spotify:track:") || !com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)) return
         if (com.music.spotui.data.DataSaver.active || com.music.spotui.extensions.Extensions.hasAudioSource() || SongPlayer.chosenRemoteId != null) return
         if (remoteActiveId(holdsPlayback, e.cluster.value?.activeDeviceId, e.deviceId) != null) return
+        val now = System.currentTimeMillis()
         synchronized(warming) {
-            if (warming.containsKey(uri)) return
-            while (warming.size >= WARM_MAX) warming.keys.first().let { warming.remove(it)?.cancel() }
-            warming[uri] = scope.launch { runCatching { e.warm(uri) }.onFailure { if (it !is kotlinx.coroutines.CancellationException) log("warm failed: ${it.message}") } }
+            warming[uri]?.let { if (now - it.atMs < REWARM_MS) return }
+            warming.remove(uri)?.job?.cancel()
+            while (warming.size >= WARM_MAX) warming.keys.first().let { old -> warming.remove(old)?.job?.cancel(); scope.launch { runCatching { e.unwarm(old) } } }
+            warming[uri] = Warm(scope.launch { runCatching { e.warm(uri) }.onFailure { if (it !is kotlinx.coroutines.CancellationException) log("warm failed: ${it.message}") } }, now)
         }
     }
 
-    private fun cancelWarm() = synchronized(warming) { warming.values.forEach { it.cancel() }; warming.clear() }
+    private fun cancelWarm() = synchronized(warming) { warming.values.forEach { it.job.cancel() }; warming.clear() }
+    private const val REWARM_MS = 15 * 60_000L
     private const val WARM_MAX = 3
     private const val HEALTHY_MS = 60_000L
 

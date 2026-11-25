@@ -641,8 +641,17 @@ class NativeEngine(
     suspend fun warm(uri: String) {
         val track = resolver.lookup(uri)?.takeIf { it.contentType != "AD" } ?: return
         val media = resolver.resolve(track, formatFilter, lowestQuality)
+        warmLock.withLock { warmed[uri] = media.fileId }
         player.preload(media, licences.channel())
         emit(EngineEvent.Preloaded(uri))
+    }
+
+    private val warmLock = Mutex()
+    private val warmed = HashMap<String, String>()
+
+    /** Frees what [warm] held for [uri] (its licence session and first segment). */
+    suspend fun unwarm(uri: String) {
+        warmLock.withLock { warmed.remove(uri) }?.let(player::cancelPreload)
     }
 
     /** Resolves and licenses the track `advance` (else `skip_next`) leads to, so a skip starts at once. */
