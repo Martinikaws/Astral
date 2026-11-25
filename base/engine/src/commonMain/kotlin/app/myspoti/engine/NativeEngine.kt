@@ -29,6 +29,8 @@ sealed class EngineEvent {
     data class TrackLoading(val uri: String, val stateId: String) : EngineEvent()
     data class StateReported(val debugSource: String, val position: Long?) : EngineEvent()
     data class Preloaded(val uri: String) : EngineEvent()
+    /** The server's push for our command arrived: [postMs] the POST took, [pushMs] from the POST's start to the push. */
+    data class CommandAcked(val type: String, val postMs: Long, val pushMs: Long) : EngineEvent()
     /** A server-inserted ad is current. The engine fetches and reports nothing for it (ADS.md). */
     data class AdBreak(val uri: String, val durationMs: Long) : EngineEvent()
     object ContextEnded : EngineEvent()
@@ -448,6 +450,7 @@ class NativeEngine(
     /** `jssdk_connect_command` once the server's push for our command arrived (ack duration = POST to push). */
     private suspend fun ackCommand() {
         val c = pendingCommands.removeFirstOrNull() ?: return
+        emit(EngineEvent.CommandAcked(c.type, c.latency, env.nowMs() - c.sentAt))
         val msg = Reports.connectCommand(c.type, c.id, env.nowMs() - c.sentAt, c.latency, tokens.accessToken().clientId, deviceId, c.status)
         melody(listOf(Bodies.melodyMessage("jssdk_connect_command", msg)), config.harmonyVersion)
     }
@@ -632,6 +635,14 @@ class NativeEngine(
         stateIndex = machine?.states?.indexOfFirst { it.id == nextState.id } ?: -1
         flushOnFirstPlay = true
         load(nextState, nextTrack, nextState.initialPlaybackPosition ?: 0, next.paused, "trackdone", shownPosition)
+    }
+
+    /** Resolves and licenses [uri] ahead of a tap on it (no state machine needed); its play then starts from memory. */
+    suspend fun warm(uri: String) {
+        val track = resolver.lookup(uri)?.takeIf { it.contentType != "AD" } ?: return
+        val media = resolver.resolve(track, formatFilter, lowestQuality)
+        player.preload(media, licences.channel())
+        emit(EngineEvent.Preloaded(uri))
     }
 
     /** Resolves and licenses the track `advance` (else `skip_next`) leads to, so a skip starts at once. */

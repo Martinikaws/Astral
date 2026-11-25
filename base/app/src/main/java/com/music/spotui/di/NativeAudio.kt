@@ -157,10 +157,12 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val e = runCatching { ready() }.getOrElse { setAside("it did not start (${it.message})"); throw it }
         foreground()
         commandAtMs = System.currentTimeMillis()
+        if (tapAtMs > 0) log("tap -> engine command: ${commandAtMs - tapAtMs} ms")
         val since = e.clockMs()
         // A song played alone is its own context.
         if (trackUri != null && trackUri != contextUri) e.play(contextUri, trackUri, index, order = order?.takeIf { it.isNotEmpty() }, shuffle = shuffle)
         else e.play(contextUri, shuffle = shuffle)
+        if (tapAtMs > 0) log("tap -> command POST done: ${System.currentTimeMillis() - tapAtMs} ms")
         // The seek once the song is loaded and reported here: sent before, it put the song played before back.
         if (positionMs != null && positionMs > 0 && e.awaitLoaded(trackUri ?: contextUri.takeIf { it.startsWith("spotify:track:") }, since, LOAD_WAIT_MS)) e.seekTo(positionMs)
     }
@@ -172,7 +174,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         if (app.myspoti.host.android.PlaybackService.isForeground) return
         app.myspoti.host.android.PlaybackService.ensureStarted(Graph.app)
         kotlinx.coroutines.withTimeoutOrNull(FOREGROUND_MS) {
-            while (!app.myspoti.host.android.PlaybackService.isForeground) kotlinx.coroutines.delay(15)
+            while (!app.myspoti.host.android.PlaybackService.isForeground) kotlinx.coroutines.delay(5)
         }
     }
     private const val FOREGROUND_MS = 2_000L
@@ -187,6 +189,13 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     private var player: Media3DrmPlayer? = null
     private var http: ChromiumHttp? = null
     @Volatile private var commandAtMs = 0L
+    @Volatile private var tapAtMs = 0L
+
+    /** A tap on a song: the start of the tap -> first audio line in the log (kept until it is read or 5 s old). */
+    fun tapped() {
+        val now = System.currentTimeMillis()
+        if (tapAtMs == 0L || now - tapAtMs > 5_000) tapAtMs = now
+    }
     @Volatile private var lastEvent = ""
     private val ring = ArrayDeque<String>()
 
@@ -258,6 +267,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
                 e.events.collect { ev ->
                     lastEvent = ev.toString().take(120)
                     log("event $ev")
+                    if (ev is EngineEvent.CommandAcked && tapAtMs > 0) log("tap -> state push: ${System.currentTimeMillis() - tapAtMs} ms (POST ${ev.postMs} ms, push ${ev.pushMs} ms after its start)")
                     if (ev is EngineEvent.Failure || ev is EngineEvent.Unauthorized) log("attention: $ev")
                     // The player itself failed (the licence refused, the file unreadable): the page takes over.
                     if (ev is EngineEvent.Failure && ev.message.startsWith("player:")) setAside(ev.message)
@@ -269,6 +279,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
             e.start()
             log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
             engine = e
+            startedAt = System.currentTimeMillis()
             _current.value = e
             scope.launch { e.prewarmDrm() }
             e
@@ -286,15 +297,69 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         scope.launch {
             lock.withLock {
                 if (engine !== e) return@withLock
-                log("the dealer closed: the engine leaves the account until its next use")
+                log("the dealer closed: the engine leaves the account and is started again in the background")
                 runCatching { e.close() }
                 player?.release()
                 engine = null; player = null; _current.value = null
+                cancelWarm()
+                // A short life is a flapping connection: the backoff goes on instead of starting over.
+                if (System.currentTimeMillis() - startedAt > HEALTHY_MS) restartAttempt = 0
+                scheduleRestart()
             }
         }
     }
 
+    @Volatile private var startedAt = 0L
+    private var restartJob: kotlinx.coroutines.Job? = null
+    private var restartAttempt = 0
+
+    /** Starts the engine again after a drop, [restartDelayMs] apart, for as long as the account wants it (see [wantsEngine]). */
+    private fun scheduleRestart() {
+        restartJob?.cancel()
+        restartJob = scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(restartDelayMs(restartAttempt++))
+                if (engine != null) return@launch
+                if (!wantsEngine()) return@launch log("no restart: the engine is not wanted now")
+                if (!com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)) continue
+                runCatching { started(Graph.app, forceL3 = false) }
+                    .onSuccess { return@launch }
+                    .onFailure { log("restart failed (attempt $restartAttempt): ${it.javaClass.simpleName}: ${it.message}") }
+            }
+        }
+    }
+
+    /** Logged in, the engine setting on and not left aside, nothing else holding playback: another device picked, the mirror, an extension. */
+    private fun wantsEngine(): Boolean =
+        on && !mirrorHolds && MyspotiRuntime.isStarted && SongPlayer.accountPlays && SongPlayer.chosenRemoteId == null &&
+            !com.music.spotui.extensions.Extensions.hasAudioSource() && !com.music.spotui.data.DataSaver.active &&
+            Graph.app.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
+
+    // ── Warming: the tapped song resolved and licensed before its play ──
+    private val warming = LinkedHashMap<String, kotlinx.coroutines.Job>()
+
+    /**
+     * A press or a screen opening on [uri]: its file, CDN urls and licence are fetched now, so the play starts from memory.
+     * Nothing for episodes, local files, offline, a stopped engine or another device playing; at most [WARM_MAX] songs kept.
+     */
+    fun warm(uri: String) {
+        val e = engine ?: return
+        if (!on || mirrors || !uri.startsWith("spotify:track:") || !com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)) return
+        if (com.music.spotui.data.DataSaver.active || com.music.spotui.extensions.Extensions.hasAudioSource() || SongPlayer.chosenRemoteId != null) return
+        if (remoteActiveId(holdsPlayback, e.cluster.value?.activeDeviceId, e.deviceId) != null) return
+        synchronized(warming) {
+            if (warming.containsKey(uri)) return
+            while (warming.size >= WARM_MAX) warming.keys.first().let { warming.remove(it)?.cancel() }
+            warming[uri] = scope.launch { runCatching { e.warm(uri) }.onFailure { if (it !is kotlinx.coroutines.CancellationException) log("warm failed: ${it.message}") } }
+        }
+    }
+
+    private fun cancelWarm() = synchronized(warming) { warming.values.forEach { it.cancel() }; warming.clear() }
+    private const val WARM_MAX = 3
+    private const val HEALTHY_MS = 60_000L
+
     private suspend fun stop() = lock.withLock {
+        restartJob?.cancel(); restartAttempt = 0; cancelWarm()
         engine?.let { runCatching { it.close() }.onFailure { t -> log("close failed: ${t.message}") } }
         player?.release()
         engine = null
@@ -307,8 +372,10 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     private class Observed(private val inner: DrmPlayer) : DrmPlayer by inner {
         override fun setListener(listener: (PlayerEvent) -> Unit) = inner.setListener { ev ->
             if (ev is PlayerEvent.Playing && commandAtMs > 0) {
-                log("time to first audio ${System.currentTimeMillis() - commandAtMs} ms from the command")
+                val now = System.currentTimeMillis()
+                log("time to first audio ${now - commandAtMs} ms from the command" + if (tapAtMs > 0) ", ${now - tapAtMs} ms from the tap" else "")
                 commandAtMs = 0
+                tapAtMs = 0
             }
             if (ev is PlayerEvent.Error || ev is PlayerEvent.Ended || ev is PlayerEvent.Loaded || ev is PlayerEvent.Seeked) log("player $ev")
             listener(ev)
@@ -351,3 +418,6 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         }
     }
 }
+
+/** Milliseconds between a dropped engine and its restart: 1, 2, 4, 8, 16, then 30 at most. */
+internal fun restartDelayMs(attempt: Int): Long = minOf(1_000L shl attempt.coerceIn(0, 5), 30_000L)

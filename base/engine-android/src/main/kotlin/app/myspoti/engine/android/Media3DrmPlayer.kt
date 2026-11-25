@@ -185,7 +185,7 @@ class Media3DrmPlayer(
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             // The Web Player kept 10-20 s ahead (two segments at start, then one every 10 s).
-            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 25_000, 500, 1_500).build())
+            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 25_000, 250, 1_500).build())
             .build()
         exo.addListener(Events())
     }

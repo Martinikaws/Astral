@@ -1186,6 +1186,15 @@ object SongPlayer {
      */
     private suspend fun playChecked(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit) {
         play()
+        // The engine's command is answered by now: the next tap need not wait for the check below.
+        if (NativeAudio.on) {
+            scope.launch { runCatching { verifyPlay(itemUri, isLatest, play) }.onFailure { Log.w(TAG, "play check failed: ${it.message}") } }
+            return
+        }
+        verifyPlay(itemUri, isLatest, play)
+    }
+
+    private suspend fun verifyPlay(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit) {
         if (api.player.state.value?.item?.uri == itemUri || (NativeAudio.on && NativeAudio.now.value?.uri == itemUri) || !isLatest()) return
         repeat(2) { attempt ->
             val moved = kotlinx.coroutines.withTimeoutOrNull(PLAY_CHECK_MS) {
@@ -1277,6 +1286,7 @@ object SongPlayer {
         songs: List<SongsModel>? = null, askExtensions: Boolean = true, alone: Boolean = false,
     ) {
         userActed()
+        NativeAudio.tapped()
         val episodeIdPre = song.removePrefix("episode:").takeIf { song.startsWith("episode:") }
         val preTrackId = if (episodeIdPre == null) spotifyTrackIdForPlayback(song) else null
         val isOfflineOrSaver = com.music.spotui.data.DataSaver.active || !com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app)
@@ -2856,26 +2866,31 @@ object SongPlayer {
     @Volatile private var devicesFreshUntil = 0L
 
     private suspend fun takeBackPlayback() {
-        if (NativeAudio.on) {
+        // With the engine on, its own cluster says who plays: no device list read from the page.
+        val engineOn = NativeAudio.on
+        if (engineOn) {
             val cluster = NativeAudio.current.value?.cluster?.value
-            val ownId = NativeAudio.deviceId
-            if (NativeAudio.holdsPlayback || (cluster != null && (cluster.activeDeviceId == null || cluster.activeDeviceId == ownId))) {
+            val id = remoteActiveId(NativeAudio.holdsPlayback, cluster?.activeDeviceId, NativeAudio.deviceId)
+            if (id == null) {
                 if (_activeDevice.value != null) {
                     _activeDevice.value = null
                     PlaybackService.setPlaybackDevice(false, remoteVolume)
                 }
                 return
             }
+            val d = cluster?.devices?.firstOrNull { it.id == id }
+            _activeDevice.value = ConnectDevice(id, d?.name.orEmpty(), d?.type.orEmpty(), false, true)
+        } else {
+            val now = SystemClock.elapsedRealtime()
+            if (now >= devicesFreshUntil) {
+                val started = System.currentTimeMillis()
+                val refreshed = kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
+                Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
+                if (refreshed?.isSuccess == true) devicesFreshUntil = SystemClock.elapsedRealtime() + DEVICES_FRESH_MS
+            }
+            val active = api.devices.devices.value.firstOrNull { it.active }
+            _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
         }
-        val now = SystemClock.elapsedRealtime()
-        if (now >= devicesFreshUntil) {
-            val started = System.currentTimeMillis()
-            val refreshed = kotlinx.coroutines.withTimeoutOrNull(DEVICES_WAIT_MS) { runCatching { api.devices.refresh() } }
-            Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
-            if (refreshed?.isSuccess == true) devicesFreshUntil = SystemClock.elapsedRealtime() + DEVICES_FRESH_MS
-        }
-        val active = api.devices.devices.value.firstOrNull { it.active }
-        _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
         val remote = _activeDevice.value ?: return
         if (remote.id == chosenRemote) return
         // A Jam joined here: the music plays on the host's device and the commands go to it (Connect,
@@ -2887,6 +2902,14 @@ object SongPlayer {
             return
         }
         Log.i(TAG, "playback taken by ${remote.name}: pulled back here")
+        if (engineOn) {
+            // A transfer to this device as the engine sends it: it restores the song as it stands, so no settle wait nor seek back.
+            val moved = kotlinx.coroutines.withTimeoutOrNull(PULL_BACK_WAIT_MS) { runCatching { NativeAudio.current.value?.transfer("restore") } }
+            if (moved?.isSuccess != true) Log.w(TAG, "transfer here failed: ${moved?.exceptionOrNull()?.message ?: "no answer"}")
+            _activeDevice.value = null
+            PlaybackService.setPlaybackDevice(false, remoteVolume)
+            return
+        }
         // A pull-back can land on this phone at 0:00 (reported: "sometimes on Connect the sound
         // starts over"). The position is remembered across the pull and restored only when the same
         // item really rolled back — a new play right after this call asks for its own position.
@@ -3694,3 +3717,7 @@ object SongPlayer {
             ).also { mediaCache = it }
         }
 }
+
+/** The other device the engine's cluster says plays, or null: this phone, nobody, or the engine holds playback itself. */
+internal fun remoteActiveId(holdsPlayback: Boolean, activeId: String?, ownId: String?): String? =
+    if (holdsPlayback || activeId == null || activeId == ownId) null else activeId

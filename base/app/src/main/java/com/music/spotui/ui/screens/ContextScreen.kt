@@ -17,6 +17,10 @@ import androidx.compose.ui.res.stringResource
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.async
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import com.music.spotui.ui.components.SkeletonKind
 import com.music.spotui.ui.components.animatedRow
 import com.music.spotui.ui.components.pressable
@@ -120,6 +124,9 @@ class ContextViewModel(
     private val state: CurrentSongState = Graph.currentSongState,
 ) : ViewModel() {
     companion object {
+        /** Lists longer than this have their order mapped off the main thread. */
+        private const val BIG_LIST = 300
+
         // Last pages shown, process-wide (back / forward / reopen are instant).
         private val recent = object : java.util.LinkedHashMap<String, Response<ContextPageModel>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Response<ContextPageModel>>?) = size > 12
@@ -511,6 +518,7 @@ class ContextViewModel(
     private var playedSort = TrackOrder()
 
     fun play(p: ContextPageModel, song: SongsModel, sort: TrackOrder = TrackOrder()) {
+        com.music.spotui.di.NativeAudio.tapped()
         playedSort = sort
         // A mixed playlist (Mix on, Soloist playing): its own Connect context, in the playlist's order, so Soloist mixes it.
         // AppShuffle is skipped on purpose: Spotify's Mix keeps the playlist order. Local files fall through to the checks below.
@@ -524,8 +532,9 @@ class ContextViewModel(
         // Local files of the playlist (Spotify holds their tags only): one found on this device
         // plays from there, with the other such files of the list; one not found cannot play,
         // the next song that can does.
+        // Sorted once, and only when a local file or a downloaded song needs it.
+        val sorted by lazy(LazyThreadSafetyMode.NONE) { sort.apply(p.tracks) }
         with(com.music.spotui.data.local.LocalFileMatch) {
-            val sorted = sort.apply(p.tracks)
             if (song.isUnmatchedLocal) {
                 val after = sorted.drop(sorted.indexOfFirst { it.id == song.id && it.rowUid == song.rowUid } + 1)
                 val next = (after + sorted).firstOrNull { !it.isUnmatchedLocal } ?: return
@@ -547,8 +556,9 @@ class ContextViewModel(
         val app = Graph.app
         val store = com.music.spotui.data.offline.OfflineStore
         val limited = com.music.spotui.data.DataSaver.active || !store.isOnline(app)
-        val ids = com.music.spotui.data.offline.LocalPlayPlan.localIds(
-            sort.apply(p.tracks).map { it.spotifyTrackId }, song.spotifyTrackId, p.complete,
+        // A picked song that is not downloaded never plays locally: the plan (a sort and a map of the list) is skipped.
+        val ids = if (!store.isDownloaded(song.spotifyTrackId)) null else com.music.spotui.data.offline.LocalPlayPlan.localIds(
+            sorted.map { it.spotifyTrackId }, song.spotifyTrackId, p.complete,
             offline = !store.isOnline(app), dataSaver = com.music.spotui.data.DataSaver.active, isDownloaded = store::isDownloaded,
         )
         if (ids != null) {
@@ -580,20 +590,29 @@ class ContextViewModel(
         // B26: keep the list's own name — the player header falls back to it when Spotify's
         // context label comes back blank (it then showed the album's name).
         SongPlayer.registerContextName(p.uri, p.name)
-        if (p.type == "liked" || p.type == "liked-artist") SongPlayer.registerLikedSongs(p.tracks.map { it.url })
-        // Sorted by the user: Spotify plays the list in that order, not the playlist's. An
-        // artist's liked songs are a part of Liked Songs: always given, so only they play.
-        val order = if (sort.isCustom && p.type != "liked-artist") null else sort.apply(p.tracks).filter { it.spotifyTrackId.isNotBlank() }.map { "spotify:track:${it.spotifyTrackId}" }
-        // Myspoti's shuffle (an option): with shuffle on, every song of the list once, in an order of its own.
-        if (com.music.spotui.di.AppShuffle.play(p, song, order)) {
+        // Main.immediate: runs inline until the first suspension, so a short list plays exactly as before.
+        viewModelScope.launch {
+            if (p.type == "liked" || p.type == "liked-artist") {
+                val urls = if (p.tracks.size > BIG_LIST) withContext(Dispatchers.Default) { p.tracks.map { it.url } } else p.tracks.map { it.url }
+                SongPlayer.registerLikedSongs(urls)
+            }
+            // Sorted by the user: Spotify plays the list in that order, not the playlist's. An
+            // artist's liked songs are a part of Liked Songs: always given, so only they play.
+            val custom = sort.isCustom && p.type != "liked-artist"
+            fun sortedOrder() = sort.apply(p.tracks).let { sorted -> sorted to sorted.filter { it.spotifyTrackId.isNotBlank() }.map { "spotify:track:${it.spotifyTrackId}" } }
+            val (sorted, order) = if (custom) null to null else (if (p.tracks.size > BIG_LIST) withContext(Dispatchers.Default) { sortedOrder() } else sortedOrder())
+            // Myspoti's shuffle (an option): with shuffle on, every song of the list once, in an order of its own.
+            if (com.music.spotui.di.AppShuffle.play(p, song, order)) {
+                state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+                return@launch
+            }
+            if (sorted != null) state.updateQueue(sorted)
+            // The audio-source extensions were asked already (or the phone is offline): Spotify plays.
+            SongPlayer.playSong(song.url, contextUri = p.uri, order = order, askExtensions = false)
             state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
-            return
         }
-        if (order != null) state.updateQueue(sort.apply(p.tracks))
-        // The audio-source extensions were asked already (or the phone is offline): Spotify plays.
-        SongPlayer.playSong(song.url, contextUri = p.uri, order = order, askExtensions = false)
-        state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
     }
+
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -639,6 +658,8 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
     val contextSaved by vm.contextSaved
 
     var tintTarget by remember { mutableStateOf(Palette.cachedSecond(p.coverUri) ?: tone(0xFF3A3A3A)) }
+    // The first rows are made ready as the page opens: a tap on one then starts from memory.
+    LaunchedEffect(p.uri) { p.tracks.take(2).forEach(::warmSong) }
     LaunchedEffect(p.coverUri) {
         if (p.coverUri.isNotBlank()) Palette().extractSecondColorFromCoverUrl(context, p.coverUri) { tintTarget = it }
     }
@@ -1445,6 +1466,11 @@ internal fun MembersSheet(
 /** How long a greyed track is given to start before the app says why it did not. */
 private const val UNAVAILABLE_CHECK_MS = 4_000L
 
+/** Asks the engine to make [song] ready to play (a no-op unless it is a Spotify song and the engine is on). */
+private fun warmSong(song: SongsModel) {
+    if (song.url.startsWith("spotify:track:") && song.spotifyTrackId.isNotBlank()) com.music.spotui.di.NativeAudio.warm("spotify:track:" + song.spotifyTrackId)
+}
+
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun TrackRow(
@@ -1471,6 +1497,13 @@ private fun TrackRow(
             .fillMaxWidth()
             // A song marked "Not interested" is dimmed too (lists skip it; a tap still plays it).
             .then(if (song.playable && !com.music.spotui.data.preferences.HiddenSongs.isHidden(song.spotifyTrackId)) Modifier else Modifier.alpha(0.4f))
+            // The finger going down starts the song's resolve and licence (never consumed: the tap goes on as before).
+            .pointerInput(song.spotifyTrackId) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    warmSong(song)
+                }
+            }
             .clickable {
                 onClick()
                 // Spotify's playability flag is per market and can be wrong (testers heard greyed
