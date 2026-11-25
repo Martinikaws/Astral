@@ -666,8 +666,10 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
-        lifecycleScope.launch {
-            com.soloist.android.service.SoloistRuntime.get(this@MainActivity).resumeSelected()
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            if (com.soloist.android.service.SoloistRuntime.isAvailable(applicationContext)) {
+                com.soloist.android.service.SoloistRuntime.get(applicationContext).resumeSelected()
+            }
         }
         if (!showingLogin) return
         lifecycleScope.launch {

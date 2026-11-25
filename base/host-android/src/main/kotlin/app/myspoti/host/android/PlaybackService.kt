@@ -214,7 +214,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
         // foreground after PAUSE_GRACE_MS, as after any pause.
         val info = current
         startForegroundSafely(build(info), always = true)
-        com.soloist.android.service.SoloistRuntime.serviceStarted()
+        com.soloist.android.service.SoloistRuntime.serviceStarted(applicationContext)
         MediaButtonReceiver.handleIntent(session, intent)
         if (intent?.action == ACTION_LIKE && info != null && info.id != NowPlayingInfo.AD_ID) {
             val nextLiked = !info.liked
