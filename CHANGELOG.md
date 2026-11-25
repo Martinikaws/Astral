@@ -2,6 +2,23 @@
 
 > **Two channels.** Stable releases (`v1.0.x`) install as `app.astral`. Beta releases are GitHub pre-releases (`v1.2.x-beta.N`) and install as a separate app, **Astral Beta** (`app.astral.beta`). Beta version numbers run ahead of the stable ones because the beta gets changes first; a higher beta number does not mean the stable app is outdated. The two apps can be installed side by side and do not share settings or sign-in.
 
+## v1.0.10 — Faster playback and automatic Soloist (2026-11-25)
+
+### New
+- **Soloist starts by itself.** Once paired, it resumes when Astral opens, restarts after a crash, and shows up as "Astral Soloist" on your other devices, including after a Wi-Fi change.
+- **Mix button in the Squared Look.** Playlists that Spotify has mixed get a Mix chip and a Mix play button.
+
+### Changed
+- **Songs start faster.** Tracks are prepared before you tap, and the built-in engine restarts itself after a connection drop. Tapping a song now starts audio in about half a second.
+- Opening a page only prepares songs on an unmetered network with Data Saver off.
+- The Logbook is quieter on long sessions: Soloist and engine messages are throttled, with errors always kept.
+
+### Fixed
+- Playing from the desktop Spotify app to Astral is answered correctly by the engine.
+- Squared Library chips (Songs, Podcasts), the "View profile" tap, screen-reader labels, Equalizer and Glass header spacing, About wording, and the Basic mini-player padding.
+
+---
+
 ## v1.0.8
 
 - Fix Squared artist, album, and playlist song-row contrast, and add a Squared user profile layout.
