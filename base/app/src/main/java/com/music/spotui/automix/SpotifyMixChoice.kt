@@ -39,11 +39,11 @@ object SpotifyMixChoice {
         if (next == AutoMix.on) AutoMix.clearPlaylistMix(uri) else AutoMix.setPlaylistMix(uri, next)
     }
 
-    /** The Connect device playing is Soloist: its device id when known, the name "Astral" only as a fallback while the id is unknown. */
+    /** The Connect device playing is Soloist: its device id when known, its name only as a fallback while the id is unknown. */
     fun soloistOutput(): Boolean {
         val device = SongPlayer.activeDevice.value ?: return false
         val own = runCatching { com.soloist.android.service.SoloistRuntime.get(Graph.app).playbackState.value.deviceId }.getOrDefault("")
-        return if (own.isNotBlank()) device.id == own else device.name == "Astral"
+        return if (own.isNotBlank()) device.id == own else device.name == com.soloist.android.service.SoloistController.DEVICE_NAME
     }
 
     /** Played as its own Connect context, so Soloist mixes it itself. */

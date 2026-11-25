@@ -53,6 +53,10 @@ class TestControlReceiver : BroadcastReceiver() {
                 }
             }
             "play" -> SongPlayer.playSong(intent.getStringExtra("track").orEmpty(), contextUri = intent.getStringExtra("context"))
+            // Opens Soloist as its setup dialog does: needs a saved key.
+            "soloist-start" -> app.myspoti.host.android.MyspotiRuntime.scope.launch {
+                com.soloist.android.service.SoloistRuntime.get(context).startSavedReceiver()
+            }
             "resume" -> SongPlayer.play()
             "pause" -> SongPlayer.pause()
             "next" -> SongPlayer.next()

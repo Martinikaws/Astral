@@ -234,7 +234,7 @@ class SoloistController internal constructor(private val context: Context) {
                 }
             }
             client.disconnect()
-            manager.startDaemon("Astral", 50, pairMode, client::connect)
+            manager.startDaemon(DEVICE_NAME, 50, pairMode, client::connect)
         } catch (e: Exception) {
             manager.stopDaemon()
             releaseMulticast()
@@ -263,8 +263,10 @@ class SoloistController internal constructor(private val context: Context) {
         }
     }
 
-    private companion object {
-        const val AUTO_START = "auto_start"
+    companion object {
+        /** The Connect device name: Soloist is started with it and ZeroConf announces it. */
+        const val DEVICE_NAME = "Astral Soloist"
+        private const val AUTO_START = "auto_start"
     }
 }
 

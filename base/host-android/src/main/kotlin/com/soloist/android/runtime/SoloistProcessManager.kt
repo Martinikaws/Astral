@@ -6,12 +6,14 @@ import android.util.Log
 import java.io.BufferedReader
 import java.io.Closeable
 import java.io.File
+import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -523,10 +525,20 @@ class SoloistProcessManager(
                 }
             }
 
+            val rawBytes = AtomicLong(0)
+            val lastLineAt = AtomicLong(0)
+            val counted = object : FilterInputStream(process.inputStream) {
+                override fun read(): Int = super.read().also { if (it >= 0) rawBytes.incrementAndGet() }
+                override fun read(b: ByteArray, off: Int, len: Int): Int =
+                    super.read(b, off, len).also { if (it > 0) rawBytes.addAndGet(it.toLong()) }
+            }
+            val diagJob = scope.launch { runDiagnostics(process, rawBytes, lastLineAt) }
+
             val readerJob = scope.launch {
                 try {
-                    readStreamLines(process.inputStream, shouldContinue = { isActive }) { text ->
+                    readStreamLines(counted, shouldContinue = { isActive }) { text ->
                         // Keep verbose daemon output inside the app.
+                        lastLineAt.set(System.currentTimeMillis())
                         appendLog(text)
                         app.myspoti.host.android.Logbook.log("soloist: $text")
                         WS_PORT_REGEX.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { port ->
@@ -562,6 +574,7 @@ class SoloistProcessManager(
             monitorJob = scope.launch {
                 val exitCode = runCatching { process.waitFor() }.getOrElse { -1 }
                 pollerJob.cancel()
+                diagJob.cancel()
                 runCatching { readerJob.join() }
                 zeroConf.withdraw()
 
@@ -597,6 +610,39 @@ class SoloistProcessManager(
                     }
                 }
             }
+        }
+    }
+
+    /** Every 10 s into Logbook: is Soloist alive, how much has it said, what files and sockets it holds. */
+    private suspend fun runDiagnostics(process: Process, bytes: AtomicLong, lastLineAt: AtomicLong) {
+        val pid = runCatching {
+            process.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(process)
+        }.getOrDefault(-1)
+        val t0 = System.currentTimeMillis()
+        fun diag(msg: String) = app.myspoti.host.android.Logbook.log("soloist-diag: $msg")
+        while (process.isAlive) {
+            delay(10_000L)
+            val now = System.currentTimeMillis()
+            val last = lastLineAt.get()
+            val age = if (last == 0L) "never" else "${(now - last) / 1000}s ago"
+            val files = runCatching {
+                dataDir.walkTopDown().filter { it.isFile }.take(30)
+                    .joinToString(",") { it.relativeTo(dataDir).path + ":" + it.length() }
+            }.getOrDefault("?")
+            val inodes = runCatching {
+                File("/proc/$pid/fd").listFiles()?.mapNotNull {
+                    runCatching { java.nio.file.Files.readSymbolicLink(it.toPath()).toString() }.getOrNull()
+                        ?.takeIf { l -> l.startsWith("socket:[") }?.removePrefix("socket:[")?.removeSuffix("]")
+                }?.toSet()
+            }.getOrNull()
+            fun ports(n: String, tcp: Boolean) = runCatching {
+                boundPorts(File("/proc/$pid/net/$n").readText(), tcp, inodes).toString()
+            }.getOrElse { "unreadable" }
+            diag(
+                "t=${(now - t0) / 1000}s pid=$pid alive=${process.isAlive} bytes=${bytes.get()} lastLine=$age " +
+                    "sockets=${inodes?.size ?: "?"} udp=${ports("udp", false)} udp6=${ports("udp6", false)} " +
+                    "tcpListen=${ports("tcp", true)} tcp6Listen=${ports("tcp6", true)} data=[$files]"
+            )
         }
     }
 
