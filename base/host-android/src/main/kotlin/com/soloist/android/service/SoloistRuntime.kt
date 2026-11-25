@@ -6,6 +6,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.wifi.WifiManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import app.myspoti.host.android.PlaybackService
 import com.soloist.android.runtime.CommandResult
@@ -36,7 +37,22 @@ object SoloistRuntime {
         instance ?: SoloistController(context.applicationContext).also { instance = it }
     }
 
-    internal fun serviceStarted() = instance?.launchPending()
+    private val boot = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** True when this build ships the Soloist binary (not on non-ARM64 builds). */
+    fun isAvailable(context: Context) =
+        java.io.File(context.applicationInfo.nativeLibraryDir, "libsoloist.so").isFile
+
+    /** Every service start, also a cold one with no Activity: bring a set-up Soloist up, off the main thread. */
+    internal fun serviceStarted(context: Context) {
+        instance?.launchPending()
+        if (!isAvailable(context)) return
+        boot.launch {
+            val controller = get(context)
+            controller.resumeSelected()
+            controller.launchPending()
+        }
+    }
     internal fun serviceDestroyed() = instance?.stopDaemon()
     internal val active get() = instance?.active == true
 }
@@ -61,6 +77,9 @@ class SoloistController internal constructor(private val context: Context) {
     private val pending = AtomicReference<StartRequest?>(null)
     private var multicast: WifiManager.MulticastLock? = null
     private var pairing = false
+    private var runningSince = 0L
+    private var restarted = false
+    @Volatile private var stopRequested = false
     internal val active get() = pending.get() != null ||
         daemonState.value is DaemonState.Starting || daemonState.value is DaemonState.Running
 
@@ -92,14 +111,22 @@ class SoloistController internal constructor(private val context: Context) {
         scope.launch { refresh() }
         scope.launch {
             daemonState.collect { state ->
+                if (state is DaemonState.Running) runningSince = SystemClock.elapsedRealtime()
                 if (state !is DaemonState.Error && state !is DaemonState.Stopped) return@collect
                 changes.withLock {
                     if (manager.daemonState.value != state) return@withLock
                     val finishedPairing = state is DaemonState.Stopped && pairing
+                    val ranMs = if (runningSince == 0L || pairing || stopRequested) -1L
+                        else SystemClock.elapsedRealtime() - runningSince
+                    runningSince = 0L
                     pairing = false
                     refresh()
                     if (finishedPairing && pending.get() == null && hasCredentials.value &&
                         preferences.getBoolean(AUTO_START, true)) {
+                        startLocked(pairMode = false)
+                    } else if (ranMs >= 0 && pending.get() == null && preferences.getBoolean(AUTO_START, true) &&
+                        shouldRestart(ranMs, restarted)) {
+                        restarted = true
                         startLocked(pairMode = false)
                     } else if (multicast != null || state is DaemonState.Error) {
                         client.disconnect()
@@ -134,6 +161,7 @@ class SoloistController internal constructor(private val context: Context) {
 
     suspend fun setupApiKey(apiKey: String): CommandResult = changes.withLock {
         pending.set(null)
+        stopRequested = true
         pairing = false
         manager.stopDaemon()
         client.disconnect()
@@ -143,25 +171,26 @@ class SoloistController internal constructor(private val context: Context) {
     }
 
     /** Resume the saved choice when Astral comes to the foreground. Never enter pairing here. */
-    suspend fun resumeSelected() {
-        if (active || !preferences.getBoolean(AUTO_START, true)) return
-        val ready = withContext(Dispatchers.IO) {
-            manager.hasSavedApiKey() && manager.hasStoredCredentials()
-        }
+    suspend fun resumeSelected() = withContext(Dispatchers.IO) {
         // A paired install without this setting already selected Soloist in an earlier Astral.
-        if (ready && preferences.getBoolean(AUTO_START, true)) requestStart(pairMode = false)
+        if (active || !preferences.getBoolean(AUTO_START, true)) return@withContext
+        restarted = false
+        if (manager.hasSavedApiKey() && manager.hasStoredCredentials()) requestStart(pairMode = false)
     }
 
     /** The user opened Soloist setup. Reuse a saved key and only pair if needed. */
     suspend fun startSavedReceiver() {
         if (active) return
-        val pairMode = withContext(Dispatchers.IO) {
-            if (manager.hasSavedApiKey()) !manager.hasStoredCredentials() else null
-        } ?: return
-        startDaemon(pairMode)
+        withContext(Dispatchers.IO) {
+            if (!manager.hasSavedApiKey()) return@withContext
+            // Pairing is an explicit setup action; a plain start respects a Stop pressed in setup.
+            if (!manager.hasStoredCredentials()) startDaemon(pairMode = true)
+            else if (preferences.getBoolean(AUTO_START, true)) requestStart(pairMode = false)
+        }
     }
 
     fun startDaemon(pairMode: Boolean = false) {
+        restarted = false
         preferences.edit().putBoolean(AUTO_START, true).apply()
         requestStart(pairMode)
     }
@@ -195,6 +224,7 @@ class SoloistController internal constructor(private val context: Context) {
 
     private suspend fun startLocked(pairMode: Boolean) {
         pairing = pairMode
+        stopRequested = false
         try {
             val wifi = context.getSystemService(WifiManager::class.java)
             if (multicast == null) {
@@ -223,6 +253,7 @@ class SoloistController internal constructor(private val context: Context) {
         scope.launch {
             changes.withLock {
                 pairing = false
+                stopRequested = true
                 manager.stopDaemon()
                 client.disconnect()
                 releaseMulticast()
@@ -236,3 +267,6 @@ class SoloistController internal constructor(private val context: Context) {
         const val AUTO_START = "auto_start"
     }
 }
+
+/** A daemon that stopped on its own is restarted once; one that dies again within 30 s of a restart is left idle. */
+internal fun shouldRestart(ranMs: Long, afterRestart: Boolean) = !(afterRestart && ranMs < 30_000)

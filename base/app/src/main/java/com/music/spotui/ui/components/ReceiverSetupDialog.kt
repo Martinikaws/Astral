@@ -116,9 +116,7 @@ private fun SoloistSetupDialog(
     open: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val available = remember(context) {
-        java.io.File(context.applicationInfo.nativeLibraryDir, "libsoloist.so").isFile
-    }
+    val available = remember(context) { SoloistRuntime.isAvailable(context) }
     if (!available) {
         AlertDialog(
             onDismissRequest = onDismiss,
