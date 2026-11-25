@@ -166,10 +166,11 @@ class SoloistController internal constructor(private val context: Context) {
     private fun watchNetwork() {
         if (network != null) return
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
-        var first = true
+        var seen = cm.activeNetwork
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(n: Network) {
-                if (first) { first = false; return }
+                if (n == seen) return
+                seen = n
                 Logbook.log("soloist: network changed, announcing again")
                 manager.reannounce()
             }

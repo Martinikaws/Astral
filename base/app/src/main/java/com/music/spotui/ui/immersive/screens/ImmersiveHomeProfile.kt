@@ -97,7 +97,7 @@ internal fun AvatarDisc(
                 url = url,
                 modifier = Modifier.size(size),
                 shape = CircleShape,
-                contentDescription = contentDescription,
+                contentDescription = null, // the outer box announces it once
                 border = false,
             )
         } else {

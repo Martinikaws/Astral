@@ -540,7 +540,9 @@ class SoloistProcessManager(
                         // Keep verbose daemon output inside the app.
                         lastLineAt.set(System.currentTimeMillis())
                         appendLog(text)
-                        app.myspoti.host.android.Logbook.logEvery("soloist:" + text.filterNot { it.isDigit() }.take(40), 5_000L, "soloist: $text")
+                        // Errors, warnings and the discovery/websocket lines are never dropped.
+                        if (KEEP_LINE.containsMatchIn(text)) app.myspoti.host.android.Logbook.log("soloist: $text")
+                        else app.myspoti.host.android.Logbook.logEvery("soloist:" + text.filterNot { it.isDigit() }.take(40), 5_000L, "soloist: $text")
                         WS_PORT_REGEX.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { port ->
                             notifyPortOnce(port)
                         }
@@ -1113,6 +1115,7 @@ class SoloistProcessManager(
         private const val PROBE_MAX_WAIT_MS = 4000L
 
         private val HEX_CHARS = "0123456789abcdef".toCharArray()
+        private val KEEP_LINE = Regex("ERROR|WARN|ZeroConf|websocket", RegexOption.IGNORE_CASE)
         private val WS_PORT_REGEX = Regex("""api:\s*websocket server listening on [^:]+:(\d+)""")
         private val selfTestSeq = AtomicInteger(0)
 

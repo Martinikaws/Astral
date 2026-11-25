@@ -205,7 +205,9 @@ object SongPlayer {
 
     private var lastPageState: PlayerState? = null
 
-    private fun soloistPlays(): Boolean = runCatching {
+    private val soloistShipped by lazy { com.soloist.android.service.SoloistRuntime.isAvailable(Graph.app) }
+
+    private fun soloistPlays(): Boolean = soloistShipped && runCatching {
         val st = com.soloist.android.service.SoloistRuntime.get(Graph.app).playbackState.value
         SoloistRemote.plays(_activeDevice.value?.id, st.deviceId, st.connected, st.active, st.paused)
     }.getOrDefault(false)

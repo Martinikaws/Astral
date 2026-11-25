@@ -510,7 +510,7 @@ internal fun Page(titleRes: Int?, navController: NavController, title: String? =
             Text(title ?: stringResource(titleRes!!), color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         top()
-        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding()) { content(); Spacer(Modifier.height(com.music.spotui.ui.components.bottomBarsSpace())) }
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) { content(); Spacer(Modifier.height(com.music.spotui.ui.components.bottomBarsSpace())) }
     }
 }
 
