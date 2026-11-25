@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -616,7 +617,8 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                     com.music.spotui.ui.components.SupporterBadge(Modifier.padding(start = 10.dp))
             }
             if (myId != null) Text(stringResource(R.string.view_profile), color = AppMuted, fontSize = 13.sp,
-                modifier = Modifier.clickable { onOpen(com.music.spotui.ui.navigation.profileRoute(myId, name)) }
+                modifier = Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button) { onOpen(com.music.spotui.ui.navigation.profileRoute(myId, name)) }
+                    .minimumInteractiveComponentSize()
                     .padding(start = 82.dp, bottom = 4.dp, top = 4.dp, end = 16.dp))
             androidx.compose.material3.HorizontalDivider(color = tone(0xFF3E3E3E), modifier = Modifier.padding(vertical = 8.dp))
             // Sound quality, downloads, data, battery, display: one page.

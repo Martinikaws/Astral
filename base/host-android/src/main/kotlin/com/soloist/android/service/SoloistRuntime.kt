@@ -203,7 +203,6 @@ class SoloistController internal constructor(private val context: Context) {
             Logbook.log("soloist: resume skipped: active=$active autoStart=${preferences.getBoolean(AUTO_START, true)}")
             return@withContext
         }
-        restarted = false
         val key = manager.hasSavedApiKey()
         val creds = manager.hasStoredCredentials()
         if (key && creds) requestStart(pairMode = false)

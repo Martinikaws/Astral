@@ -693,8 +693,13 @@ class NativeEngine(
 
     /** Frees what [warm] held for [uri] (its licence session and first segment). */
     suspend fun unwarm(uri: String) {
-        warmLock.withLock { warmed.remove(uri) }?.let(player::cancelPreload)
+        val file = warmLock.withLock { warmed.remove(uri) } ?: return
+        // The playing track and the one preloaded after it are not ours to free.
+        if (file == current?.media?.fileId || file == nextPreloadFile) return
+        player.cancelPreload(file)
     }
+
+    @Volatile private var nextPreloadFile: String? = null
 
     /** Resolves and licenses the track `advance` (else `skip_next`) leads to, so a skip starts at once. */
     private suspend fun preloadNext(p: Playback) {
@@ -707,6 +712,7 @@ class NativeEngine(
         val track = sm.tracks.getOrNull(next.track)?.takeIf { it.contentType != "AD" } ?: return
         runCatching {
             val media = resolver.resolve(track, formatFilter, lowestQuality)
+            nextPreloadFile = media.fileId
             player.preload(media, licences.channel())
             emit(EngineEvent.Preloaded(track.metadata.uri))
         }.onFailure { emit(EngineEvent.Failure("preload: ${it.message}")) }

@@ -366,6 +366,15 @@ class SessionTest {
         assertEquals(n, rig.player.calls.size)
     }
 
+    @Test
+    fun unwarm_keeps_the_next_track_preload() = runTest {
+        val rig = playing(this)
+        val next = rig.trackUriOf(rig.advanceOf(2))
+        rig.engine.warm(next)
+        rig.engine.unwarm(next)
+        assertTrue(rig.player.calls.none { it.startsWith("cancelPreload") })
+    }
+
     private suspend fun playing(scope: kotlinx.coroutines.test.TestScope): Rig {
         val rig = Rig(scope.backgroundScope)
         rig.start()

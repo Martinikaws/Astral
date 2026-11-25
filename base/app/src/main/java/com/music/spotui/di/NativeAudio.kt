@@ -269,7 +269,11 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
                 e.events.collect { ev ->
                     lastEvent = ev.toString().take(120)
                     if (ev !is EngineEvent.Dealer) log("event $ev")
-                    if (ev is EngineEvent.Dealer) log("dealer ${ev.line}")
+                    if (ev is EngineEvent.Dealer) {
+                        // Routine frames ("type uri payloads=…") are throttled; failures are not.
+                        if (" payloads=" in ev.line) Logbook.logEvery("native-dealer:" + ev.line.substringBefore(' '), 10_000L, "native: dealer ${ev.line}")
+                        else log("dealer ${ev.line}")
+                    }
                     if (ev is EngineEvent.CommandAcked && tapAtMs > 0) log("tap -> state push: ${System.currentTimeMillis() - tapAtMs} ms (POST ${ev.postMs} ms, push ${ev.pushMs} ms after its start)")
                     if (ev is EngineEvent.Failure || ev is EngineEvent.Unauthorized) log("attention: $ev")
                     // The player itself failed (the licence refused, the file unreadable): the page takes over.

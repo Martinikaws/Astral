@@ -541,8 +541,8 @@ class SoloistProcessManager(
                         lastLineAt.set(System.currentTimeMillis())
                         appendLog(text)
                         // Errors, warnings and the discovery/websocket lines are never dropped.
+                        // Logbook masks secrets; the rest of the daemon's chatter stays in the app's own log file.
                         if (KEEP_LINE.containsMatchIn(text)) app.myspoti.host.android.Logbook.log("soloist: $text")
-                        else app.myspoti.host.android.Logbook.logEvery("soloist:" + text.filterNot { it.isDigit() }.take(40), 5_000L, "soloist: $text")
                         WS_PORT_REGEX.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { port ->
                             notifyPortOnce(port)
                         }
@@ -618,14 +618,15 @@ class SoloistProcessManager(
     /** Announces the Connect service again (after the network changed). */
     fun reannounce() = zeroConf.refresh()
 
-    /** Every 10 s into Logbook: is Soloist alive, how much has it said, what files and sockets it holds. */
+    /** Every 10 s for 2 minutes into Logbook: is Soloist alive, how much has it said, what files and sockets it holds. */
     private suspend fun runDiagnostics(process: Process, bytes: AtomicLong, lastLineAt: AtomicLong) {
         val pid = runCatching {
             process.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(process)
         }.getOrDefault(-1)
         val t0 = System.currentTimeMillis()
         fun diag(msg: String) = app.myspoti.host.android.Logbook.log("soloist-diag: $msg")
-        while (process.isAlive) {
+        // Only the first 2 minutes after the start: that is when discovery succeeds or fails.
+        while (process.isAlive && System.currentTimeMillis() - t0 < 120_000L) {
             delay(10_000L)
             val now = System.currentTimeMillis()
             val last = lastLineAt.get()

@@ -595,7 +595,8 @@ class ContextViewModel(
         // context label comes back blank (it then showed the album's name).
         SongPlayer.registerContextName(p.uri, p.name)
         // Main.immediate: runs inline until the first suspension, so a short list plays exactly as before.
-        viewModelScope.launch {
+        // A big list is mapped off the main thread: leaving the page must not cancel the play.
+        (if (p.tracks.size > BIG_LIST) app.myspoti.host.android.MyspotiRuntime.scope else viewModelScope).launch {
             if (p.type == "liked" || p.type == "liked-artist") {
                 val urls = if (p.tracks.size > BIG_LIST) withContext(Dispatchers.Default) { p.tracks.map { it.url } } else p.tracks.map { it.url }
                 if (gen != playGen) return@launch
@@ -665,7 +666,11 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
 
     var tintTarget by remember { mutableStateOf(Palette.cachedSecond(p.coverUri) ?: tone(0xFF3A3A3A)) }
     // The first rows are made ready as the page opens: a tap on one then starts from memory.
-    LaunchedEffect(p.uri) { p.tracks.take(2).forEach(::warmSong) }
+    // Only on an unmetered network with Data Saver off; a press still warms its row.
+    LaunchedEffect(p.uri) {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        if (cm?.isActiveNetworkMetered == false && !com.music.spotui.data.DataSaver.active) p.tracks.take(2).forEach(::warmSong)
+    }
     LaunchedEffect(p.coverUri) {
         if (p.coverUri.isNotBlank()) Palette().extractSecondColorFromCoverUrl(context, p.coverUri) { tintTarget = it }
     }

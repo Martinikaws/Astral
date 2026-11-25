@@ -2732,6 +2732,7 @@ private fun SectionHeader(
 /** Square's Mix chip: its icon and label in the accent while the Mix is on. */
 @Composable
 private fun MixPill(on: Boolean, onClick: () -> Unit, backdrop: Backdrop) {
+    val state = stringResource(if (on) R.string.toggle_state_on else R.string.toggle_state_off)
     com.music.spotui.ui.immersive.squared.components.FilterChip(
         label = stringResource(R.string.squared_mix),
         selected = on,
@@ -2743,7 +2744,7 @@ private fun MixPill(on: Boolean, onClick: () -> Unit, backdrop: Backdrop) {
             .padding(end = 4.dp)
             .semantics {
                 role = androidx.compose.ui.semantics.Role.Switch
-                stateDescription = if (on) "on" else "off"
+                stateDescription = state
             },
     )
 }

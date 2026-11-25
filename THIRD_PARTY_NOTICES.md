@@ -373,6 +373,21 @@ under the GPL-3.0. Each ported file says so in its header, with "Modified for As
 
 No Square strings, icons, images or brand are included.
 
+### Square — GPL-3.0: Mix
+https://github.com/Lelonio/Square (commit `860b326`), by Lelonio.
+
+The Mix pill and Mix play button of the Squared collection screen follow Square's `PlaylistScreen` (Mix pill, Mix
+play button), with the logic ported from `native/src/catalog.rs`, `ui/MainViewModel.kt` and `playback/Mixes.kt`.
+They stay under the GPL-3.0; each ported file says so in its header, with "Modified for Astral, 2026-11" and what
+changed:
+
+- `base/api-spotify/src/main/kotlin/app/myspoti/spotify/SpotifyMix.kt`: the "is this playlist mixed" read
+  (`playlist_mix`, `mix_state_in`, `extension` in `catalog.rs`), as Kotlin over Astral's Spotify HTTP client.
+- `base/app/src/main/java/com/music/spotui/automix/SpotifyMixChoice.kt`: the per-playlist Mix choice
+  (`mixOn`, `toggleMix` in `MainViewModel.kt`, `offHere` in `Mixes.kt`), kept in AutoMix's own setting.
+- `base/app/src/main/java/com/music/spotui/ui/immersive/squared/screens/SquaredCollectionScreen.kt`: the Mix pill and
+  Mix play button, redrawn with Astral's Squared components.
+
 ## Design references: no code or assets copied
 
 Astral's Starry Night backdrop, its Glassify and LiquidMusic looks, its Spicy Lyrics-style display, its

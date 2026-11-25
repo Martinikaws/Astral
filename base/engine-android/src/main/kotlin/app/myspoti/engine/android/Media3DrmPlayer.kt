@@ -303,6 +303,7 @@ class Media3DrmPlayer(
     private val MAX_PRELOADS = 4
 
     override fun cancelPreload(fileId: String) = onPlayer {
+        if (current?.media?.fileId == fileId) return@onPlayer
         synchronized(preloadOrder) { preloadOrder.remove(fileId) }
         preloads.remove(fileId)?.let(::releaseOnPlayback)
         items.entries.removeAll { it.value.media.fileId == fileId && it.key != currentUri }
