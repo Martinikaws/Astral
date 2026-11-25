@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="soloist_playback">Spotify Soloist</string>
-  <string name="soloist_device_subtitle">Play on this phone with Spotify Connect</string>
+  <string name="soloist_device_subtitle">Play on this phone with Spotify Connect. Starts automatically once paired.</string>
   <string name="soloist_setup">Enter your personal Spotify Soloist API key to pair this phone.</string>
   <string name="square_receiver_missing">Square is unavailable on this phone.</string>
   <string name="soloist_key_sign_in">Sign in to get a Soloist key</string>

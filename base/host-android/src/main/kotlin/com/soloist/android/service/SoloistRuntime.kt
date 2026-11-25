@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 object SoloistRuntime {
     @Volatile private var instance: SoloistController? = null
@@ -41,6 +42,7 @@ object SoloistRuntime {
 }
 
 class SoloistController internal constructor(private val context: Context) {
+    private val preferences = context.getSharedPreferences("astral_soloist", Context.MODE_PRIVATE)
     private val manager = SoloistProcessManager(context)
     val client = SoloistWsClient()
     val playbackState = client.state
@@ -55,8 +57,10 @@ class SoloistController internal constructor(private val context: Context) {
     val hasCredentials = credentials.asStateFlow()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val changes = Mutex()
-    private val pending = AtomicReference<Boolean?>(null)
+    private class StartRequest(val pairMode: Boolean)
+    private val pending = AtomicReference<StartRequest?>(null)
     private var multicast: WifiManager.MulticastLock? = null
+    private var pairing = false
     internal val active get() = pending.get() != null ||
         daemonState.value is DaemonState.Starting || daemonState.value is DaemonState.Running
 
@@ -87,14 +91,20 @@ class SoloistController internal constructor(private val context: Context) {
         }
         scope.launch { refresh() }
         scope.launch {
-            daemonState.collectLatest {
-                if (it is DaemonState.Error || it is DaemonState.Stopped) {
-                    changes.withLock {
-                        if (manager.daemonState.value == it && (multicast != null || it is DaemonState.Error)) {
-                            client.disconnect()
-                            releaseMulticast()
-                            PlaybackService.soloistIdle()
-                        }
+            daemonState.collect { state ->
+                if (state !is DaemonState.Error && state !is DaemonState.Stopped) return@collect
+                changes.withLock {
+                    if (manager.daemonState.value != state) return@withLock
+                    val finishedPairing = state is DaemonState.Stopped && pairing
+                    pairing = false
+                    refresh()
+                    if (finishedPairing && pending.get() == null && hasCredentials.value &&
+                        preferences.getBoolean(AUTO_START, true)) {
+                        startLocked(pairMode = false)
+                    } else if (multicast != null || state is DaemonState.Error) {
+                        client.disconnect()
+                        releaseMulticast()
+                        PlaybackService.soloistIdle()
                     }
                 }
             }
@@ -124,6 +134,7 @@ class SoloistController internal constructor(private val context: Context) {
 
     suspend fun setupApiKey(apiKey: String): CommandResult = changes.withLock {
         pending.set(null)
+        pairing = false
         manager.stopDaemon()
         client.disconnect()
         releaseMulticast()
@@ -131,13 +142,37 @@ class SoloistController internal constructor(private val context: Context) {
         manager.setupApiKey(apiKey).also { refresh() }
     }
 
+    /** Resume the saved choice when Astral comes to the foreground. Never enter pairing here. */
+    suspend fun resumeSelected() {
+        if (active || !preferences.getBoolean(AUTO_START, true)) return
+        val ready = withContext(Dispatchers.IO) {
+            manager.hasSavedApiKey() && manager.hasStoredCredentials()
+        }
+        // A paired install without this setting already selected Soloist in an earlier Astral.
+        if (ready && preferences.getBoolean(AUTO_START, true)) requestStart(pairMode = false)
+    }
+
+    /** The user opened Soloist setup. Reuse a saved key and only pair if needed. */
+    suspend fun startSavedReceiver() {
+        if (active) return
+        val pairMode = withContext(Dispatchers.IO) {
+            if (manager.hasSavedApiKey()) !manager.hasStoredCredentials() else null
+        } ?: return
+        startDaemon(pairMode)
+    }
+
     fun startDaemon(pairMode: Boolean = false) {
-        pending.set(pairMode)
+        preferences.edit().putBoolean(AUTO_START, true).apply()
+        requestStart(pairMode)
+    }
+
+    private fun requestStart(pairMode: Boolean) {
+        val request = StartRequest(pairMode)
+        if (active || !pending.compareAndSet(null, request)) return
         try {
             ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
         } catch (e: RuntimeException) {
-            pending.set(null)
-            manager.reportStartFailure(e)
+            if (pending.compareAndSet(request, null)) manager.reportStartFailure(e)
         }
     }
 
@@ -145,31 +180,49 @@ class SoloistController internal constructor(private val context: Context) {
         if (pending.get() == null) return
         scope.launch {
             changes.withLock {
-                val pair = pending.getAndSet(null) ?: return@withLock
+                val request = pending.get() ?: return@withLock
                 try {
-                    val wifi = context.getSystemService(WifiManager::class.java)
-                    if (multicast == null) {
-                        multicast = wifi?.createMulticastLock("Astral:Soloist")?.apply {
-                            setReferenceCounted(false)
-                            acquire()
-                        }
+                    val state = daemonState.value
+                    if (state !is DaemonState.Starting && state !is DaemonState.Running) {
+                        startLocked(request.pairMode)
                     }
-                    client.disconnect()
-                    manager.startDaemon("Astral", 50, pair, client::connect)
-                } catch (e: Exception) {
-                    manager.stopDaemon()
-                    releaseMulticast()
-                    manager.reportStartFailure(e)
+                } finally {
+                    pending.compareAndSet(request, null)
                 }
-                refresh()
             }
         }
     }
 
-    fun stopDaemon() {
+    private suspend fun startLocked(pairMode: Boolean) {
+        pairing = pairMode
+        try {
+            val wifi = context.getSystemService(WifiManager::class.java)
+            if (multicast == null) {
+                multicast = wifi?.createMulticastLock("Astral:Soloist")?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+            }
+            client.disconnect()
+            manager.startDaemon("Astral", 50, pairMode, client::connect)
+        } catch (e: Exception) {
+            manager.stopDaemon()
+            releaseMulticast()
+            manager.reportStartFailure(e)
+        }
+        refresh()
+    }
+
+    fun stopFromSetup() {
+        preferences.edit().putBoolean(AUTO_START, false).apply()
+        stopDaemon()
+    }
+
+    internal fun stopDaemon() {
         pending.set(null)
         scope.launch {
             changes.withLock {
+                pairing = false
                 manager.stopDaemon()
                 client.disconnect()
                 releaseMulticast()
@@ -177,5 +230,9 @@ class SoloistController internal constructor(private val context: Context) {
                 refresh()
             }
         }
+    }
+
+    private companion object {
+        const val AUTO_START = "auto_start"
     }
 }

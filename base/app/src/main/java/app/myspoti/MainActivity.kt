@@ -666,6 +666,9 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
+        lifecycleScope.launch {
+            com.soloist.android.service.SoloistRuntime.get(this@MainActivity).resumeSelected()
+        }
         if (!showingLogin) return
         lifecycleScope.launch {
             if (MyspotiRuntime.awaitSignedIn(1_500)) {

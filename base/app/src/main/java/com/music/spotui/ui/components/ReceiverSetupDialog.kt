@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
@@ -128,6 +129,7 @@ private fun SoloistSetupDialog(
         return
     }
     val controller = remember(context) { SoloistRuntime.get(context) }
+    LaunchedEffect(controller) { controller.startSavedReceiver() }
     val state by controller.daemonState.collectAsState()
     val hasKey by controller.hasApiKey.collectAsState()
     val paired by controller.hasCredentials.collectAsState()
@@ -185,7 +187,7 @@ private fun SoloistSetupDialog(
                         }
                     }
                     if (state is DaemonState.Running) {
-                        TextButton(onClick = { controller.stopDaemon() }) {
+                        TextButton(onClick = controller::stopFromSetup) {
                             Text(stringResource(R.string.soloist_stop))
                         }
                     }
