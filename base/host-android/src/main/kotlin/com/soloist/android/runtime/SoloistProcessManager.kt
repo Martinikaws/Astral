@@ -132,6 +132,8 @@ class SoloistProcessManager(
     private var monitorJob: Job? = null
     private val stopRequested = AtomicBoolean(false)
 
+    private val zeroConf = ZeroConf(NsdServiceRegistrar(appContext))
+
     init {
         ensureRuntimeFiles()
     }
@@ -457,6 +459,7 @@ class SoloistProcessManager(
 
             ensureRuntimeFiles()
             stopRequested.set(false)
+            zeroConf.withdraw()
             _daemonState.value = DaemonState.Starting(pairMode)
 
             val process = try {
@@ -525,9 +528,11 @@ class SoloistProcessManager(
                     readStreamLines(process.inputStream, shouldContinue = { isActive }) { text ->
                         // Keep verbose daemon output inside the app.
                         appendLog(text)
+                        app.myspoti.host.android.Logbook.log("soloist: $text")
                         WS_PORT_REGEX.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { port ->
                             notifyPortOnce(port)
                         }
+                        parseZeroConfLine(text)?.let { zeroConf.announce(deviceName, it.port, it.cpath) }
                     }
                 } catch (e: Exception) {
                     if (isActive && !stopRequested.get()) {
@@ -558,6 +563,7 @@ class SoloistProcessManager(
                 val exitCode = runCatching { process.waitFor() }.getOrElse { -1 }
                 pollerJob.cancel()
                 runCatching { readerJob.join() }
+                zeroConf.withdraw()
 
                 val wasRequestedStop = stopRequested.get()
                 val stillCurrentProcess = daemonProcess === process
@@ -605,6 +611,7 @@ class SoloistProcessManager(
 
     private suspend fun stopDaemonLocked() {
         stopRequested.set(true)
+        zeroConf.withdraw()
 
         val proc = daemonProcess
         daemonProcess = null
@@ -1013,6 +1020,7 @@ class SoloistProcessManager(
      */
     override fun close() {
         stopRequested.set(true)
+        zeroConf.withdraw()
         portPollJob?.cancel()
         logJob?.cancel()
         monitorJob?.cancel()
